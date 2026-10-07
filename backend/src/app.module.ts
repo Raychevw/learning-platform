@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
+import { StudentEntity } from './infrastructure/database/entities/StudentEntity.js';
+import { AssignmentEntity } from './infrastructure/database/entities/AssignmentEntity.js';
 import { PresentationModule } from './presentation/presentation.module.js';
 
 @Module({
@@ -20,7 +22,7 @@ import { PresentationModule } from './presentation/presentation.module.js';
         database: configService.get<string>('DB_NAME', 'learning_platform'),
         autoLoadEntities: true,
         synchronize: true, // Внимание: тільки для розробки
-        entities: [CourseEntity],
+        entities: [CourseEntity, StudentEntity, AssignmentEntity],
       }),
       inject: [ConfigService],
     }),
