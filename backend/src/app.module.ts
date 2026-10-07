@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
+import { PresentationModule } from './presentation/presentation.module.js';
 
 @Module({
   imports: [
@@ -20,11 +20,11 @@ import { AppService } from './app.service.js';
         database: configService.get<string>('DB_NAME', 'learning_platform'),
         autoLoadEntities: true,
         synchronize: true, // Внимание: тільки для розробки
+        entities: [CourseEntity],
       }),
       inject: [ConfigService],
     }),
+    PresentationModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
