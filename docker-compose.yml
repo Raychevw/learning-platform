@@ -1,25 +1,105 @@
 version: '3.8'
 
 services:
-  postgres:
+  # Isolated database for Course Service
+  course-db:
     image: postgres:15
-    container_name: learning_platform_db
+    container_name: course_db
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: learning_platform
+      POSTGRES_DB: course_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - course_db_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  # Isolated database for Assignment Service
+  assignment-db:
+    image: postgres:15
+    container_name: assignment_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: assignment_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - assignment_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Redis message broker for asynchronous events (course.published)
   redis:
     image: redis:7
-    container_name: learning_platform_redis
+    container_name: redis_broker
     ports:
       - "6379:6379"
     restart: unless-stopped
 
+  # Course Service microservice (port 3001)
+  course-service:
+    build:
+      context: ./services/course-service
+      dockerfile: Dockerfile
+    container_name: course_service
+    environment:
+      PORT: 3001
+      DB_HOST: course-db
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_NAME: course_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "3001:3001"
+    depends_on:
+      - course-db
+      - redis
+    restart: unless-stopped
+
+  # Assignment Service microservice (port 3002)
+  assignment-service:
+    build:
+      context: ./services/assignment-service
+      dockerfile: Dockerfile
+    container_name: assignment_service
+    environment:
+      PORT: 3002
+      DB_HOST: assignment-db
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_NAME: assignment_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      COURSE_SERVICE_URL: http://course-service:3001
+    ports:
+      - "3002:3002"
+    depends_on:
+      - assignment-db
+      - redis
+      - course-service
+    restart: unless-stopped
+
+  # API Gateway reverse proxy (port 3000)
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    environment:
+      PORT: 3000
+      COURSE_SERVICE_URL: http://course-service:3001
+      ASSIGNMENT_SERVICE_URL: http://assignment-service:3002
+    ports:
+      - "3000:3000"
+    depends_on:
+      - course-service
+      - assignment-service
+    restart: unless-stopped
+
 volumes:
-  pgdata:
+  course_db_data:
+  assignment_db_data:

@@ -1,0 +1,47 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
+import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
+import { COURSE_REPOSITORY_TOKEN } from './domain/course/CourseRepository.interface.js';
+import { EVENT_PUBLISHER_TOKEN } from './application/course/EventPublisher.interface.js';
+import { RedisEventPublisher } from './infrastructure/events/RedisEventPublisher.js';
+import { CreateCourseUseCase } from './application/course/CreateCourseUseCase.js';
+import { PublishCourseUseCase } from './application/course/PublishCourseUseCase.js';
+import { GetCourseUseCase, ListCoursesUseCase } from './application/course/GetCourseUseCase.js';
+import { CourseController } from './presentation/controllers/CourseController.js';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get<string>('DB_HOST', 'localhost'),
+        port: configService.get<number>('DB_PORT', 5433),
+        username: configService.get<string>('DB_USER', 'admin'),
+        password: configService.get<string>('DB_PASSWORD', 'password'),
+        database: configService.get<string>('DB_NAME', 'course_db'),
+        entities: [CourseEntity],
+        synchronize: true, // Only for lab development
+        retryAttempts: 2,
+        retryDelay: 1000,
+      }),
+      inject: [ConfigService],
+    }),
+    TypeOrmModule.forFeature([CourseEntity]),
+  ],
+  controllers: [CourseController],
+  providers: [
+    { provide: COURSE_REPOSITORY_TOKEN, useClass: CourseRepositoryImpl },
+    { provide: EVENT_PUBLISHER_TOKEN, useClass: RedisEventPublisher },
+    CreateCourseUseCase,
+    PublishCourseUseCase,
+    GetCourseUseCase,
+    ListCoursesUseCase,
+  ],
+})
+export class CourseModule {}

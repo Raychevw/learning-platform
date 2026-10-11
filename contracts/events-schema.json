@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoursePublishedEvent",
+  "description": "Event emitted asynchronously via Redis channel 'course.published' when a course is published by instructor",
+  "type": "object",
+  "required": ["eventId", "eventType", "version", "timestamp", "data"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for idempotent message deduplication"
+    },
+    "eventType": {
+      "type": "string",
+      "const": "course.published"
+    },
+    "version": {
+      "type": "string",
+      "example": "1.0"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "type": "object",
+      "required": ["courseId", "title", "publishedAt"],
+      "properties": {
+        "courseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

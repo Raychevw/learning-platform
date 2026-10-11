@@ -1,0 +1,237 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Course Service API",
+    "description": "Course Bounded Context contract for course catalog and syllabus management. Guarantees: SLA < 500ms response time; idempotent publish operation.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Direct Course Service instance"
+    },
+    {
+      "url": "http://localhost:3000/api",
+      "description": "API Gateway routed endpoint"
+    }
+  ],
+  "paths": {
+    "/courses": {
+      "post": {
+        "summary": "Create a new course",
+        "description": "Creates a course draft. Guarantees: non-idempotent creation with new UUID generation.",
+        "operationId": "createCourse",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCourseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Course successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure: Course title cannot be empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List all courses",
+        "description": "Retrieves all courses currently in catalog. Guarantees: idempotent read operation.",
+        "operationId": "listCourses",
+        "responses": {
+          "200": {
+            "description": "List of courses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CourseResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}": {
+      "get": {
+        "summary": "Get course by ID",
+        "description": "Used synchronously by Assignment Service for verification. SLA timeout constraint: 2000ms. Guarantees: idempotent read.",
+        "operationId": "getCourseById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Course found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Course not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/publish": {
+      "post": {
+        "summary": "Publish course",
+        "description": "Transitions course status from draft to published and emits course.published event to Redis. Guarantees: fully idempotent operation (calling multiple times returns existing published state).",
+        "operationId": "publishCourse",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Course published and event emitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishCourseResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot publish course without a description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Course with specified ID not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateCourseDto": {
+        "type": "object",
+        "required": ["title", "description"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Microservice Architecture and DDD"
+          },
+          "description": {
+            "type": "string",
+            "example": "In-depth course on decomposing monoliths into services"
+          }
+        }
+      },
+      "CourseResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isPublished": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PublishCourseResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "isPublished": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,11 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "services/*",
+    "backend"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:course": "npm --prefix services/course-service start",
+    "start:assignment": "npm --prefix services/assignment-service start",
+    "start:gateway": "npm --prefix services/api-gateway start",
+    "test:services": "vitest run services/"
   },
   "dependencies": {
     "react": "^19.2.8",
