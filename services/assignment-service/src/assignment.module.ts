@@ -13,6 +13,7 @@ import { RegisterStudentUseCase, GetStudentUseCase } from './application/student
 import { CreateAssignmentUseCase, GetAssignmentUseCase, ListAssignmentsUseCase } from './application/assignment/CreateAssignmentUseCase.js';
 import { StudentController } from './presentation/controllers/StudentController.js';
 import { AssignmentController } from './presentation/controllers/AssignmentController.js';
+import { GradeAssignmentUseCase } from './application/assignment/GradeAssignmentUseCase.js';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AssignmentController } from './presentation/controllers/AssignmentContr
     CreateAssignmentUseCase,
     GetAssignmentUseCase,
     ListAssignmentsUseCase,
+    GradeAssignmentUseCase,
   ],
 })
 export class AssignmentModule {}
