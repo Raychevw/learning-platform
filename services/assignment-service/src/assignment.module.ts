@@ -8,6 +8,8 @@ import { AssignmentRepositoryImpl } from './infrastructure/database/repositories
 import { STUDENT_REPOSITORY_TOKEN } from './domain/student/StudentRepository.interface.js';
 import { ASSIGNMENT_REPOSITORY_TOKEN } from './domain/assignment/AssignmentRepository.interface.js';
 import { COURSE_SERVICE_CLIENT_TOKEN, CourseServiceClient } from './infrastructure/clients/CourseServiceClient.js';
+import { LoggingCourseServiceDecorator } from './infrastructure/clients/decorators/LoggingCourseServiceDecorator.js';
+import { CachingCourseServiceDecorator } from './infrastructure/clients/decorators/CachingCourseServiceDecorator.js';
 import { RedisEventConsumer } from './infrastructure/events/RedisEventConsumer.js';
 import { RegisterStudentUseCase, GetStudentUseCase } from './application/student/RegisterStudentUseCase.js';
 import { CreateAssignmentUseCase, GetAssignmentUseCase, ListAssignmentsUseCase } from './application/assignment/CreateAssignmentUseCase.js';
@@ -42,7 +44,15 @@ import { GradeAssignmentUseCase } from './application/assignment/GradeAssignment
   providers: [
     { provide: STUDENT_REPOSITORY_TOKEN, useClass: StudentRepositoryImpl },
     { provide: ASSIGNMENT_REPOSITORY_TOKEN, useClass: AssignmentRepositoryImpl },
-    { provide: COURSE_SERVICE_CLIENT_TOKEN, useClass: CourseServiceClient },
+    {
+      provide: COURSE_SERVICE_CLIENT_TOKEN,
+      useFactory: (configService: ConfigService) => {
+        const baseClient = new CourseServiceClient(configService);
+        const cachedClient = new CachingCourseServiceDecorator(baseClient);
+        return new LoggingCourseServiceDecorator(cachedClient);
+      },
+      inject: [ConfigService],
+    },
     RedisEventConsumer,
     RegisterStudentUseCase,
     GetStudentUseCase,
