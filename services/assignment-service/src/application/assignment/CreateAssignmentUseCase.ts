@@ -1,5 +1,6 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { Assignment } from '../../domain/assignment/Assignment.js';
+import { AssignmentBuilder } from '../../domain/assignment/AssignmentBuilder.js';
 import { ASSIGNMENT_REPOSITORY_TOKEN } from '../../domain/assignment/AssignmentRepository.interface.js';
 import type { IAssignmentRepository } from '../../domain/assignment/AssignmentRepository.interface.js';
 import { COURSE_SERVICE_CLIENT_TOKEN } from '../../infrastructure/clients/CourseServiceClient.js';
@@ -30,15 +31,14 @@ export class CreateAssignmentUseCase {
     const courseInfo = await this.courseServiceClient.getCourse(command.courseId);
 
     try {
-      const assignment = Assignment.create(
-        id,
-        command.courseId,
-        courseInfo.title,
-        command.title,
-        command.maxScore,
-        dueDateObj,
-        courseInfo.isVerified,
-      );
+      const assignment = new AssignmentBuilder()
+        .withId(id)
+        .forCourse(command.courseId, courseInfo.title)
+        .withTitle(command.title)
+        .withMaxScore(command.maxScore)
+        .withDueDate(dueDateObj)
+        .setVerification(courseInfo.isVerified)
+        .build();
 
       await this.assignmentRepository.save(assignment);
 
