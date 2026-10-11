@@ -2,12 +2,13 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { IEventPublisher } from '../../application/course/EventPublisher.interface.js';
+import { IMessageBroker } from './adapters/MessageBroker.interface.js';
+import { RedisBrokerAdapter } from './adapters/RedisBrokerAdapter.js';
 
 @Injectable()
 export class RedisEventPublisher implements IEventPublisher, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisEventPublisher.name);
-  private redisClient: Redis | null = null;
-  private isConnected = false;
+  private broker: IMessageBroker | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -16,34 +17,27 @@ export class RedisEventPublisher implements IEventPublisher, OnModuleInit, OnMod
     const port = this.configService.get<number>('REDIS_PORT', 6379);
 
     try {
-      this.redisClient = new Redis({
+      const redisClient = new Redis({
         host,
         port,
         lazyConnect: true,
         retryStrategy: (times) => {
           if (times > 3) {
-            this.logger.warn(`Redis unavailable at ${host}:${port}. Event publishing will be buffered/skipped.`);
-            return null; // Stop retrying after 3 attempts
+            this.logger.warn(`Redis unavailable at ${host}:${port}. Event publishing will fallback locally.`);
+            return null;
           }
           return 1000;
         },
       });
 
-      this.redisClient.on('connect', () => {
-        this.isConnected = true;
-        this.logger.log(`Connected to Redis message broker at ${host}:${port}`);
-      });
+      // Wrap Adaptee (Redis) with Adapter (RedisBrokerAdapter)
+      this.broker = new RedisBrokerAdapter(redisClient);
 
-      this.redisClient.on('error', (err) => {
-        this.isConnected = false;
-        this.logger.warn(`Redis connection error: ${err.message}`);
-      });
-
-      this.redisClient.connect().catch((err) => {
-        this.logger.warn(`Initial Redis connection failed: ${err.message}. Running in fallback event mode.`);
+      redisClient.connect().catch((err) => {
+        this.logger.warn(`Initial Redis connection failed: ${err.message}. Running in local fallback event mode.`);
       });
     } catch (err) {
-      this.logger.warn(`Could not initialize Redis client: ${(err as Error).message}`);
+      this.logger.warn(`Could not initialize broker adapter: ${(err as Error).message}`);
     }
   }
 
@@ -51,24 +45,20 @@ export class RedisEventPublisher implements IEventPublisher, OnModuleInit, OnMod
     const payload = typeof message === 'string' ? message : JSON.stringify(message);
     this.logger.log(`[EVENT PUBLISHED] Channel: '${channel}', Payload: ${payload}`);
 
-    if (this.redisClient && this.isConnected) {
+    if (this.broker && this.broker.isConnected()) {
       try {
-        await this.redisClient.publish(channel, payload);
+        await this.broker.publish(channel, payload);
       } catch (err) {
-        this.logger.warn(`Error publishing event to Redis: ${(err as Error).message}`);
+        this.logger.warn(`Error publishing event via broker adapter: ${(err as Error).message}`);
       }
     } else {
-      this.logger.warn(`Redis broker not connected. Event was logged locally (fallback).`);
+      this.logger.warn(`Broker not connected. Event was logged locally (fallback).`);
     }
   }
 
   async onModuleDestroy() {
-    if (this.redisClient) {
-      try {
-        await this.redisClient.quit();
-      } catch {
-        // ignore on shutdown
-      }
+    if (this.broker) {
+      await this.broker.disconnect();
     }
   }
 }
