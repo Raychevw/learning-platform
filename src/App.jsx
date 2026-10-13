@@ -20,9 +20,7 @@ export default function App() {
     dueDate: '2026-12-31T23:59',
   });
   const [grading, setGrading] = useState({
-    assignmentId: '',
-    studentId: '',
-    rawScore: 95,
+    rawScore: 90,
     strategyName: 'STANDARD',
   });
   const [gradingResult, setGradingResult] = useState(null);
@@ -32,8 +30,8 @@ export default function App() {
     loadAllData();
   }, []);
 
-  const showNotification = (msg, isError = false) => {
-    setNotification({ text: msg, isError });
+  const showNotification = (text, isError = false) => {
+    setNotification({ text, isError });
     setTimeout(() => setNotification(null), 6000);
   };
 
@@ -58,7 +56,6 @@ export default function App() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Fetch Courses
       const cRes = await fetch('/api/courses').catch(() => null);
       if (cRes && cRes.ok) {
         const cData = await cRes.json();
@@ -68,17 +65,13 @@ export default function App() {
         }
       }
 
-      // Fetch Assignments
       const aRes = await fetch('/api/assignments').catch(() => null);
       if (aRes && aRes.ok) {
         const aData = await aRes.json();
         setAssignments(aData);
-        if (aData.length > 0 && !grading.assignmentId) {
-          setGrading((prev) => ({ ...prev, assignmentId: aData[0].id }));
-        }
       }
     } catch (err) {
-      console.warn('Error loading dashboard data:', err);
+      console.warn('Помилка завантаження даних:', err);
     } finally {
       setLoading(false);
     }
@@ -97,15 +90,15 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        showNotification(`✅ Курс "${data.title}" успішно створено!`);
+        showNotification(`Курс "${data.title}" успішно зареєстровано в системі.`);
         setNewCourse({ title: '', description: '' });
         loadAllData();
       } else {
         const err = await res.json();
-        showNotification(`❌ Помилка: ${err.message}`, true);
+        showNotification(`Помилка: ${err.message}`, true);
       }
     } catch (err) {
-      showNotification(`❌ Помилка запиту до API Gateway: ${err.message}`, true);
+      showNotification(`Помилка з'єднання: ${err.message}`, true);
     }
   };
 
@@ -113,14 +106,14 @@ export default function App() {
     try {
       const res = await fetch(`/api/courses/${courseId}/publish`, { method: 'POST' });
       if (res.ok) {
-        showNotification(`🚀 Курс опубліковано! Подія course.published надіслана в Redis. Assignment Service фоново створює Welcome Quiz.`);
+        showNotification(`Курс опубліковано. Подію course.published передано брокеру Redis.`);
         loadAllData();
       } else {
         const err = await res.json();
-        showNotification(`❌ Помилка публікації: ${err.message}`, true);
+        showNotification(`Помилка публікації: ${err.message}`, true);
       }
     } catch (err) {
-      showNotification(`❌ Помилка мережі: ${err.message}`, true);
+      showNotification(`Помилка мережі: ${err.message}`, true);
     }
   };
 
@@ -137,15 +130,15 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        showNotification(`🎓 Студента "${data.name}" успішно зареєстровано!`);
+        showNotification(`Студента "${data.name}" зареєстровано.`);
         setStudents((prev) => [...prev, data]);
         setNewStudent({ name: '', email: '' });
       } else {
         const err = await res.json();
-        showNotification(`❌ Помилка: ${err.message}`, true);
+        showNotification(`Помилка: ${err.message}`, true);
       }
     } catch (err) {
-      showNotification(`❌ Помилка реєстрації: ${err.message}`, true);
+      showNotification(`Помилка реєстрації: ${err.message}`, true);
     }
   };
 
@@ -170,17 +163,17 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         const notice = data.fallbackNotice
-          ? `⚠️ Завдання створено з Fallback деградацією (${data.fallbackNotice})`
-          : `✅ Завдання створено (Builder pattern) та верифіковано через Course Service!`;
+          ? `Завдання створено в автономному режимі (Fallback: ${data.fallbackNotice})`
+          : `Завдання створено через AssignmentBuilder та верифіковано Course Service.`;
         showNotification(notice, Boolean(data.fallbackNotice));
         setNewAssignment((prev) => ({ ...prev, title: '' }));
         loadAllData();
       } else {
         const err = await res.json();
-        showNotification(`❌ Помилка: ${err.message}`, true);
+        showNotification(`Помилка: ${err.message}`, true);
       }
     } catch (err) {
-      showNotification(`❌ Помилка мережі: ${err.message}`, true);
+      showNotification(`Помилка мережі: ${err.message}`, true);
     }
   };
 
@@ -188,374 +181,476 @@ export default function App() {
     e.preventDefault();
     const raw = Number(grading.rawScore);
     let final = raw;
-    let explanation = '';
+    let description = '';
 
     if (grading.strategyName === 'STANDARD') {
       final = Math.min(raw, 100);
-      explanation = 'Стандартна стратегія: оцінка нараховується без модифікаторів.';
+      description = 'Стандартна схема: бали нараховано без модифікацій.';
     } else if (grading.strategyName === 'LATE_PENALTY') {
       final = Math.round(raw * 0.8 * 100) / 100;
-      explanation = 'Стратегія штрафу (LatePenalty): застосовано -20% за прострочений дедлайн.';
+      description = 'Схема LatePenalty: застосовано штрафний коефіцієнт 0.8 (-20%) за порушення терміну.';
     } else if (grading.strategyName === 'EXCELLENCE_BONUS') {
-      const bonus = raw >= 90 ? Math.min(100, raw + 5) : raw;
-      final = bonus;
-      explanation = 'Бонусна стратегія (ExcellenceBonus): додано +5% за високий результат вчасно.';
+      final = raw >= 90 ? Math.min(100, raw + 5) : raw;
+      description = 'Схема ExcellenceBonus: нараховано заохочувальний бонус +5 балів за вчасне виконання.';
     }
 
     setGradingResult({
       strategy: grading.strategyName,
       rawScore: raw,
       finalScore: final,
-      explanation,
+      description,
     });
   };
 
   return (
-    <div className="dashboard-container">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="title-group">
-          <h1>Learning Platform | Distributed Architecture</h1>
-          <p>Мікросервісна система: Clean Architecture • API Gateway • Redis Events • GoF Patterns</p>
+    <div>
+      {/* Moodle Top Navbar */}
+      <nav className="moodle-navbar">
+        <div className="moodle-brand">
+          <span className="moodle-logo">moodle<span>LMS</span></span>
+          <span className="moodle-site-title">Платформа дистанційного навчання | Архітектурне ядро</span>
         </div>
-
-        {/* Live Service Health Status */}
-        <div className="status-bar">
-          <div className="status-pill">
-            <span className={`dot ${health.gateway === 'UP' ? 'up' : 'down'}`}></span>
-            Gateway (3000)
+        <div className="moodle-nav-right">
+          <div className="system-status-indicator">
+            <span>Шлюз:</span>
+            <span className={`status-badge ${health.gateway === 'UP' ? 'status-up' : 'status-down'}`}>
+              {health.gateway === 'UP' ? 'В нормі' : 'Збій'}
+            </span>
+            <span>Курси:</span>
+            <span className={`status-badge ${health.courseService === 'UP' ? 'status-up' : 'status-down'}`}>
+              {health.courseService === 'UP' ? 'В нормі' : 'Збій'}
+            </span>
+            <span>Завдання:</span>
+            <span className={`status-badge ${health.assignmentService === 'UP' ? 'status-up' : 'status-down'}`}>
+              {health.assignmentService === 'UP' ? 'В нормі' : 'Збій'}
+            </span>
+            <button className="btn-moodle-secondary" style={{ marginLeft: '4px' }} onClick={() => { fetchHealth(); loadAllData(); }}>
+              Оновити стан
+            </button>
           </div>
-          <div className="status-pill">
-            <span className={`dot ${health.courseService === 'UP' ? 'up' : 'down'}`}></span>
-            Courses (3001)
+          <div className="user-profile">
+            Викладач: Адміністратор платформи
           </div>
-          <div className="status-pill">
-            <span className={`dot ${health.assignmentService === 'UP' ? 'up' : 'down'}`}></span>
-            Assignments (3002)
-          </div>
-          <button className="refresh-btn" onClick={() => { fetchHealth(); loadAllData(); }}>
-            🔄 Оновити
-          </button>
         </div>
-      </header>
-
-      {/* Notifications */}
-      {notification && (
-        <div className="notification-banner" style={{ borderLeftColor: notification.isError ? '#f43f5e' : '#38bdf8' }}>
-          <span>{notification.text}</span>
-          <button className="refresh-btn" onClick={() => setNotification(null)}>✕</button>
-        </div>
-      )}
-
-      {/* Tabs navigation */}
-      <nav className="tabs-nav">
-        <button
-          className={`tab-btn ${activeTab === 'courses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('courses')}
-        >
-          📚 Каталог курсів (Course Service)
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('assignments')}
-        >
-          📝 Завдання та Студенти (Builder Pattern)
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'grading' ? 'active' : ''}`}
-          onClick={() => setActiveTab('grading')}
-        >
-          ⚖️ Оцінювання робіт (Strategy Pattern)
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'architecture' ? 'active' : ''}`}
-          onClick={() => setActiveTab('architecture')}
-        >
-          🛡️ Відмовостійкість & Топологія
-        </button>
       </nav>
 
-      {/* Tab 1: Course Service */}
-      {activeTab === 'courses' && (
-        <div className="card-grid">
-          <div className="panel-card">
-            <h2>➕ Створити новий курс</h2>
-            <form onSubmit={handleCreateCourse}>
-              <div className="form-group">
-                <label>Назва курсу</label>
-                <input
-                  type="text"
-                  placeholder="напр. Розподілені системи та DDD"
-                  value={newCourse.title}
-                  onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Опис навчальної програми</label>
-                <textarea
-                  rows="4"
-                  placeholder="Опис курсу для публікації..."
-                  value={newCourse.description}
-                  onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
-                  required
-                />
-              </div>
-              <button type="submit" className="primary-btn">
-                Створити чернетку курсу
-              </button>
-            </form>
-          </div>
+      {/* Moodle Breadcrumb bar */}
+      <div className="moodle-breadcrumb-bar">
+        <ul className="breadcrumb-list">
+          <li>Головна сторінка</li>
+          <li>Кабінет викладача</li>
+          <li>Керування навчальним процесом</li>
+        </ul>
+      </div>
 
-          <div className="panel-card">
-            <h2>📖 Каталог курсів ({courses.length})</h2>
-            {courses.length === 0 ? (
-              <div className="empty-placeholder">
-                {loading ? 'Завантаження курсів...' : 'Немає курсів. Створіть перший курс ліворуч!'}
+      <div className="moodle-page-container">
+        {/* Page Title Block */}
+        <div className="page-header-block">
+          <div>
+            <h1>Панель керування навчальними курсами</h1>
+            <p>Модуль розподіленої архітектури: Course Service (3001), Assignment Service (3002), API Gateway (3000)</p>
+          </div>
+        </div>
+
+        {/* Notifications */}
+        {notification && (
+          <div className={`moodle-alert ${notification.isError ? 'moodle-alert-danger' : 'moodle-alert-success'}`}>
+            {notification.text}
+          </div>
+        )}
+
+        {/* Moodle Navigation Tabs */}
+        <div className="moodle-nav-tabs">
+          <button
+            className={`moodle-tab-item ${activeTab === 'courses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('courses')}
+          >
+            Каталог навчальних курсів
+          </button>
+          <button
+            className={`moodle-tab-item ${activeTab === 'assignments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('assignments')}
+          >
+            Завдання та контингент студентів
+          </button>
+          <button
+            className={`moodle-tab-item ${activeTab === 'grading' ? 'active' : ''}`}
+            onClick={() => setActiveTab('grading')}
+          >
+            Журнал оцінювання (Патерн Strategy)
+          </button>
+          <button
+            className={`moodle-tab-item ${activeTab === 'architecture' ? 'active' : ''}`}
+            onClick={() => setActiveTab('architecture')}
+          >
+            Системна топологія та відмовостійкість
+          </button>
+        </div>
+
+        {/* Tab 1: Courses */}
+        {activeTab === 'courses' && (
+          <div className="moodle-two-column-layout">
+            <div className="moodle-card">
+              <div className="moodle-card-header">Створення нового курсу (Course Service)</div>
+              <div className="moodle-card-body">
+                <form onSubmit={handleCreateCourse}>
+                  <div className="moodle-form-group">
+                    <label>Повна назва навчальної дисципліни</label>
+                    <input
+                      type="text"
+                      className="moodle-form-control"
+                      placeholder="наприклад: Архітектура програмного забезпечення"
+                      value={newCourse.title}
+                      onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="moodle-form-group">
+                    <label>Анотація та робоча програма дисципліни</label>
+                    <textarea
+                      rows="4"
+                      className="moodle-form-control"
+                      placeholder="Короткий опис дисципліни для силабусу..."
+                      value={newCourse.description}
+                      onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                    Зберегти курс
+                  </button>
+                </form>
               </div>
-            ) : (
-              <div className="items-list">
-                {courses.map((course) => (
-                  <div key={course.id} className="item-card">
-                    <div className="item-info">
-                      <h3>{course.title}</h3>
-                      <p>{course.description}</p>
-                      <span className={`badge ${course.isPublished ? 'published' : 'draft'}`}>
-                        {course.isPublished ? '● ОПУБЛІКОВАНО' : '○ ЧЕРНЕТКА'}
-                      </span>
-                    </div>
-                    {!course.isPublished && (
-                      <button
-                        className="action-btn"
-                        onClick={() => handlePublishCourse(course.id)}
-                        title="Опублікувати курс та відправити подію в Redis"
+            </div>
+
+            <div className="moodle-card">
+              <div className="moodle-card-header">Реєстр навчальних курсів ({courses.length})</div>
+              <div className="moodle-card-body" style={{ padding: 0 }}>
+                {courses.length === 0 ? (
+                  <div className="empty-state-text">
+                    {loading ? 'Завантаження списку...' : 'У системі ще немає зареєстрованих курсів.'}
+                  </div>
+                ) : (
+                  <table className="moodle-table">
+                    <thead>
+                      <tr>
+                        <th>Назва курсу</th>
+                        <th>Анотація</th>
+                        <th>Статус</th>
+                        <th>Дії</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courses.map((course) => (
+                        <tr key={course.id}>
+                          <td><strong>{course.title}</strong></td>
+                          <td style={{ color: 'var(--moodle-text-muted)' }}>{course.description}</td>
+                          <td>
+                            <span className={`pill-status ${course.isPublished ? 'pill-published' : 'pill-draft'}`}>
+                              {course.isPublished ? 'Опубліковано' : 'Чернетка'}
+                            </span>
+                          </td>
+                          <td>
+                            {!course.isPublished ? (
+                              <button
+                                className="btn-moodle-secondary"
+                                onClick={() => handlePublishCourse(course.id)}
+                              >
+                                Опублікувати
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Доступний студентам</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Assignments & Students */}
+        {activeTab === 'assignments' && (
+          <div className="moodle-two-column-layout">
+            <div>
+              <div className="moodle-card">
+                <div className="moodle-card-header">Створення завдання (Патерн Builder)</div>
+                <div className="moodle-card-body">
+                  <form onSubmit={handleCreateAssignment}>
+                    <div className="moodle-form-group">
+                      <label>Вибір курсу</label>
+                      <select
+                        className="moodle-form-control"
+                        value={newAssignment.courseId}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
                       >
-                        🚀 Опублікувати (Event)
-                      </button>
-                    )}
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                        {courses.length === 0 && <option value="">Немає доступних курсів</option>}
+                      </select>
+                    </div>
+                    <div className="moodle-form-group">
+                      <label>Тема лабораторної або практичної роботи</label>
+                      <input
+                        type="text"
+                        className="moodle-form-control"
+                        placeholder="наприклад: Лабораторна робота 3: Проєктування контрактів"
+                        value={newAssignment.title}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="moodle-form-group">
+                      <label>Максимальна кількість балів</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="moodle-form-control"
+                        value={newAssignment.maxScore}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, maxScore: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="moodle-form-group">
+                      <label>Кінцевий термін здачі (дедлайн)</label>
+                      <input
+                        type="datetime-local"
+                        className="moodle-form-control"
+                        value={newAssignment.dueDate}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                      Створити завдання через AssignmentBuilder
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <div className="moodle-card">
+                <div className="moodle-card-header">Зарахування студента</div>
+                <div className="moodle-card-body">
+                  <form onSubmit={handleRegisterStudent}>
+                    <div className="moodle-form-group">
+                      <label>Прізвище, ім'я студента</label>
+                      <input
+                        type="text"
+                        className="moodle-form-control"
+                        placeholder="Олександр Петренко"
+                        value={newStudent.name}
+                        onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="moodle-form-group">
+                      <label>Електронна адреса</label>
+                      <input
+                        type="email"
+                        className="moodle-form-control"
+                        placeholder="o.petrenko@univ.edu.ua"
+                        value={newStudent.email}
+                        onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                      />
+                    </div>
+                    <button type="submit" className="btn-moodle-secondary" style={{ width: '100%' }}>
+                      Зареєструвати в системі
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <div className="moodle-card">
+              <div className="moodle-card-header">Журнал виданих завдань ({assignments.length})</div>
+              <div className="moodle-card-body" style={{ padding: 0 }}>
+                {assignments.length === 0 ? (
+                  <div className="empty-state-text">
+                    {loading ? 'Завантаження завдань...' : 'Завдань не знайдено.'}
                   </div>
-                ))}
+                ) : (
+                  <table className="moodle-table">
+                    <thead>
+                      <tr>
+                        <th>Тема завдання</th>
+                        <th>Дисципліна</th>
+                        <th>Макс. бал</th>
+                        <th>Кінцевий термін</th>
+                        <th>Статус міжсервісної верифікації</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignments.map((item) => (
+                        <tr key={item.id}>
+                          <td><strong>{item.title}</strong></td>
+                          <td>{item.courseTitle || 'Не визначено'}</td>
+                          <td>{item.maxScore}</td>
+                          <td>{new Date(item.dueDate).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`pill-status ${item.isCourseVerified ? 'pill-verified' : 'pill-fallback'}`}>
+                              {item.isCourseVerified ? 'Верифіковано в Course Service' : 'Автономний режим (Fallback)'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Tab 2: Assignment Service */}
-      {activeTab === 'assignments' && (
-        <div className="card-grid">
-          <div className="panel-card">
-            <h2>➕ Створити завдання (через Builder)</h2>
-            <form onSubmit={handleCreateAssignment}>
-              <div className="form-group">
-                <label>Прив'язка до курсу</label>
-                <select
-                  value={newAssignment.courseId}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
-                >
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title}
-                    </option>
-                  ))}
-                  {courses.length === 0 && <option value="">Немає курсів (буде використано id за замовчуванням)</option>}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Тема завдання</label>
-                <input
-                  type="text"
-                  placeholder="напр. Лабораторна 3: Сервісні контракти"
-                  value={newAssignment.title}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Максимальний бал</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={newAssignment.maxScore}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, maxScore: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Дедлайн (має бути в майбутньому)</label>
-                <input
-                  type="datetime-local"
-                  value={newAssignment.dueDate}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
-                  required
-                />
-              </div>
-              <button type="submit" className="primary-btn">
-                Створити через AssignmentBuilder
-              </button>
-            </form>
+        {/* Tab 3: Strategy Pattern */}
+        {activeTab === 'grading' && (
+          <div className="moodle-two-column-layout">
+            <div className="moodle-card">
+              <div className="moodle-card-header">Параметри оцінювання (Патерн Strategy)</div>
+              <div className="moodle-card-body">
+                <p style={{ fontSize: '13px', color: 'var(--moodle-text-muted)', marginBottom: '14px' }}>
+                  Патерн <strong>Strategy</strong> інкапсулює алгоритми розрахунку підсумкового балу в окремі класи без модифікації базового сервісу.
+                </p>
+                <form onSubmit={handleCalculateGrade}>
+                  <div className="moodle-form-group">
+                    <label>Схема розрахунку підсумкової оцінки</label>
+                    <select
+                      className="moodle-form-control"
+                      value={grading.strategyName}
+                      onChange={(e) => setGrading({ ...grading, strategyName: e.target.value })}
+                    >
+                      <option value="STANDARD">1. StandardGradingStrategy (Базова схема без модифікаторів)</option>
+                      <option value="LATE_PENALTY">2. LatePenaltyGradingStrategy (Штраф -20% за порушення дедлайну)</option>
+                      <option value="EXCELLENCE_BONUS">3. ExcellenceBonusGradingStrategy (Бонус +5% за високу якість вчасно)</option>
+                    </select>
+                  </div>
 
-            <hr style={{ borderColor: 'var(--border-color)', margin: '24px 0 16px 0' }} />
+                  <div className="moodle-form-group">
+                    <label>Оцінка викладача за критеріями (0 - 100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="moodle-form-control"
+                      value={grading.rawScore}
+                      onChange={(e) => setGrading({ ...grading, rawScore: e.target.value })}
+                      required
+                    />
+                  </div>
 
-            <h2>🎓 Швидка реєстрація студента</h2>
-            <form onSubmit={handleRegisterStudent}>
-              <div className="form-group">
-                <label>ПІБ Студента</label>
-                <input
-                  type="text"
-                  placeholder="Олександр Петренко"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                />
+                  <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                    Розрахувати за обраною стратегією
+                  </button>
+                </form>
               </div>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  placeholder="petrenko@univ.edu"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                />
-              </div>
-              <button type="submit" className="action-btn" style={{ width: '100%', padding: '10px' }}>
-                Зареєструвати студента
-              </button>
-            </form>
-          </div>
+            </div>
 
-          <div className="panel-card">
-            <h2>📋 Список завдань ({assignments.length})</h2>
-            {assignments.length === 0 ? (
-              <div className="empty-placeholder">
-                {loading ? 'Завантаження завдань...' : 'Завдань ще немає. Опублікуйте курс або створіть вручну!'}
-              </div>
-            ) : (
-              <div className="items-list">
-                {assignments.map((item) => (
-                  <div key={item.id} className="item-card">
-                    <div className="item-info">
-                      <h3>{item.title}</h3>
-                      <p>Курс: <strong>{item.courseTitle || 'Не вказано'}</strong></p>
-                      <p>Макс. бал: {item.maxScore} • Дедлайн: {new Date(item.dueDate).toLocaleDateString()}</p>
-                      <span className={`badge ${item.isCourseVerified ? 'verified' : 'unverified'}`}>
-                        {item.isCourseVerified ? '🟢 Верифіковано через Course Service' : '🟡 Fallback: Неверифікований (офлайн)'}
-                      </span>
+            <div className="moodle-card">
+              <div className="moodle-card-header">Відомість нарахування оцінки</div>
+              <div className="moodle-card-body">
+                {gradingResult ? (
+                  <div style={{ background: '#f8f9fa', border: '1px solid var(--moodle-border-light)', padding: '18px', borderRadius: '4px' }}>
+                    <div style={{ marginBottom: '12px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Застосована стратегія:</span>
+                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{gradingResult.strategy}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '40px', margin: '14px 0' }}>
+                      <div>
+                        <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Початковий бал:</span>
+                        <div style={{ fontSize: '24px', fontWeight: 600 }}>{gradingResult.rawScore}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Підсумковий бал у відомість:</span>
+                        <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--moodle-primary)' }}>
+                          {gradingResult.finalScore} / 100
+                        </div>
+                      </div>
+                    </div>
+                    <div className="moodle-alert moodle-alert-info" style={{ margin: 0 }}>
+                      {gradingResult.description}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Strategy Pattern */}
-      {activeTab === 'grading' && (
-        <div className="card-grid">
-          <div className="panel-card">
-            <h2>⚙️ Калькулятор оцінювання (Strategy Pattern)</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-              Патерн <strong>Strategy</strong> дозволяє застосовувати різні алгоритми нарахування балів без зміни логіки контролера.
-            </p>
-            <form onSubmit={handleCalculateGrade}>
-              <div className="form-group">
-                <label>Оберіть стратегію нарахування балів</label>
-                <select
-                  value={grading.strategyName}
-                  onChange={(e) => setGrading({ ...grading, strategyName: e.target.value })}
-                >
-                  <option value="STANDARD">1. StandardGradingStrategy (Без штрафів і бонусів)</option>
-                  <option value="LATE_PENALTY">2. LatePenaltyGradingStrategy (-20% за прострочення)</option>
-                  <option value="EXCELLENCE_BONUS">3. ExcellenceBonusGradingStrategy (+5% за відмінний результат)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Початкова оцінка викладача (0 - 100)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={grading.rawScore}
-                  onChange={(e) => setGrading({ ...grading, rawScore: e.target.value })}
-                  required
-                />
-              </div>
-
-              <button type="submit" className="primary-btn">
-                Застосувати стратегію оцінки
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card">
-            <h2>📊 Результат розрахунку</h2>
-            {gradingResult ? (
-              <div style={{ background: 'var(--bg-secondary)', padding: '20px', borderRadius: '10px' }}>
-                <p style={{ fontSize: '14px', marginBottom: '8px' }}>Застосована стратегія: <strong>{gradingResult.strategy}</strong></p>
-                <div style={{ display: 'flex', gap: '30px', margin: '16px 0' }}>
-                  <div>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Початкова оцінка:</span>
-                    <h3 style={{ fontSize: '28px', margin: '4px 0' }}>{gradingResult.rawScore}</h3>
+                ) : (
+                  <div className="empty-state-text">
+                    Оберіть стратегію та вкажіть бали для розрахунку.
                   </div>
-                  <div>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Підсумкова оцінка:</span>
-                    <h3 style={{ fontSize: '28px', margin: '4px 0', color: 'var(--accent-blue)' }}>{gradingResult.finalScore} / 100</h3>
-                  </div>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--accent-green)', background: 'rgba(34, 197, 94, 0.1)', padding: '10px', borderRadius: '6px' }}>
-                  💡 {gradingResult.explanation}
-                </p>
+                )}
               </div>
-            ) : (
-              <div className="empty-placeholder">
-                Оберіть стратегію та натисніть «Застосувати стратегію оцінки» для розрахунку.
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Architecture & Fault Tolerance */}
+        {activeTab === 'architecture' && (
+          <div className="moodle-card">
+            <div className="moodle-card-header">Системний моніторинг сервісів та експеримент відмовостійкості</div>
+            <div className="moodle-card-body">
+              <table className="moodle-table" style={{ marginBottom: '24px' }}>
+                <thead>
+                  <tr>
+                    <th>Сервісний вузол</th>
+                    <th>Мережевий порт</th>
+                    <th>Зона відповідальності</th>
+                    <th>База даних</th>
+                    <th>Поточний статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>API Gateway</strong></td>
+                    <td><code>3000</code></td>
+                    <td>Єдина точка входу, Reverse Proxy, безпека</td>
+                    <td>Відсутня (Stateless)</td>
+                    <td>
+                      <span className={`pill-status ${health.gateway === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                        {health.gateway === 'UP' ? 'В нормі' : 'Недоступний'}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><strong>Course Service</strong></td>
+                    <td><code>3001</code></td>
+                    <td>Каталог курсів, навчальна програма, публікація</td>
+                    <td><code>course_db</code> (PostgreSQL 5433)</td>
+                    <td>
+                      <span className={`pill-status ${health.courseService === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                        {health.courseService === 'UP' ? 'В нормі' : 'Недоступний'}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><strong>Assignment Service</strong></td>
+                    <td><code>3002</code></td>
+                    <td>Студенти, журнал завдань, розрахунок оцінок</td>
+                    <td><code>assignment_db</code> (PostgreSQL 5434)</td>
+                    <td>
+                      <span className={`pill-status ${health.assignmentService === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                        {health.assignmentService === 'UP' ? 'В нормі' : 'Недоступний'}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="moodle-alert moodle-alert-info">
+                <strong>Методика перевірки відмовостійкості системи (Вимога ЛР3, розділ 3.8):</strong>
+                <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                  <li>Зупиніть сервіс курсів у терміналі (<code>docker-compose stop course-service</code>).</li>
+                  <li>Перейдіть у вкладку «Завдання та контингент студентів» та створіть нове завдання.</li>
+                  <li>
+                    <strong>Результат:</strong> Завдяки реалізованому патерну <strong>Fallback</strong> операція не завершиться аварійно з кодом 500. Завдання буде створено зі статусом «Автономний режим (Fallback)».
+                  </li>
+                </ol>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Architecture & Fault Tolerance */}
-      {activeTab === 'architecture' && (
-        <div className="panel-card">
-          <h2>🛡️ Архітектура розподіленої системи та експеримент відмовостійкості</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
-            <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '10px' }}>
-              <h3 style={{ color: 'var(--accent-blue)', margin: '0 0 8px 0', fontSize: '16px' }}>1. API Gateway (Порт 3000)</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Єдина точка входу, яка ховає внутрішні мікросервіси від браузера і робить зворотне проксіювання запитів.
-              </p>
-            </div>
-            <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '10px' }}>
-              <h3 style={{ color: 'var(--accent-purple)', margin: '0 0 8px 0', fontSize: '16px' }}>2. Course Service (Порт 3001)</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Власник курсів із власною БД <code>course_db</code> (порт 5433). Публікує події в Redis при зміні стану курсу.
-              </p>
-            </div>
-            <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '10px' }}>
-              <h3 style={{ color: 'var(--accent-green)', margin: '0 0 8px 0', fontSize: '16px' }}>3. Assignment Service (Порт 3002)</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Власник завдань та оцінок із власною БД <code>assignment_db</code> (порт 5434). Слухає події та має таймаут-захист.
-              </p>
             </div>
           </div>
-
-          <div style={{ background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>🧪 Як провести експеримент відмовостійкості (Fault-Tolerance Test):</h3>
-            <ol style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.7', margin: 0, paddingLeft: '20px' }}>
-              <li>Зупиніть сервіс курсів у терміналі: <code>docker-compose stop course-service</code></li>
-              <li>Спробуйте створити завдання у вкладці «Завдання та Студенти».</li>
-              <li>
-                <strong>Очікувана поведінка:</strong> Запит не зависне назавжди і не видасть 500 помилку.
-                Спрацює 2-секундний таймаут, увімкнеться <strong>Fallback</strong>, і завдання успішно створиться із жовтим бейджем <em>«Fallback: Неверифікований»</em>.
-              </li>
-              <li>Запустіть сервіс курсів назад: <code>docker-compose start course-service</code></li>
-            </ol>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
