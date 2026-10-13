@@ -191,7 +191,7 @@ export default function App() {
       description = 'Схема LatePenalty: застосовано штрафний коефіцієнт 0.8 (-20%) за порушення терміну.';
     } else if (grading.strategyName === 'EXCELLENCE_BONUS') {
       final = raw >= 90 ? Math.min(100, raw + 5) : raw;
-      description = 'Схема ExcellenceBonus: нараховано заохочувальний бонус +5 балів за вчасне виконання.';
+      description = 'Схема ExcellenceBonus: нараховано заохочувальний бонус +5 балів за високу якість вчасно.';
     }
 
     setGradingResult({
@@ -204,83 +204,81 @@ export default function App() {
 
   return (
     <div>
-      {/* Moodle Top Navbar */}
-      <nav className="moodle-navbar">
-        <div className="moodle-brand">
-          <span className="moodle-logo">moodle<span>LMS</span></span>
-          <span className="moodle-site-title">Платформа дистанційного навчання | Архітектурне ядро</span>
+      {/* Learnova Top Navbar */}
+      <header className="learnova-navbar">
+        <div className="learnova-brand">
+          <div className="learnova-logo">Lear<span>nova</span></div>
+          <div className="learnova-tagline">Платформа дистанційного навчання</div>
         </div>
-        <div className="moodle-nav-right">
-          <div className="system-status-indicator">
+        <div className="learnova-nav-right">
+          <div className="status-monitor-pill">
             <span>Шлюз:</span>
-            <span className={`status-badge ${health.gateway === 'UP' ? 'status-up' : 'status-down'}`}>
+            <span className={`status-tag ${health.gateway === 'UP' ? 'online' : 'offline'}`}>
               {health.gateway === 'UP' ? 'В нормі' : 'Збій'}
             </span>
-            <span>Курси:</span>
-            <span className={`status-badge ${health.courseService === 'UP' ? 'status-up' : 'status-down'}`}>
+            <span style={{ marginLeft: '6px' }}>Курси:</span>
+            <span className={`status-tag ${health.courseService === 'UP' ? 'online' : 'offline'}`}>
               {health.courseService === 'UP' ? 'В нормі' : 'Збій'}
             </span>
-            <span>Завдання:</span>
-            <span className={`status-badge ${health.assignmentService === 'UP' ? 'status-up' : 'status-down'}`}>
+            <span style={{ marginLeft: '6px' }}>Завдання:</span>
+            <span className={`status-tag ${health.assignmentService === 'UP' ? 'online' : 'offline'}`}>
               {health.assignmentService === 'UP' ? 'В нормі' : 'Збій'}
             </span>
-            <button className="btn-moodle-secondary" style={{ marginLeft: '4px' }} onClick={() => { fetchHealth(); loadAllData(); }}>
+            <button className="btn-red-secondary" style={{ marginLeft: '8px' }} onClick={() => { fetchHealth(); loadAllData(); }}>
               Оновити стан
             </button>
           </div>
-          <div className="user-profile">
-            Викладач: Адміністратор платформи
+          <div className="user-badge">
+            Викладач: Адміністратор
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* Moodle Breadcrumb bar */}
-      <div className="moodle-breadcrumb-bar">
-        <ul className="breadcrumb-list">
+      {/* Breadcrumb Navigation */}
+      <nav className="learnova-breadcrumbs">
+        <ul className="breadcrumbs-list">
           <li>Головна сторінка</li>
           <li>Кабінет викладача</li>
           <li>Керування навчальним процесом</li>
         </ul>
-      </div>
+      </nav>
 
-      <div className="moodle-page-container">
-        {/* Page Title Block */}
-        <div className="page-header-block">
-          <div>
-            <h1>Панель керування навчальними курсами</h1>
-            <p>Модуль розподіленої архітектури: Course Service (3001), Assignment Service (3002), API Gateway (3000)</p>
-          </div>
+      {/* Main Workspace Optimized for 15.6" Laptop Displays */}
+      <main className="learnova-content-wrapper">
+        <div className="page-title-banner">
+          <h1>Панель керування навчальними курсами</h1>
+          <p>Розподілена архітектура: API Gateway (3000), Course Service (3001), Assignment Service (3002)</p>
         </div>
 
         {/* Notifications */}
         {notification && (
-          <div className={`moodle-alert ${notification.isError ? 'moodle-alert-danger' : 'moodle-alert-success'}`}>
+          <div className={`learnova-alert ${notification.isError ? 'learnova-alert-danger' : 'learnova-alert-success'}`}>
             {notification.text}
           </div>
         )}
 
-        {/* Moodle Navigation Tabs */}
-        <div className="moodle-nav-tabs">
+        {/* Learnova Academic Tabs */}
+        <div className="learnova-tabs">
           <button
-            className={`moodle-tab-item ${activeTab === 'courses' ? 'active' : ''}`}
+            className={`tab-button ${activeTab === 'courses' ? 'active' : ''}`}
             onClick={() => setActiveTab('courses')}
           >
             Каталог навчальних курсів
           </button>
           <button
-            className={`moodle-tab-item ${activeTab === 'assignments' ? 'active' : ''}`}
+            className={`tab-button ${activeTab === 'assignments' ? 'active' : ''}`}
             onClick={() => setActiveTab('assignments')}
           >
             Завдання та контингент студентів
           </button>
           <button
-            className={`moodle-tab-item ${activeTab === 'grading' ? 'active' : ''}`}
+            className={`tab-button ${activeTab === 'grading' ? 'active' : ''}`}
             onClick={() => setActiveTab('grading')}
           >
             Журнал оцінювання (Патерн Strategy)
           </button>
           <button
-            className={`moodle-tab-item ${activeTab === 'architecture' ? 'active' : ''}`}
+            className={`tab-button ${activeTab === 'architecture' ? 'active' : ''}`}
             onClick={() => setActiveTab('architecture')}
           >
             Системна топологія та відмовостійкість
@@ -289,49 +287,49 @@ export default function App() {
 
         {/* Tab 1: Courses */}
         {activeTab === 'courses' && (
-          <div className="moodle-two-column-layout">
-            <div className="moodle-card">
-              <div className="moodle-card-header">Створення нового курсу (Course Service)</div>
-              <div className="moodle-card-body">
+          <div className="content-grid-2col">
+            <div className="learnova-card">
+              <div className="learnova-card-header">Створення нового курсу (Course Service)</div>
+              <div className="learnova-card-body">
                 <form onSubmit={handleCreateCourse}>
-                  <div className="moodle-form-group">
+                  <div className="form-field">
                     <label>Повна назва навчальної дисципліни</label>
                     <input
                       type="text"
-                      className="moodle-form-control"
+                      className="input-control"
                       placeholder="наприклад: Архітектура програмного забезпечення"
                       value={newCourse.title}
                       onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
                       required
                     />
                   </div>
-                  <div className="moodle-form-group">
+                  <div className="form-field">
                     <label>Анотація та робоча програма дисципліни</label>
                     <textarea
                       rows="4"
-                      className="moodle-form-control"
+                      className="input-control"
                       placeholder="Короткий опис дисципліни для силабусу..."
                       value={newCourse.description}
                       onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
                       required
                     />
                   </div>
-                  <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                  <button type="submit" className="btn-red-primary" style={{ width: '100%' }}>
                     Зберегти курс
                   </button>
                 </form>
               </div>
             </div>
 
-            <div className="moodle-card">
-              <div className="moodle-card-header">Реєстр навчальних курсів ({courses.length})</div>
-              <div className="moodle-card-body" style={{ padding: 0 }}>
+            <div className="learnova-card">
+              <div className="learnova-card-header">Реєстр навчальних курсів ({courses.length})</div>
+              <div className="learnova-card-body" style={{ padding: 0 }}>
                 {courses.length === 0 ? (
-                  <div className="empty-state-text">
+                  <div className="empty-caption">
                     {loading ? 'Завантаження списку...' : 'У системі ще немає зареєстрованих курсів.'}
                   </div>
                 ) : (
-                  <table className="moodle-table">
+                  <table className="learnova-table">
                     <thead>
                       <tr>
                         <th>Назва курсу</th>
@@ -344,22 +342,22 @@ export default function App() {
                       {courses.map((course) => (
                         <tr key={course.id}>
                           <td><strong>{course.title}</strong></td>
-                          <td style={{ color: 'var(--moodle-text-muted)' }}>{course.description}</td>
+                          <td style={{ color: 'var(--learnova-text-muted)' }}>{course.description}</td>
                           <td>
-                            <span className={`pill-status ${course.isPublished ? 'pill-published' : 'pill-draft'}`}>
+                            <span className={`badge-tag ${course.isPublished ? 'badge-published' : 'badge-draft'}`}>
                               {course.isPublished ? 'Опубліковано' : 'Чернетка'}
                             </span>
                           </td>
                           <td>
                             {!course.isPublished ? (
                               <button
-                                className="btn-moodle-secondary"
+                                className="btn-red-outline"
                                 onClick={() => handlePublishCourse(course.id)}
                               >
                                 Опублікувати
                               </button>
                             ) : (
-                              <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Доступний студентам</span>
+                              <span style={{ fontSize: '12px', color: 'var(--learnova-text-muted)' }}>Доступний студентам</span>
                             )}
                           </td>
                         </tr>
@@ -374,16 +372,16 @@ export default function App() {
 
         {/* Tab 2: Assignments & Students */}
         {activeTab === 'assignments' && (
-          <div className="moodle-two-column-layout">
+          <div className="content-grid-2col">
             <div>
-              <div className="moodle-card">
-                <div className="moodle-card-header">Створення завдання (Патерн Builder)</div>
-                <div className="moodle-card-body">
+              <div className="learnova-card">
+                <div className="learnova-card-header">Створення завдання (Патерн Builder)</div>
+                <div className="learnova-card-body">
                   <form onSubmit={handleCreateAssignment}>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Вибір курсу</label>
                       <select
-                        className="moodle-form-control"
+                        className="input-control"
                         value={newAssignment.courseId}
                         onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
                       >
@@ -395,71 +393,73 @@ export default function App() {
                         {courses.length === 0 && <option value="">Немає доступних курсів</option>}
                       </select>
                     </div>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Тема лабораторної або практичної роботи</label>
                       <input
                         type="text"
-                        className="moodle-form-control"
+                        className="input-control"
                         placeholder="наприклад: Лабораторна робота 3: Проєктування контрактів"
                         value={newAssignment.title}
                         onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
                         required
                       />
                     </div>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Максимальна кількість балів</label>
                       <input
                         type="number"
                         min="1"
                         max="100"
-                        className="moodle-form-control"
+                        className="input-control"
                         value={newAssignment.maxScore}
                         onChange={(e) => setNewAssignment({ ...newAssignment, maxScore: e.target.value })}
                         required
                       />
                     </div>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Кінцевий термін здачі (дедлайн)</label>
                       <input
                         type="datetime-local"
-                        className="moodle-form-control"
+                        className="input-control"
                         value={newAssignment.dueDate}
                         onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
                         required
                       />
                     </div>
-                    <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                    <button type="submit" className="btn-red-primary" style={{ width: '100%' }}>
                       Створити завдання через AssignmentBuilder
                     </button>
                   </form>
                 </div>
               </div>
 
-              <div className="moodle-card">
-                <div className="moodle-card-header">Зарахування студента</div>
-                <div className="moodle-card-body">
+              <div className="learnova-card">
+                <div className="learnova-card-header">Зарахування студента</div>
+                <div className="learnova-card-body">
                   <form onSubmit={handleRegisterStudent}>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Прізвище, ім'я студента</label>
                       <input
                         type="text"
-                        className="moodle-form-control"
+                        className="input-control"
                         placeholder="Олександр Петренко"
                         value={newStudent.name}
                         onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                        required
                       />
                     </div>
-                    <div className="moodle-form-group">
+                    <div className="form-field">
                       <label>Електронна адреса</label>
                       <input
                         type="email"
-                        className="moodle-form-control"
+                        className="input-control"
                         placeholder="o.petrenko@univ.edu.ua"
                         value={newStudent.email}
                         onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                        required
                       />
                     </div>
-                    <button type="submit" className="btn-moodle-secondary" style={{ width: '100%' }}>
+                    <button type="submit" className="btn-red-secondary" style={{ width: '100%' }}>
                       Зареєструвати в системі
                     </button>
                   </form>
@@ -467,22 +467,22 @@ export default function App() {
               </div>
             </div>
 
-            <div className="moodle-card">
-              <div className="moodle-card-header">Журнал виданих завдань ({assignments.length})</div>
-              <div className="moodle-card-body" style={{ padding: 0 }}>
+            <div className="learnova-card">
+              <div className="learnova-card-header">Журнал виданих завдань ({assignments.length})</div>
+              <div className="learnova-card-body" style={{ padding: 0 }}>
                 {assignments.length === 0 ? (
-                  <div className="empty-state-text">
+                  <div className="empty-caption">
                     {loading ? 'Завантаження завдань...' : 'Завдань не знайдено.'}
                   </div>
                 ) : (
-                  <table className="moodle-table">
+                  <table className="learnova-table">
                     <thead>
                       <tr>
                         <th>Тема завдання</th>
                         <th>Дисципліна</th>
                         <th>Макс. бал</th>
                         <th>Кінцевий термін</th>
-                        <th>Статус міжсервісної верифікації</th>
+                        <th>Статус верифікації</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -493,7 +493,7 @@ export default function App() {
                           <td>{item.maxScore}</td>
                           <td>{new Date(item.dueDate).toLocaleDateString()}</td>
                           <td>
-                            <span className={`pill-status ${item.isCourseVerified ? 'pill-verified' : 'pill-fallback'}`}>
+                            <span className={`badge-tag ${item.isCourseVerified ? 'badge-verified' : 'badge-fallback'}`}>
                               {item.isCourseVerified ? 'Верифіковано в Course Service' : 'Автономний режим (Fallback)'}
                             </span>
                           </td>
@@ -509,74 +509,74 @@ export default function App() {
 
         {/* Tab 3: Strategy Pattern */}
         {activeTab === 'grading' && (
-          <div className="moodle-two-column-layout">
-            <div className="moodle-card">
-              <div className="moodle-card-header">Параметри оцінювання (Патерн Strategy)</div>
-              <div className="moodle-card-body">
-                <p style={{ fontSize: '13px', color: 'var(--moodle-text-muted)', marginBottom: '14px' }}>
+          <div className="content-grid-2col">
+            <div className="learnova-card">
+              <div className="learnova-card-header">Параметри оцінювання (Патерн Strategy)</div>
+              <div className="learnova-card-body">
+                <p style={{ fontSize: '13px', color: 'var(--learnova-text-muted)', marginBottom: '14px' }}>
                   Патерн <strong>Strategy</strong> інкапсулює алгоритми розрахунку підсумкового балу в окремі класи без модифікації базового сервісу.
                 </p>
                 <form onSubmit={handleCalculateGrade}>
-                  <div className="moodle-form-group">
+                  <div className="form-field">
                     <label>Схема розрахунку підсумкової оцінки</label>
                     <select
-                      className="moodle-form-control"
+                      className="input-control"
                       value={grading.strategyName}
                       onChange={(e) => setGrading({ ...grading, strategyName: e.target.value })}
                     >
                       <option value="STANDARD">1. StandardGradingStrategy (Базова схема без модифікаторів)</option>
                       <option value="LATE_PENALTY">2. LatePenaltyGradingStrategy (Штраф -20% за порушення дедлайну)</option>
-                      <option value="EXCELLENCE_BONUS">3. ExcellenceBonusGradingStrategy (Бонус +5% за високу якість вчасно)</option>
+                      <option value="EXCELLENCE_BONUS">3. ExcellenceBonusGradingStrategy (Бонус +5% за якість вчасно)</option>
                     </select>
                   </div>
 
-                  <div className="moodle-form-group">
+                  <div className="form-field">
                     <label>Оцінка викладача за критеріями (0 - 100)</label>
                     <input
                       type="number"
                       min="0"
                       max="100"
-                      className="moodle-form-control"
+                      className="input-control"
                       value={grading.rawScore}
                       onChange={(e) => setGrading({ ...grading, rawScore: e.target.value })}
                       required
                     />
                   </div>
 
-                  <button type="submit" className="btn-moodle-primary" style={{ width: '100%' }}>
+                  <button type="submit" className="btn-red-primary" style={{ width: '100%' }}>
                     Розрахувати за обраною стратегією
                   </button>
                 </form>
               </div>
             </div>
 
-            <div className="moodle-card">
-              <div className="moodle-card-header">Відомість нарахування оцінки</div>
-              <div className="moodle-card-body">
+            <div className="learnova-card">
+              <div className="learnova-card-header">Відомість нарахування оцінки</div>
+              <div className="learnova-card-body">
                 {gradingResult ? (
-                  <div style={{ background: '#f8f9fa', border: '1px solid var(--moodle-border-light)', padding: '18px', borderRadius: '4px' }}>
+                  <div style={{ background: '#fffafa', border: '1px solid var(--learnova-border)', padding: '18px', borderRadius: '4px' }}>
                     <div style={{ marginBottom: '12px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Застосована стратегія:</span>
-                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{gradingResult.strategy}</div>
+                      <span style={{ fontSize: '12px', color: 'var(--learnova-text-muted)' }}>Застосована стратегія:</span>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: '#1a0808' }}>{gradingResult.strategy}</div>
                     </div>
                     <div style={{ display: 'flex', gap: '40px', margin: '14px 0' }}>
                       <div>
-                        <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Початковий бал:</span>
+                        <span style={{ fontSize: '12px', color: 'var(--learnova-text-muted)' }}>Початковий бал:</span>
                         <div style={{ fontSize: '24px', fontWeight: 600 }}>{gradingResult.rawScore}</div>
                       </div>
                       <div>
-                        <span style={{ fontSize: '12px', color: 'var(--moodle-text-muted)' }}>Підсумковий бал у відомість:</span>
-                        <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--moodle-primary)' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--learnova-text-muted)' }}>Підсумковий бал у відомість:</span>
+                        <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--learnova-primary)' }}>
                           {gradingResult.finalScore} / 100
                         </div>
                       </div>
                     </div>
-                    <div className="moodle-alert moodle-alert-info" style={{ margin: 0 }}>
+                    <div className="learnova-alert learnova-alert-info" style={{ margin: 0 }}>
                       {gradingResult.description}
                     </div>
                   </div>
                 ) : (
-                  <div className="empty-state-text">
+                  <div className="empty-caption">
                     Оберіть стратегію та вкажіть бали для розрахунку.
                   </div>
                 )}
@@ -587,10 +587,10 @@ export default function App() {
 
         {/* Tab 4: Architecture & Fault Tolerance */}
         {activeTab === 'architecture' && (
-          <div className="moodle-card">
-            <div className="moodle-card-header">Системний моніторинг сервісів та експеримент відмовостійкості</div>
-            <div className="moodle-card-body">
-              <table className="moodle-table" style={{ marginBottom: '24px' }}>
+          <div className="learnova-card">
+            <div className="learnova-card-header">Системний моніторинг сервісів та експеримент відмовостійкості</div>
+            <div className="learnova-card-body">
+              <table className="learnova-table" style={{ marginBottom: '24px' }}>
                 <thead>
                   <tr>
                     <th>Сервісний вузол</th>
@@ -604,10 +604,10 @@ export default function App() {
                   <tr>
                     <td><strong>API Gateway</strong></td>
                     <td><code>3000</code></td>
-                    <td>Єдина точка входу, Reverse Proxy, безпека</td>
+                    <td>Єдина точка входу, Reverse Proxy, маршрутизація</td>
                     <td>Відсутня (Stateless)</td>
                     <td>
-                      <span className={`pill-status ${health.gateway === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                      <span className={`badge-tag ${health.gateway === 'UP' ? 'badge-verified' : 'badge-fallback'}`}>
                         {health.gateway === 'UP' ? 'В нормі' : 'Недоступний'}
                       </span>
                     </td>
@@ -618,7 +618,7 @@ export default function App() {
                     <td>Каталог курсів, навчальна програма, публікація</td>
                     <td><code>course_db</code> (PostgreSQL 5433)</td>
                     <td>
-                      <span className={`pill-status ${health.courseService === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                      <span className={`badge-tag ${health.courseService === 'UP' ? 'badge-verified' : 'badge-fallback'}`}>
                         {health.courseService === 'UP' ? 'В нормі' : 'Недоступний'}
                       </span>
                     </td>
@@ -629,7 +629,7 @@ export default function App() {
                     <td>Студенти, журнал завдань, розрахунок оцінок</td>
                     <td><code>assignment_db</code> (PostgreSQL 5434)</td>
                     <td>
-                      <span className={`pill-status ${health.assignmentService === 'UP' ? 'pill-published' : 'pill-fallback'}`}>
+                      <span className={`badge-tag ${health.assignmentService === 'UP' ? 'badge-verified' : 'badge-fallback'}`}>
                         {health.assignmentService === 'UP' ? 'В нормі' : 'Недоступний'}
                       </span>
                     </td>
@@ -637,7 +637,7 @@ export default function App() {
                 </tbody>
               </table>
 
-              <div className="moodle-alert moodle-alert-info">
+              <div className="learnova-alert learnova-alert-info">
                 <strong>Методика перевірки відмовостійкості системи (Вимога ЛР3, розділ 3.8):</strong>
                 <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
                   <li>Зупиніть сервіс курсів у терміналі (<code>docker-compose stop course-service</code>).</li>
@@ -650,7 +650,7 @@ export default function App() {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

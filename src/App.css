@@ -1,18 +1,28 @@
-/* Moodle LMS Theme Styles */
+/* Learnova Platform - Red Academic Theme */
+/* Optimized for 15.6-inch laptop screens (1920x1080 at 100%-125% scaling) */
+
 :root {
-  --moodle-primary: #0f6cbf;
-  --moodle-primary-hover: #0d5ca3;
-  --moodle-dark-nav: #1d2125;
-  --moodle-bg: #f4f6f8;
-  --moodle-card-bg: #ffffff;
-  --moodle-border: #ced4da;
-  --moodle-border-light: #e9ecef;
-  --moodle-text: #212529;
-  --moodle-text-muted: #6a737d;
-  --moodle-success: #198754;
-  --moodle-warning: #b45309;
-  --moodle-danger: #dc3545;
-  --moodle-info: #0dcaf0;
+  --learnova-primary: #dc2626;         /* Crimson Red */
+  --learnova-primary-hover: #b91c1c;   /* Deep Crimson */
+  --learnova-primary-dark: #991b1b;    /* Dark Crimson */
+  --learnova-navbar-bg: #1c0a0a;       /* Deep Charcoal Burgundy */
+  --learnova-bg: #faf7f7;              /* Soft Warm Canvas */
+  --learnova-card-bg: #ffffff;
+  --learnova-border: #f0d5d5;          /* Soft Rose-Tinted Border */
+  --learnova-border-strong: #e2b6b6;
+  --learnova-text: #261616;
+  --learnova-text-muted: #6e5454;
+  --learnova-text-light: #ffffff;
+  
+  --learnova-success-bg: #ecfdf5;
+  --learnova-success-text: #065f46;
+  --learnova-success-border: #a7f3d0;
+  
+  --learnova-warning-bg: #fffbeb;
+  --learnova-warning-text: #92400e;
+  --learnova-warning-border: #fde68a;
+  
+  --learnova-accent-soft: #fef2f2;
 }
 
 * {
@@ -22,168 +32,164 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--moodle-bg);
-  color: var(--moodle-text);
+  background-color: var(--learnova-bg);
+  color: var(--learnova-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Moodle Top Navigation Bar */
-.moodle-navbar {
-  background-color: var(--moodle-dark-nav);
+/* Top Navbar */
+.learnova-navbar {
+  background-color: var(--learnova-navbar-bg);
   color: #ffffff;
-  padding: 10px 24px;
+  padding: 9px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid var(--moodle-primary);
-  flex-wrap: wrap;
-  gap: 12px;
+  border-bottom: 2px solid var(--learnova-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.moodle-brand {
+.learnova-brand {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.moodle-logo {
-  font-size: 20px;
+.learnova-logo {
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.5px;
   color: #ffffff;
   text-decoration: none;
 }
 
-.moodle-logo span {
-  color: #f98012; /* Classic Moodle Orange accent */
+.learnova-logo span {
+  color: #ef4444; /* Bright Coral Red */
 }
 
-.moodle-site-title {
-  font-size: 13px;
-  color: #adb5bd;
-  border-left: 1px solid #495057;
+.learnova-tagline {
+  font-size: 12.5px;
+  color: #d1b4b4;
+  border-left: 1px solid #4a2828;
   padding-left: 12px;
 }
 
-.moodle-nav-right {
+.learnova-nav-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
-.system-status-indicator {
+.status-monitor-pill {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background-color: #2b3035;
+  gap: 8px;
+  background-color: #2b1111;
+  border: 1px solid #4a2121;
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
+.status-tag {
+  display: inline-block;
+  padding: 1px 6px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
 }
 
-.status-badge.status-up {
-  background-color: #198754;
+.status-tag.online {
+  background-color: #15803d;
   color: #ffffff;
 }
 
-.status-badge.status-down {
-  background-color: #dc3545;
+.status-tag.offline {
+  background-color: #b91c1c;
   color: #ffffff;
 }
 
-.user-profile {
-  font-size: 13px;
+.user-badge {
+  font-size: 12.5px;
   color: #ffffff;
-  background: #343a40;
-  padding: 5px 12px;
+  background: #2e1414;
+  padding: 4px 12px;
   border-radius: 4px;
-  border: 1px solid #495057;
+  border: 1px solid #572626;
 }
 
-/* Breadcrumbs bar */
-.moodle-breadcrumb-bar {
+/* Breadcrumb Subnav */
+.learnova-breadcrumbs {
   background-color: #ffffff;
-  border-bottom: 1px solid var(--moodle-border-light);
-  padding: 8px 24px;
-  font-size: 13px;
-  color: var(--moodle-text-muted);
+  border-bottom: 1px solid var(--learnova-border);
+  padding: 6px 28px;
+  font-size: 12.5px;
+  color: var(--learnova-text-muted);
 }
 
-.breadcrumb-list {
+.breadcrumbs-list {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.breadcrumb-list li+li:before {
+.breadcrumbs-list li+li:before {
   content: "/";
-  padding-right: 8px;
-  color: #adb5bd;
+  padding-right: 6px;
+  color: #b59b9b;
 }
 
-/* Main Container */
-.moodle-page-container {
-  max-width: 1280px;
-  margin: 20px auto;
+/* Page Layout Optimized for 15.6" screens */
+.learnova-content-wrapper {
+  max-width: 1420px;
+  margin: 14px auto;
   padding: 0 20px;
 }
 
-/* Page Header */
-.page-header-block {
+.page-title-banner {
   background: #ffffff;
-  border: 1px solid var(--moodle-border-light);
+  border: 1px solid var(--learnova-border);
+  border-left: 4px solid var(--learnova-primary);
   border-radius: 4px;
-  padding: 18px 24px;
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 12px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.page-header-block h1 {
-  margin: 0 0 4px 0;
-  font-size: 22px;
+.page-title-banner h1 {
+  margin: 0 0 2px 0;
+  font-size: 20px;
   font-weight: 600;
-  color: #1d2125;
+  color: #1a0808;
 }
 
-.page-header-block p {
+.page-title-banner p {
   margin: 0;
-  color: var(--moodle-text-muted);
-  font-size: 13px;
+  color: var(--learnova-text-muted);
+  font-size: 12.5px;
 }
 
-/* Tabs Navigation */
-.moodle-nav-tabs {
+/* Red-themed Nav Tabs */
+.learnova-tabs {
   display: flex;
   gap: 2px;
-  border-bottom: 2px solid var(--moodle-border);
-  margin-bottom: 20px;
-  background: transparent;
+  border-bottom: 2px solid var(--learnova-primary);
+  margin-bottom: 16px;
 }
 
-.moodle-tab-item {
-  background-color: #e9ecef;
-  color: #495057;
-  border: 1px solid var(--moodle-border);
+.tab-button {
+  background-color: #f5e4e4;
+  color: #5c3535;
+  border: 1px solid var(--learnova-border-strong);
   border-bottom: none;
-  padding: 10px 20px;
-  font-size: 14px;
+  padding: 8px 18px;
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
   border-top-left-radius: 4px;
@@ -191,92 +197,96 @@ body {
   transition: all 0.15s ease-in-out;
 }
 
-.moodle-tab-item:hover {
-  background-color: #dee2e6;
-  color: #212529;
+.tab-button:hover {
+  background-color: #ebd0d0;
+  color: var(--learnova-primary-dark);
 }
 
-.moodle-tab-item.active {
+.tab-button.active {
   background-color: #ffffff;
-  color: var(--moodle-primary);
-  border-color: var(--moodle-border);
+  color: var(--learnova-primary);
+  border-color: var(--learnova-primary);
   border-bottom: 2px solid #ffffff;
   margin-bottom: -2px;
   font-weight: 600;
 }
 
-/* Layout Grid */
-.moodle-two-column-layout {
+/* 2-Column Responsive Layout for 15.6" Displays */
+.content-grid-2col {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 20px;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+  align-items: start;
 }
 
-@media (max-width: 992px) {
-  .moodle-two-column-layout {
+@media (max-width: 1024px) {
+  .content-grid-2col {
     grid-template-columns: 1fr;
   }
 }
 
-/* Moodle Cards / Blocks */
-.moodle-card {
-  background: var(--moodle-card-bg);
-  border: 1px solid var(--moodle-border);
+/* Red-themed Cards */
+.learnova-card {
+  background: var(--learnova-card-bg);
+  border: 1px solid var(--learnova-border);
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
 }
 
-.moodle-card-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid var(--moodle-border);
-  padding: 12px 18px;
-  font-size: 15px;
+.learnova-card-header {
+  background-color: #fff9f9;
+  border-bottom: 1px solid var(--learnova-border);
+  padding: 10px 16px;
+  font-size: 14.5px;
   font-weight: 600;
-  color: #212529;
+  color: #3b1111;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.moodle-card-body {
-  padding: 18px;
+.learnova-card-body {
+  padding: 16px;
 }
 
-/* Form Controls */
-.moodle-form-group {
-  margin-bottom: 14px;
+/* Forms */
+.form-field {
+  margin-bottom: 12px;
 }
 
-.moodle-form-group label {
+.form-field label {
   display: block;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  margin-bottom: 5px;
-  color: #343a40;
+  margin-bottom: 4px;
+  color: #3f1b1b;
 }
 
-.moodle-form-control {
+.input-control {
   width: 100%;
-  padding: 7px 10px;
+  padding: 6px 10px;
   font-size: 13px;
-  line-height: 1.5;
-  color: #495057;
+  line-height: 1.45;
+  color: var(--learnova-text);
   background-color: #ffffff;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--learnova-border-strong);
   border-radius: 4px;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
-.moodle-form-control:focus {
-  border-color: #86b7fe;
+.input-control:focus {
+  border-color: var(--learnova-primary);
   outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  box-shadow: 0 0 0 0.2rem rgba(220, 38, 38, 0.18);
 }
 
-/* Buttons */
-.btn-moodle-primary {
+/* Crimson Action Buttons */
+.btn-red-primary {
   color: #ffffff;
-  background-color: var(--moodle-primary);
-  border: 1px solid var(--moodle-primary);
-  padding: 7px 16px;
+  background-color: var(--learnova-primary);
+  border: 1px solid var(--learnova-primary-dark);
+  padding: 7px 15px;
   font-size: 13px;
   font-weight: 500;
   border-radius: 4px;
@@ -284,114 +294,131 @@ body {
   transition: background-color 0.15s ease-in-out;
 }
 
-.btn-moodle-primary:hover {
-  background-color: var(--moodle-primary-hover);
+.btn-red-primary:hover {
+  background-color: var(--learnova-primary-hover);
 }
 
-.btn-moodle-secondary {
-  color: #212529;
-  background-color: #f8f9fa;
-  border: 1px solid #ced4da;
+.btn-red-outline {
+  color: var(--learnova-primary);
+  background-color: #ffffff;
+  border: 1px solid var(--learnova-primary);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-red-outline:hover {
+  background-color: var(--learnova-primary);
+  color: #ffffff;
+}
+
+.btn-red-secondary {
+  color: #3b1111;
+  background-color: #f7e8e8;
+  border: 1px solid var(--learnova-border-strong);
   padding: 5px 12px;
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.15s;
 }
 
-.btn-moodle-secondary:hover {
-  background-color: #e2e6ea;
+.btn-red-secondary:hover {
+  background-color: #edd1d1;
 }
 
-/* Tables */
-.moodle-table {
+/* Compact Tables for 15.6" screen efficiency */
+.learnova-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
-.moodle-table th {
-  background-color: #f8f9fa;
-  color: #495057;
-  border-bottom: 2px solid var(--moodle-border);
-  border-top: 1px solid var(--moodle-border-light);
-  padding: 10px 12px;
+.learnova-table th {
+  background-color: #fff6f6;
+  color: #4a1e1e;
+  border-bottom: 2px solid var(--learnova-border);
+  padding: 8px 10px;
   text-align: left;
   font-weight: 600;
 }
 
-.moodle-table td {
-  padding: 10px 12px;
-  border-top: 1px solid #dee2e6;
+.learnova-table td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--learnova-border);
   vertical-align: middle;
 }
 
-.moodle-table tbody tr:hover {
-  background-color: #f8f9fa;
+.learnova-table tbody tr:hover {
+  background-color: #fffafa;
 }
 
-/* Alerts */
-.moodle-alert {
-  padding: 10px 16px;
-  margin-bottom: 16px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  font-size: 13px;
-}
-
-.moodle-alert-success {
-  color: #0f5132;
-  background-color: #d1e7dd;
-  border-color: #badbcc;
-}
-
-.moodle-alert-danger {
-  color: #842029;
-  background-color: #f8d7da;
-  border-color: #f5c2c7;
-}
-
-.moodle-alert-info {
-  color: #055160;
-  background-color: #cff4fc;
-  border-color: #b6effb;
-}
-
-/* Tag Pills */
-.pill-status {
+/* Badges */
+.badge-tag {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 7px;
   font-size: 11px;
   font-weight: 600;
   border-radius: 3px;
 }
 
-.pill-published {
-  background-color: #d1e7dd;
-  color: #0f5132;
-  border: 1px solid #badbcc;
+.badge-published {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
 }
 
-.pill-draft {
-  background-color: #e2e3e5;
-  color: #41464b;
-  border: 1px solid #d3d6d8;
+.badge-draft {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
 }
 
-.pill-verified {
-  background-color: #cff4fc;
-  color: #055160;
-  border: 1px solid #b6effb;
+.badge-verified {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
 }
 
-.pill-fallback {
-  background-color: #fff3cd;
-  color: #664d03;
-  border: 1px solid #ffecb5;
+.badge-fallback {
+  background-color: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
 }
 
-.empty-state-text {
+/* Alert Boxes */
+.learnova-alert {
+  padding: 9px 14px;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 12.5px;
+}
+
+.learnova-alert-success {
+  background-color: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.learnova-alert-danger {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.learnova-alert-info {
+  background-color: #fff7ed;
+  color: #9a3412;
+  border-color: #fed7aa;
+}
+
+.empty-caption {
   text-align: center;
-  padding: 30px;
-  color: var(--moodle-text-muted);
-  font-size: 13px;
+  padding: 24px;
+  color: var(--learnova-text-muted);
+  font-size: 12.5px;
 }
