@@ -5,6 +5,8 @@ import { StudentEntity } from './infrastructure/database/entities/StudentEntity.
 import { AssignmentEntity } from './infrastructure/database/entities/AssignmentEntity.js';
 import { StudentRepositoryImpl } from './infrastructure/database/repositories/StudentRepositoryImpl.js';
 import { AssignmentRepositoryImpl } from './infrastructure/database/repositories/AssignmentRepositoryImpl.js';
+import { InMemoryStudentRepository } from './infrastructure/database/repositories/InMemoryStudentRepository.js';
+import { InMemoryAssignmentRepository } from './infrastructure/database/repositories/InMemoryAssignmentRepository.js';
 import { STUDENT_REPOSITORY_TOKEN } from './domain/student/StudentRepository.interface.js';
 import { ASSIGNMENT_REPOSITORY_TOKEN } from './domain/assignment/AssignmentRepository.interface.js';
 import { COURSE_SERVICE_CLIENT_TOKEN, CourseServiceClient } from './infrastructure/clients/CourseServiceClient.js';
@@ -17,11 +19,16 @@ import { StudentController } from './presentation/controllers/StudentController.
 import { AssignmentController } from './presentation/controllers/AssignmentController.js';
 import { GradeAssignmentUseCase } from './application/assignment/GradeAssignmentUseCase.js';
 
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+const usePostgres = Boolean(process.env.DB_HOST && process.env.DB_HOST !== 'localhost');
+
+const dynamicImports: any[] = [
+  ConfigModule.forRoot({
+    isGlobal: true,
+  }),
+];
+
+if (usePostgres) {
+  dynamicImports.push(
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -32,18 +39,28 @@ import { GradeAssignmentUseCase } from './application/assignment/GradeAssignment
         password: configService.get<string>('DB_PASSWORD', 'password'),
         database: configService.get<string>('DB_NAME', 'assignment_db'),
         entities: [StudentEntity, AssignmentEntity],
-        synchronize: true, // Lab development only
+        synchronize: true,
         retryAttempts: 2,
         retryDelay: 1000,
       }),
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([StudentEntity, AssignmentEntity]),
-  ],
+  );
+}
+
+@Module({
+  imports: dynamicImports,
   controllers: [StudentController, AssignmentController],
   providers: [
-    { provide: STUDENT_REPOSITORY_TOKEN, useClass: StudentRepositoryImpl },
-    { provide: ASSIGNMENT_REPOSITORY_TOKEN, useClass: AssignmentRepositoryImpl },
+    {
+      provide: STUDENT_REPOSITORY_TOKEN,
+      useClass: usePostgres ? StudentRepositoryImpl : InMemoryStudentRepository,
+    },
+    {
+      provide: ASSIGNMENT_REPOSITORY_TOKEN,
+      useClass: usePostgres ? AssignmentRepositoryImpl : InMemoryAssignmentRepository,
+    },
     {
       provide: COURSE_SERVICE_CLIENT_TOKEN,
       useFactory: (configService: ConfigService) => {

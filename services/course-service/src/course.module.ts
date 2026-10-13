@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
 import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
+import { InMemoryCourseRepository } from './infrastructure/database/repositories/InMemoryCourseRepository.js';
 import { COURSE_REPOSITORY_TOKEN } from './domain/course/CourseRepository.interface.js';
 import { EVENT_PUBLISHER_TOKEN } from './application/course/EventPublisher.interface.js';
 import { RedisEventPublisher } from './infrastructure/events/RedisEventPublisher.js';
@@ -11,11 +12,16 @@ import { PublishCourseUseCase } from './application/course/PublishCourseUseCase.
 import { GetCourseUseCase, ListCoursesUseCase } from './application/course/GetCourseUseCase.js';
 import { CourseController } from './presentation/controllers/CourseController.js';
 
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+const usePostgres = Boolean(process.env.DB_HOST && process.env.DB_HOST !== 'localhost');
+
+const dynamicImports: any[] = [
+  ConfigModule.forRoot({
+    isGlobal: true,
+  }),
+];
+
+if (usePostgres) {
+  dynamicImports.push(
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -26,17 +32,24 @@ import { CourseController } from './presentation/controllers/CourseController.js
         password: configService.get<string>('DB_PASSWORD', 'password'),
         database: configService.get<string>('DB_NAME', 'course_db'),
         entities: [CourseEntity],
-        synchronize: true, // Only for lab development
+        synchronize: true,
         retryAttempts: 2,
         retryDelay: 1000,
       }),
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([CourseEntity]),
-  ],
+  );
+}
+
+@Module({
+  imports: dynamicImports,
   controllers: [CourseController],
   providers: [
-    { provide: COURSE_REPOSITORY_TOKEN, useClass: CourseRepositoryImpl },
+    {
+      provide: COURSE_REPOSITORY_TOKEN,
+      useClass: usePostgres ? CourseRepositoryImpl : InMemoryCourseRepository,
+    },
     { provide: EVENT_PUBLISHER_TOKEN, useClass: RedisEventPublisher },
     CreateCourseUseCase,
     PublishCourseUseCase,

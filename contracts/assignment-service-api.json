@@ -1,26 +1,11 @@
 {
   "openapi": "3.0.0",
-  "info": {
-    "title": "Assignment & Student Service API",
-    "description": "Assignment Bounded Context contract for student management and assignments. Includes synchronous verification with timeout and fallback protection.",
-    "version": "1.0.0"
-  },
-  "servers": [
-    {
-      "url": "http://localhost:3002",
-      "description": "Direct Assignment Service instance"
-    },
-    {
-      "url": "http://localhost:3000/api",
-      "description": "API Gateway routed endpoint"
-    }
-  ],
   "paths": {
     "/students": {
       "post": {
-        "summary": "Register a new student",
-        "description": "Creates a student account in Student Bounded Context.",
-        "operationId": "registerStudent",
+        "description": "Registers a new student profile in Student Bounded Context",
+        "operationId": "StudentController_register",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -43,34 +28,32 @@
             }
           },
           "400": {
-            "description": "Invalid name or email format",
-            "content": {
-              "application/json": {
-                "$ref": "#/components/schemas/ErrorResponseDto"
-              }
-            }
+            "description": "Invalid name or email"
           }
-        }
+        },
+        "summary": "Register student",
+        "tags": [
+          "Students"
+        ]
       }
     },
     "/students/{id}": {
       "get": {
-        "summary": "Get student profile",
-        "operationId": "getStudentById",
+        "operationId": "StudentController_getStudent",
         "parameters": [
           {
             "name": "id",
-            "in": "path",
             "required": true,
+            "in": "path",
+            "description": "Student UUID",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Student found",
+            "description": "Student profile found",
             "content": {
               "application/json": {
                 "schema": {
@@ -80,21 +63,20 @@
             }
           },
           "404": {
-            "description": "Student not found",
-            "content": {
-              "application/json": {
-                "$ref": "#/components/schemas/ErrorResponseDto"
-              }
-            }
+            "description": "Student not found"
           }
-        }
+        },
+        "summary": "Get student by ID",
+        "tags": [
+          "Students"
+        ]
       }
     },
     "/assignments": {
       "post": {
-        "summary": "Create an assignment",
-        "description": "Synchronously requests Course Service with 2s timeout. Guarantees: Graceful degradation fallback if Course Service is down/slow (returns 201 with isCourseVerified=false).",
-        "operationId": "createAssignment",
+        "description": "Synchronously contacts Course Service with a 2-second timeout. Uses fallback if Course Service is unreachable.",
+        "operationId": "AssignmentController_createAssignment",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -107,7 +89,7 @@
         },
         "responses": {
           "201": {
-            "description": "Assignment created (either verified or degraded fallback)",
+            "description": "Assignment created successfully (or degraded via fallback)",
             "content": {
               "application/json": {
                 "schema": {
@@ -117,21 +99,21 @@
             }
           },
           "400": {
-            "description": "Validation error (invalid title, non-positive score, past due date)",
-            "content": {
-              "application/json": {
-                "$ref": "#/components/schemas/ErrorResponseDto"
-              }
-            }
+            "description": "Validation error in assignment payload"
           }
-        }
+        },
+        "summary": "Create an assignment",
+        "tags": [
+          "Assignments"
+        ]
       },
       "get": {
-        "summary": "List all assignments",
-        "operationId": "listAssignments",
+        "description": "Returns all assignments across courses",
+        "operationId": "AssignmentController_listAssignments",
+        "parameters": [],
         "responses": {
           "200": {
-            "description": "List of assignments returned",
+            "description": "List of assignments",
             "content": {
               "application/json": {
                 "schema": {
@@ -143,21 +125,24 @@
               }
             }
           }
-        }
+        },
+        "summary": "List all assignments",
+        "tags": [
+          "Assignments"
+        ]
       }
     },
     "/assignments/{id}": {
       "get": {
-        "summary": "Get assignment by ID",
-        "operationId": "getAssignmentById",
+        "operationId": "AssignmentController_getAssignment",
         "parameters": [
           {
             "name": "id",
-            "in": "path",
             "required": true,
+            "in": "path",
+            "description": "Assignment UUID",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -173,125 +158,163 @@
             }
           },
           "404": {
-            "description": "Assignment not found",
-            "content": {
-              "application/json": {
-                "$ref": "#/components/schemas/ErrorResponseDto"
-              }
-            }
+            "description": "Assignment not found"
           }
-        }
+        },
+        "summary": "Get assignment by ID",
+        "tags": [
+          "Assignments"
+        ]
       }
     }
   },
+  "info": {
+    "title": "Assignment & Student Service API",
+    "description": "Assignment Bounded Context: Student profiles, assignment submission, and grading contracts",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Assignments",
+      "description": ""
+    },
+    {
+      "name": "Students",
+      "description": ""
+    }
+  ],
+  "servers": [],
   "components": {
     "schemas": {
       "RegisterStudentDto": {
         "type": "object",
-        "required": ["name", "email"],
         "properties": {
           "name": {
             "type": "string",
-            "example": "Ivan Kovalenko"
+            "example": "Olexandr Petrenko",
+            "description": "Full student name"
           },
           "email": {
             "type": "string",
-            "format": "email",
-            "example": "ivan.kovalenko@univ.edu"
+            "example": "olexandr.petrenko@univ.edu",
+            "description": "Student email address"
           }
-        }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
       },
       "StudentResponseDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "example": "345e6789-e89b-12d3-a456-426614174002"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "example": "Olexandr Petrenko"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "example": "olexandr.petrenko@univ.edu"
           },
           "enrolledCourses": {
+            "example": [],
             "type": "array",
             "items": {
               "type": "string"
             }
           }
-        }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "enrolledCourses"
+        ]
       },
       "CreateAssignmentDto": {
         "type": "object",
-        "required": ["courseId", "title", "maxScore", "dueDate"],
         "properties": {
           "courseId": {
             "type": "string",
-            "format": "uuid",
-            "example": "123e4567-e89b-12d3-a456-426614174000"
+            "example": "123e4567-e89b-12d3-a456-426614174000",
+            "description": "Target Course UUID"
           },
           "title": {
             "type": "string",
-            "example": "Lab 3: Service Contracts"
+            "example": "Lab 3: Service Decomposition",
+            "description": "Title of the assignment"
           },
           "maxScore": {
-            "type": "integer",
-            "example": 100
+            "type": "number",
+            "example": 100,
+            "description": "Maximum score possible"
           },
           "dueDate": {
             "type": "string",
-            "format": "date-time",
-            "example": "2026-12-31T23:59:59Z"
+            "example": "2026-12-31T23:59:59Z",
+            "description": "ISO 8601 Due Date (must be in future)"
           }
-        }
+        },
+        "required": [
+          "courseId",
+          "title",
+          "maxScore",
+          "dueDate"
+        ]
       },
       "AssignmentResponseDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "example": "234e5678-e89b-12d3-a456-426614174001"
           },
           "courseId": {
             "type": "string",
-            "format": "uuid"
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "courseTitle": {
-            "type": "string"
+            "type": "string",
+            "example": "Clean Architecture & Microservices",
+            "description": "Cached course title"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "example": "Lab 3: Service Decomposition"
           },
           "maxScore": {
-            "type": "integer"
+            "type": "number",
+            "example": 100
           },
           "dueDate": {
             "type": "string",
-            "format": "date-time"
+            "example": "2026-12-31T23:59:59.000Z"
           },
           "isCourseVerified": {
-            "type": "boolean"
+            "type": "boolean",
+            "example": true,
+            "description": "True if verified synchronously via Course Service, False if fallback used"
           },
           "fallbackNotice": {
-            "type": "string",
-            "nullable": true
+            "type": "object",
+            "example": null,
+            "description": "Warning message if graceful degradation occurred"
           }
-        }
-      },
-      "ErrorResponseDto": {
-        "type": "object",
-        "properties": {
-          "statusCode": {
-            "type": "integer"
-          },
-          "message": {
-            "type": "string"
-          },
-          "error": {
-            "type": "string"
-          }
-        }
+        },
+        "required": [
+          "id",
+          "courseId",
+          "courseTitle",
+          "title",
+          "maxScore",
+          "dueDate",
+          "isCourseVerified"
+        ]
       }
     }
   }
