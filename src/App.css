@@ -1,20 +1,26 @@
-/* Studevo - Modern LMS Full-Screen Red Academic Theme */
-/* Perfectly matches the Studevo dashboard design */
+/* Studevo LMS - Academic Red Theme */
+/* Three-column layout: 260px Sidebar | 1fr Workspace | 340px Organizer */
 
 :root {
-  --studevo-red: #e52d27;
-  --studevo-red-dark: #b31217;
-  --studevo-red-light: #fef2f2;
-  --studevo-orange: #f37335;
-  --studevo-gradient: linear-gradient(112deg, #d81b1b 0%, #eb2b2b 32%, #f75532 72%, #ff7a45 100%);
-  --studevo-bg: #f2f4f8;
-  --studevo-card: #ffffff;
-  --studevo-text: #1f2937;
-  --studevo-text-muted: #6b7280;
-  --studevo-border: #e5e7eb;
-  --studevo-border-light: #f3f4f6;
-  --studevo-radius: 16px;
-  --studevo-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  --studevo-red: #c92a2a;              /* Rich Academic Crimson */
+  --studevo-red-dark: #991b1b;         /* Deep Burgundy */
+  --studevo-red-light: #fff5f5;        /* Soft Rosy Tint */
+  --studevo-red-hover: #b02525;
+  --studevo-accent: #e03131;
+  --studevo-accent-subtle: #ffe3e3;
+  --studevo-bg: #f8f9fa;               /* Clean Educational Canvas */
+  --studevo-card-bg: #ffffff;
+  --studevo-border: #e9ecef;
+  --studevo-border-strong: #dee2e6;
+  --studevo-text: #212529;
+  --studevo-text-muted: #6c757d;
+  --studevo-text-dim: #868e96;
+  
+  --studevo-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --studevo-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --studevo-radius-sm: 8px;
+  --studevo-radius-md: 12px;
+  --studevo-radius-lg: 16px;
 }
 
 * {
@@ -25,569 +31,500 @@ html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: var(--studevo-bg);
   color: var(--studevo-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
-/* TOP NAVBAR */
-.studevo-header {
-  width: 100%;
+/* APP SHELL: 3-COLUMN GRID */
+.studevo-app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr 340px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ========================================================
+   LEFT COLUMN (260px) - NAVIGATION & PROFILE
+   ======================================================== */
+.studevo-sidebar-nav {
   background-color: #ffffff;
-  border-bottom: 1px solid var(--studevo-border);
-  padding: 10px 28px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-.studevo-header-left {
-  display: flex;
-  align-items: center;
-  gap: 36px;
-}
-
-.studevo-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.studevo-logo-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #e52d27, #f37335);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgba(229, 45, 39, 0.35);
-}
-
-.studevo-logo-text {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.6px;
-  color: #e52d27;
-}
-
-.studevo-logo-text span {
-  color: #f37335;
-}
-
-/* Top Nav Links */
-.studevo-nav-links {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.studevo-nav-link {
-  font-size: 14.5px;
-  font-weight: 500;
-  color: var(--studevo-text-muted);
-  text-decoration: none;
-  padding: 8px 4px;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.15s;
-}
-
-.studevo-nav-link:hover {
-  color: var(--studevo-red);
-}
-
-.studevo-nav-link.active {
-  color: var(--studevo-text);
-  font-weight: 600;
-}
-
-.studevo-nav-link.active::after {
-  content: "";
-  position: absolute;
-  bottom: -11px;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background-color: var(--studevo-red);
-  border-radius: 3px 3px 0 0;
-}
-
-/* Top Nav Right */
-.studevo-header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.nav-icon-btn {
-  background: none;
-  border: none;
-  color: #4b5563;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.15s;
-}
-
-.nav-icon-btn:hover {
-  background: #f3f4f6;
-  color: var(--studevo-red);
-}
-
-.notification-badge-dot {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 8px;
-  height: 8px;
-  background-color: var(--studevo-red);
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-}
-
-.header-status-pills {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #f9fafb;
-  border: 1px solid var(--studevo-border);
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11.5px;
-}
-
-.header-status-pill {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 12px;
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.header-status-pill.up {
-  background-color: #ecfdf5;
-  color: #065f46;
-}
-
-.header-status-pill.down {
-  background-color: #fef2f2;
-  color: #991b1b;
-}
-
-.user-profile-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 20px;
-  transition: background 0.15s;
-}
-
-.user-profile-btn:hover {
-  background: #f3f4f6;
-}
-
-.user-avatar-circle {
-  width: 34px;
-  height: 34px;
-  background-color: #94a3b8;
-  color: #ffffff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-profile-name {
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--studevo-text);
-}
-
-/* MAIN DASHBOARD LAYOUT (Full width, no cramped margins) */
-.studevo-main-container {
-  display: flex;
-  width: 100%;
-  min-height: calc(100vh - 60px);
-  padding: 20px 28px;
-  gap: 22px;
-  box-sizing: border-box;
-}
-
-/* LEFT SIDEBAR */
-.studevo-sidebar-left {
-  width: 150px;
-  flex-shrink: 0;
+  border-right: 1px solid var(--studevo-border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  height: 100vh;
+  padding: 24px 18px 20px 18px;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.02);
+  z-index: 10;
 }
 
-.sidebar-nav-item {
+/* 1. Branding */
+.studevo-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px 20px 6px;
+  border-bottom: 1px solid var(--studevo-border);
+  margin-bottom: 20px;
+}
+
+.studevo-brand-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--studevo-red), var(--studevo-red-dark));
+  border-radius: var(--studevo-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(185, 28, 28, 0.3);
+  flex-shrink: 0;
+}
+
+.studevo-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.studevo-brand-title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--studevo-red-dark);
+  line-height: 1.1;
+}
+
+.studevo-brand-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--studevo-text-dim);
+}
+
+/* 2. Main Navigation Menu */
+.studevo-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+}
+
+.studevo-menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #4b5563;
-  background: none;
+  padding: 11px 14px;
+  border-radius: var(--studevo-radius-sm);
   border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #495057;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s;
+  transition: all 0.15s ease-in-out;
 }
 
-.sidebar-nav-item:hover {
-  background-color: #ffffff;
-  color: var(--studevo-red);
+.studevo-menu-item:hover {
+  background-color: var(--studevo-red-light);
+  color: var(--studevo-red-dark);
 }
 
-.sidebar-nav-item.active {
+.studevo-menu-item.active {
   background-color: var(--studevo-red);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(229, 45, 39, 0.28);
+  box-shadow: 0 3px 10px rgba(201, 42, 42, 0.25);
 }
 
-.sidebar-nav-item svg {
+.studevo-menu-item svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
 }
 
-/* CENTER WORKSPACE */
-.studevo-content-center {
-  flex: 1;
-  min-width: 0;
+/* 3. User Profile & Role Switcher */
+.studevo-profile-footer {
+  border-top: 1px solid var(--studevo-border);
+  padding-top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
-/* HERO BANNER */
-.studevo-hero-banner {
-  width: 100%;
-  background: var(--studevo-gradient);
+.studevo-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  background-color: #f8f9fa;
+  border-radius: var(--studevo-radius-sm);
+  border: 1px solid var(--studevo-border);
+}
+
+.profile-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--studevo-red-dark);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--studevo-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-dept {
+  font-size: 11px;
+  color: var(--studevo-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Role Toggle: Студент / Викладач */
+.role-toggle-container {
+  display: flex;
+  background-color: #f1f3f5;
   border-radius: 20px;
-  padding: 36px 44px;
+  padding: 3px;
+  border: 1px solid var(--studevo-border);
+}
+
+.role-toggle-btn {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--studevo-text-muted);
+  transition: all 0.15s ease-in-out;
+  text-align: center;
+}
+
+.role-toggle-btn.active {
+  background-color: #ffffff;
+  color: var(--studevo-red-dark);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* ========================================================
+   CENTER COLUMN (1fr) - WORKSPACE
+   ======================================================== */
+.studevo-workspace {
+  background-color: var(--studevo-bg);
+  overflow-y: auto;
+  height: 100vh;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Top Banner Header */
+.studevo-welcome-banner {
+  background: linear-gradient(135deg, #991b1b 0%, #c92a2a 50%, #d9480f 100%);
+  border-radius: var(--studevo-radius-lg);
+  padding: 28px 34px;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(153, 27, 27, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #ffffff;
-  box-shadow: 0 10px 25px rgba(216, 27, 27, 0.22);
   position: relative;
   overflow: hidden;
 }
 
-.hero-text-block {
-  max-width: 58%;
-  z-index: 2;
+.welcome-text h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.3px;
 }
 
-.hero-text-block h1 {
-  font-size: 32px;
-  font-weight: 800;
-  line-height: 1.25;
-  margin: 0 0 12px 0;
-  color: #ffffff;
-  letter-spacing: -0.5px;
+.welcome-text p {
+  font-size: 13.5px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.hero-text-block p {
-  font-size: 15px;
-  line-height: 1.5;
-  margin: 0 0 24px 0;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.hero-actions {
+.banner-stats {
   display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.hero-btn-white {
-  background-color: #ffffff;
-  color: #1f2937;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px 26px;
-  border-radius: 24px;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.hero-btn-white:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-}
-
-.hero-btn-outline {
-  background-color: transparent;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 9px 24px;
-  border-radius: 24px;
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.hero-btn-outline:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.hero-image-block {
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.hero-image-block img {
-  height: 200px;
-  width: auto;
-  border-radius: 16px;
-  object-fit: cover;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  border: 3px solid rgba(255, 255, 255, 0.4);
-}
-
-/* COURSE CARDS GRID (4 Columns) */
-.studevo-courses-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  width: 100%;
 }
 
-@media (max-width: 1200px) {
-  .studevo-courses-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.stat-pill {
+  background-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--studevo-radius-md);
+  padding: 10px 18px;
+  text-align: center;
 }
 
-.studevo-course-card {
-  background: #ffffff;
-  border-radius: var(--studevo-radius);
+.stat-pill-val {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.stat-pill-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 4px;
+}
+
+/* Notification Alert */
+.studevo-alert {
+  padding: 12px 18px;
+  border-radius: var(--studevo-radius-sm);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--studevo-shadow-sm);
+}
+
+.studevo-alert-success {
+  background-color: #ebfbee;
+  color: #2b8a3e;
+  border: 1px solid #d3f9d8;
+}
+
+.studevo-alert-danger {
+  background-color: #fff5f5;
+  color: #c92a2a;
+  border: 1px solid #ffe3e3;
+}
+
+/* Section Header */
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--studevo-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* COURSE CARDS GRID */
+.courses-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.course-academic-card {
+  background: var(--studevo-card-bg);
+  border: 1px solid var(--studevo-border);
+  border-radius: var(--studevo-radius-md);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--studevo-shadow-sm);
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
-.studevo-course-card:hover {
+.course-academic-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--studevo-shadow-md);
+  border-color: #fcc2d7;
 }
 
-.course-card-image-wrap {
-  width: 100%;
-  height: 130px;
+.course-card-top-cover {
+  height: 110px;
+  background-color: #f1f3f5;
+  position: relative;
   overflow: hidden;
-  background-color: #f3f4f6;
 }
 
-.course-card-image-wrap img {
+.course-card-top-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
 }
 
-.studevo-course-card:hover .course-card-image-wrap img {
-  transform: scale(1.04);
+.course-card-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 255, 255, 0.95);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: var(--studevo-red-dark);
 }
 
-.course-card-body {
-  padding: 14px 16px;
-  flex: 1;
+.course-card-content {
+  padding: 16px;
   display: flex;
   flex-direction: column;
+  flex: 1;
   justify-content: space-between;
 }
 
 .course-card-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--studevo-text);
-  margin: 0 0 10px 0;
+  margin: 0 0 6px 0;
   line-height: 1.35;
 }
 
-.course-progress-wrap {
+.course-card-instructor {
+  font-size: 12px;
+  color: var(--studevo-text-muted);
+  margin-bottom: 10px;
+}
+
+.course-card-syllabus-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #495057;
+  background-color: #f8f9fa;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.course-card-progress-block {
   margin-top: auto;
 }
 
-.course-progress-bar {
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--studevo-text-muted);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.progress-track {
   width: 100%;
   height: 6px;
-  background-color: #e5e7eb;
+  background-color: #e9ecef;
   border-radius: 4px;
   overflow: hidden;
-  margin-bottom: 6px;
 }
 
-.course-progress-fill {
+.progress-bar-fill {
   height: 100%;
-  background-color: var(--studevo-red);
+  background: linear-gradient(90deg, var(--studevo-red), var(--studevo-accent));
   border-radius: 4px;
 }
 
-.course-progress-label {
-  font-size: 12px;
-  color: var(--studevo-text-muted);
-  font-weight: 500;
+/* COURSE DETAILS MODAL / EXPANDED VIEW */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  backdrop-filter: blur(3px);
 }
 
-/* MANAGEMENT & LAB CARDS */
-.studevo-card {
+.modal-window {
   background: #ffffff;
-  border-radius: var(--studevo-radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+  border-radius: var(--studevo-radius-lg);
+  width: 620px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
 }
 
-.studevo-card-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--studevo-border-light);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--studevo-text);
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--studevo-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.studevo-card-body {
-  padding: 20px;
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--studevo-red-dark);
 }
 
-/* Red Subtabs for Lab features */
-.studevo-subtabs {
+.modal-body {
+  padding: 24px;
+  font-size: 13.5px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--studevo-border);
   display: flex;
-  gap: 8px;
-  border-bottom: 2px solid var(--studevo-border-light);
-  margin-bottom: 18px;
-  padding-bottom: 8px;
+  justify-content: flex-end;
+  gap: 12px;
+  background-color: #f8f9fa;
 }
 
-.subtab-pill {
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: #4b5563;
-  background: #f3f4f6;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.subtab-pill:hover {
-  background-color: #fee2e2;
-  color: var(--studevo-red);
-}
-
-.subtab-pill.active {
-  background-color: var(--studevo-red);
-  color: #ffffff;
-  font-weight: 600;
-}
-
-/* Forms */
-.form-group-custom {
-  margin-bottom: 14px;
-}
-
-.form-group-custom label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 6px;
-}
-
-.input-studevo {
-  width: 100%;
-  padding: 9px 12px;
+/* WORKSPACE CARD & FORMS */
+.studevo-card {
+  background: var(--studevo-card-bg);
   border: 1px solid var(--studevo-border);
-  border-radius: 8px;
-  font-size: 13.5px;
-  color: var(--studevo-text);
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: var(--studevo-radius-md);
+  box-shadow: var(--studevo-shadow-sm);
+  padding: 20px 22px;
 }
 
-.input-studevo:focus {
-  border-color: var(--studevo-red);
-  box-shadow: 0 0 0 3px rgba(229, 45, 39, 0.15);
-}
-
-.btn-studevo-red {
-  background-color: var(--studevo-red);
-  color: #ffffff;
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.15s, transform 0.1s;
-}
-
-.btn-studevo-red:hover {
-  background-color: var(--studevo-red-dark);
-}
-
-.btn-studevo-outline {
-  background-color: transparent;
-  color: var(--studevo-red);
-  border: 1px solid var(--studevo-red);
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-studevo-outline:hover {
-  background-color: var(--studevo-red);
-  color: #ffffff;
-}
-
-/* Modern Tables */
 .studevo-table {
   width: 100%;
   border-collapse: collapse;
@@ -595,250 +532,341 @@ html, body, #root {
 }
 
 .studevo-table th {
-  background-color: #f9fafb;
-  color: #4b5563;
+  background-color: #f8f9fa;
+  color: #495057;
   padding: 10px 14px;
   text-align: left;
   font-weight: 600;
-  border-bottom: 1px solid var(--studevo-border);
+  border-bottom: 2px solid var(--studevo-border);
 }
 
 .studevo-table td {
   padding: 12px 14px;
-  border-bottom: 1px solid var(--studevo-border-light);
+  border-bottom: 1px solid var(--studevo-border);
   vertical-align: middle;
 }
 
-.studevo-table tbody tr:hover {
+.studevo-table tr:hover {
   background-color: #fffafa;
 }
 
-/* Status Badges */
-.studevo-tag {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 11.5px;
+/* Buttons */
+.btn-studevo-primary {
+  background-color: var(--studevo-red);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--studevo-radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.tag-red-published {
-  background-color: #fee2e2;
-  color: #991b1b;
+.btn-studevo-primary:hover {
+  background-color: var(--studevo-red-hover);
+  box-shadow: 0 2px 8px rgba(201, 42, 42, 0.3);
 }
 
-.tag-draft {
-  background-color: #f3f4f6;
-  color: #4b5563;
+.btn-studevo-outline {
+  background-color: #ffffff;
+  color: var(--studevo-red);
+  border: 1px solid var(--studevo-red);
+  border-radius: var(--studevo-radius-sm);
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.tag-green-verified {
-  background-color: #ecfdf5;
-  color: #065f46;
+.btn-studevo-outline:hover {
+  background-color: var(--studevo-red-light);
 }
 
-.tag-orange-fallback {
-  background-color: #fffbeb;
-  color: #92400e;
+.btn-studevo-secondary {
+  background-color: #e9ecef;
+  color: #495057;
+  border: 1px solid var(--studevo-border);
+  border-radius: var(--studevo-radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-/* Notifications */
-.studevo-alert {
-  padding: 12px 18px;
-  border-radius: 10px;
-  font-size: 13.5px;
-  margin-bottom: 16px;
+.form-group-field {
+  margin-bottom: 14px;
 }
 
-.studevo-alert-success {
-  background-color: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+.form-group-field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 6px;
 }
 
-.studevo-alert-danger {
-  background-color: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+.input-studevo-control {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--studevo-border-strong);
+  border-radius: var(--studevo-radius-sm);
+  font-size: 13px;
+  color: var(--studevo-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.studevo-alert-info {
-  background-color: #fdf2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+.input-studevo-control:focus {
+  border-color: var(--studevo-red);
+  box-shadow: 0 0 0 3px rgba(201, 42, 42, 0.15);
 }
 
-/* RIGHT SIDEBAR */
-.studevo-sidebar-right {
-  width: 290px;
-  flex-shrink: 0;
+/* ========================================================
+   RIGHT COLUMN (340px) - ORGANIZER
+   ======================================================== */
+.studevo-organizer {
+  background-color: #ffffff;
+  border-left: 1px solid var(--studevo-border);
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 22px;
+  box-shadow: -1px 0 3px rgba(0, 0, 0, 0.02);
+  z-index: 10;
 }
 
-.widget-card {
+.organizer-widget {
   background: #ffffff;
-  border-radius: var(--studevo-radius);
-  padding: 18px 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--studevo-border);
+  border-radius: var(--studevo-radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--studevo-shadow-sm);
 }
 
-.widget-title-row {
+.organizer-widget-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
 }
 
-.widget-title {
-  font-size: 15px;
+.organizer-widget-title {
+  font-size: 14.5px;
   font-weight: 700;
-  color: var(--studevo-text);
+  color: var(--studevo-red-dark);
   margin: 0;
-}
-
-.calendar-arrows {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
-.calendar-arrow-btn {
+/* 1. Interactive Academic Calendar */
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.calendar-nav-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: #9ca3af;
-  font-size: 14px;
   padding: 2px 6px;
   border-radius: 4px;
+  color: var(--studevo-text-muted);
 }
 
-.calendar-arrow-btn:hover {
-  background-color: #f3f4f6;
-  color: #1f2937;
+.calendar-nav-btn:hover {
+  background-color: #f1f3f5;
+  color: var(--studevo-text);
 }
 
-/* Mini Calendar Grid */
-.calendar-days-header {
+.calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--studevo-text-dim);
+  margin-bottom: 6px;
 }
 
-.calendar-dates-grid {
+.calendar-grid-cells {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 3px;
   text-align: center;
 }
 
-.calendar-day-cell {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #4b5563;
+.cal-cell {
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
   border-radius: 50%;
   cursor: pointer;
+  transition: all 0.1s;
 }
 
-.calendar-day-cell.other-month {
-  color: #d1d5db;
+.cal-cell:hover:not(.empty) {
+  background-color: #f1f3f5;
 }
 
-.calendar-day-cell.highlight-red {
-  background-color: var(--studevo-red);
-  color: #ffffff;
+.cal-cell.empty {
+  cursor: default;
+}
+
+.cal-cell.today {
+  border: 1px solid var(--studevo-red-dark);
   font-weight: 700;
 }
 
-.calendar-day-cell.highlight-orange {
-  background-color: #f59e0b;
+/* Crimson highlight for assignment submission dates */
+.cal-cell.deadline-highlight {
+  background-color: var(--studevo-red-dark);
   color: #ffffff;
   font-weight: 700;
+  box-shadow: 0 2px 6px rgba(153, 27, 27, 0.35);
 }
 
-.calendar-day-cell.highlight-yellow {
-  background-color: #fbbf24;
-  color: #ffffff;
-  font-weight: 700;
-}
-
-/* Upcoming Events List */
-.upcoming-event-item {
+.calendar-legend {
   display: flex;
   align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--studevo-text-muted);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--studevo-border);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--studevo-red-dark);
+}
+
+/* 2. Upcoming Deadlines */
+.deadline-items-list {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: #374151;
 }
 
-.event-bar {
-  width: 4px;
-  height: 18px;
-  border-radius: 2px;
-  flex-shrink: 0;
+.deadline-card-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--studevo-radius-sm);
+  background-color: #fafafa;
+  border-left: 3px solid var(--studevo-red);
+  transition: background-color 0.15s;
 }
 
-.event-bar.red {
-  background-color: var(--studevo-red);
+.deadline-card-item:hover {
+  background-color: #fff5f5;
 }
 
-.event-bar.orange {
-  background-color: var(--studevo-orange);
+.deadline-card-info {
+  flex: 1;
+  min-width: 0;
 }
 
-/* News block */
-.news-item {
-  margin-bottom: 10px;
+.deadline-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--studevo-text);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.news-item-title {
-  font-size: 13px;
-  line-height: 1.4;
-  color: #374151;
+.deadline-course {
+  font-size: 11.5px;
+  color: var(--studevo-text-muted);
   margin-bottom: 4px;
 }
 
-.news-item-date {
-  font-size: 11.5px;
-  color: #9ca3af;
+.deadline-countdown-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: #ffe3e3;
+  color: var(--studevo-red-dark);
 }
 
-/* Floating Chat Bubble Button */
-.floating-chat-bubble {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 48px;
-  height: 48px;
-  background-color: var(--studevo-red);
-  color: #ffffff;
+/* 3. Recent Grades / Updates Notifications */
+.updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-card-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background-color: #ffffff;
+  border: 1px solid var(--studevo-border);
+  border-radius: var(--studevo-radius-sm);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.update-icon-wrap {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(229, 45, 39, 0.4);
-  cursor: pointer;
-  border: none;
-  z-index: 99;
-  transition: transform 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+  font-size: 12px;
 }
 
-.floating-chat-bubble:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 18px rgba(229, 45, 39, 0.5);
+.update-icon-wrap.grade {
+  background-color: #ebfbee;
+  color: #2b8a3e;
 }
 
-.floating-chat-bubble svg {
-  width: 24px;
-  height: 24px;
-  fill: currentColor;
+.update-icon-wrap.course {
+  background-color: #e7f5ff;
+  color: #1971c2;
+}
+
+.update-content {
+  flex: 1;
+  font-size: 12px;
+}
+
+.update-header-text {
+  font-weight: 600;
+  color: var(--studevo-text);
+  margin-bottom: 2px;
+}
+
+.update-desc-text {
+  color: var(--studevo-text-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.update-time {
+  font-size: 10.5px;
+  color: var(--studevo-text-dim);
+  margin-top: 4px;
 }
