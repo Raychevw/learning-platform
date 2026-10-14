@@ -1,105 +1,101 @@
 version: '3.8'
 
 services:
-  # Isolated database for Course Service
-  course-db:
-    image: postgres:15
-    container_name: course_db
+  # Central PostgreSQL Database for University LMS Modular Monolith
+  postgres:
+    image: postgres:15-alpine
+    container_name: lms_postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: course_db
+      POSTGRES_USER: lms_admin
+      POSTGRES_PASSWORD: lms_secure_password
+      POSTGRES_DB: lms_db
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
-      - course_db_data:/var/lib/postgresql/data
+      - lms_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms_admin -d lms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # Isolated database for Assignment Service
-  assignment-db:
-    image: postgres:15
-    container_name: assignment_db
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: assignment_db
-    ports:
-      - "5434:5432"
-    volumes:
-      - assignment_db_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  # Redis message broker for asynchronous events (course.published)
+  # Redis for Caching Course Pages, Chat Buffering & BullMQ Job Queues
   redis:
-    image: redis:7
-    container_name: redis_broker
+    image: redis:7-alpine
+    container_name: lms_redis
     ports:
       - "6379:6379"
+    volumes:
+      - lms_redis_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # Course Service microservice (port 3001)
-  course-service:
-    build:
-      context: ./services/course-service
-      dockerfile: Dockerfile
-    container_name: course_service
+  # S3-compatible Object Storage (MinIO) for PDF lectures, materials and lab submissions
+  minio:
+    image: minio/minio:latest
+    container_name: lms_minio
+    command: server /data --console-address ":9001"
     environment:
-      PORT: 3001
-      DB_HOST: course-db
-      DB_PORT: 5432
-      DB_USER: admin
-      DB_PASSWORD: password
-      DB_NAME: course_db
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_secret_key
     ports:
-      - "3001:3001"
-    depends_on:
-      - course-db
-      - redis
+      - "9000:9000"   # S3 API endpoint
+      - "9001:9001"   # Web Console
+    volumes:
+      - lms_minio_data:/data
     restart: unless-stopped
 
-  # Assignment Service microservice (port 3002)
-  assignment-service:
-    build:
-      context: ./services/assignment-service
-      dockerfile: Dockerfile
-    container_name: assignment_service
-    environment:
-      PORT: 3002
-      DB_HOST: assignment-db
-      DB_PORT: 5432
-      DB_USER: admin
-      DB_PASSWORD: password
-      DB_NAME: assignment_db
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      COURSE_SERVICE_URL: http://course-service:3001
-    ports:
-      - "3002:3002"
+  # Helper service to ensure S3 bucket 'lms-files' exists
+  minio-init:
+    image: minio/mc:latest
     depends_on:
-      - assignment-db
-      - redis
-      - course-service
-    restart: unless-stopped
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minio_admin minio_secret_key;
+      /usr/bin/mc mb --ignore-existing myminio/lms-files;
+      /usr/bin/mc anonymous set download myminio/lms-files;
+      exit 0;
+      "
 
-  # API Gateway reverse proxy (port 3000)
-  api-gateway:
+  # NestJS Modular Monolith Backend (Port 3000)
+  backend:
     build:
-      context: ./services/api-gateway
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: api_gateway
+    container_name: lms_backend
     environment:
       PORT: 3000
-      COURSE_SERVICE_URL: http://course-service:3001
-      ASSIGNMENT_SERVICE_URL: http://assignment-service:3002
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: lms_admin
+      DB_PASSWORD: lms_secure_password
+      DB_NAME: lms_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio_admin
+      S3_SECRET_KEY: minio_secret_key
+      S3_BUCKET: lms-files
+      JWT_SECRET: super_secure_university_jwt_secret_key_2026
     ports:
       - "3000:3000"
     depends_on:
-      - course-service
-      - assignment-service
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
-  course_db_data:
-  assignment_db_data:
+  lms_postgres_data:
+  lms_redis_data:
+  lms_minio_data:

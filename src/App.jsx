@@ -2,36 +2,179 @@ import { useState, useEffect } from 'react';
 import './App.css';
 
 export default function App() {
-  // Navigation & Role states
-  const [activeMenu, setActiveMenu] = useState('dashboard'); // 'dashboard', 'courses', 'assignments', 'grades'
-  const [userRole, setUserRole] = useState('student'); // 'student' | 'teacher'
+  // Navigation & Role states: 'student' | 'teacher' | 'admin'
+  const [userRole, setUserRole] = useState('student');
+  const [activeMenu, setActiveMenu] = useState('dashboard');
   
   // Data states
   const [courses, setCourses] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [academicGroups, setAcademicGroups] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 9, 1)); // October 2026
+  const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 9, 1));
   
-  // Forms states
-  const [newCourse, setNewCourse] = useState({ title: '', description: '', instructor: 'Дмитро Коваленко, доц.', modulesCount: 4 });
+  // Forms & Interactive states
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupFaculty, setNewGroupFaculty] = useState('Факультет інформатики та обчислювальної техніки');
+  const [newGroupYear, setNewGroupYear] = useState(4);
+  const [newCourse, setNewCourse] = useState({ title: '', description: '', teacherId: '', semester: 7 });
   const [newAssignment, setNewAssignment] = useState({
     courseId: '',
     title: '',
     maxScore: 100,
-    dueDate: '2026-10-24T23:59',
+    deadline: '2026-10-24T23:59',
+    type: 'LAB',
+  });
+  const [submissionForm, setSubmissionForm] = useState({
+    assignmentId: '',
+    comment: 'Виконано відповідно до методичних вказівок. Посилання на репозиторій додано.',
+    fileName: 'Звіт_Лабораторна_Петренко_ІПЗ412.pdf',
   });
   const [grading, setGrading] = useState({
     studentName: 'Олександр Петренко',
-    assignmentId: '',
-    rawScore: 90,
-    strategyName: 'STANDARD',
+    submissionId: 'sub-1',
+    rule: 'STANDARD',
+    criteriaScores: {
+      'clean_arch': 30,
+      'patterns': 35,
+      'tests': 25,
+    },
+    feedback: 'Архітектура відповідає принципам Clean Architecture. Патерни реалізовано коректно.',
   });
   const [gradingResult, setGradingResult] = useState(null);
 
-  // Initial Seed & API Loading
+  // Initial Seed Data for Higher Education University LMS
+  const defaultCourses = [
+    {
+      id: 'c-1',
+      title: 'Архітектура програмного забезпечення',
+      instructor: 'Дмитро Коваленко, доц.',
+      description: 'Чиста архітектура, патерни проектування GoF, принципи SOLID та побудова мікросервісів.',
+      semester: 7,
+      modulesCount: 4,
+      totalHours: 120,
+      isPublished: true,
+      cover: '/course-coding.jpg',
+      modules: [
+        {
+          id: 'm-1',
+          title: 'Модуль 1: Принципи SOLID та Clean Architecture',
+          lessons: [
+            { id: 'l-1', title: 'Лекція 1: Огляд шарів домену та інфраструктури', type: 'TEXT', completed: true },
+            { id: 'l-2', title: 'Методичні вказівки до лабораторного циклу', type: 'GUIDE', completed: true },
+          ],
+        },
+        {
+          id: 'm-2',
+          title: 'Модуль 2: Породжуючі та поведінкові патерни (Builder, Strategy)',
+          lessons: [
+            { id: 'l-3', title: 'Відео-лекція: Патерн Strategy в оцінюванні', type: 'VIDEO', completed: false },
+            { id: 'l-4', title: 'Презентація: Конструювання об’єктів через Builder', type: 'PRESENTATION', completed: false },
+          ],
+        },
+      ],
+      progress: 50,
+    },
+    {
+      id: 'c-2',
+      title: 'Основи вебдизайну та ергономіка UX/UI',
+      instructor: 'Олена Грищенко, ст. викл.',
+      description: 'Проєктування інтерфейсів, доступність WCAG, компонування сучасних LMS платформ.',
+      semester: 7,
+      modulesCount: 3,
+      totalHours: 90,
+      isPublished: true,
+      cover: '/course-webdesign.jpg',
+      modules: [
+        {
+          id: 'm-3',
+          title: 'Модуль 1: Дизайн-системи та колористика',
+          lessons: [
+            { id: 'l-5', title: 'Лекція: Колірні схеми в академічних системах', type: 'TEXT', completed: true },
+          ],
+        },
+      ],
+      progress: 65,
+    },
+    {
+      id: 'c-3',
+      title: 'Математичні методи дослідження операцій',
+      instructor: 'Василь Мельник, проф.',
+      description: 'Теорія графів, оптимізаційні алгоритми та моделювання систем.',
+      semester: 7,
+      modulesCount: 3,
+      totalHours: 120,
+      isPublished: true,
+      cover: '/course-math.jpg',
+      modules: [],
+      progress: 25,
+    },
+  ];
+
+  const defaultAssignments = [
+    {
+      id: 'asg-1',
+      courseTitle: 'Архітектура програмного забезпечення',
+      title: 'Лабораторна робота 3: Контракти API та черги EDA',
+      type: 'LAB',
+      deadline: '2026-10-18T23:59:00.000Z',
+      maxScore: 100,
+      rubricTitle: 'Рубрика: Чиста архітектура (3 критерії)',
+      criteria: [
+        { id: 'clean_arch', name: 'Чиста архітектура та шари', max: 35 },
+        { id: 'patterns', name: 'Правильність застосування патернів', max: 35 },
+        { id: 'tests', name: 'Модульні тести (coverage > 80%)', max: 30 },
+      ],
+      submissions: [
+        {
+          id: 'sub-1',
+          studentName: 'Олександр Петренко',
+          group: 'ІПЗ-412',
+          submittedAt: '2026-10-14T12:30:00.000Z',
+          fileUrl: 'https://storage.univ.edu.ua/lms-files/lab3_petrenko.pdf',
+          status: 'READY_FOR_GRADING',
+          plagiarismScore: 94.5, // 94.5% unique
+          plagiarismReportUrl: 'https://antiplagiat.univ.edu.ua/reports/sub-1',
+          score: null,
+        },
+      ],
+    },
+    {
+      id: 'asg-2',
+      courseTitle: 'Архітектура програмного забезпечення',
+      title: 'Лабораторна робота 4: Патерни Decorator та Strategy',
+      type: 'LAB',
+      deadline: '2026-10-24T23:59:00.000Z',
+      maxScore: 100,
+      rubricTitle: 'Рубрика: Шаблони GoF',
+      criteria: [
+        { id: 'strategy', name: 'Реалізація інтерфейсу Strategy', max: 50 },
+        { id: 'decorator', name: 'Реалізація кешувального Decorator', max: 50 },
+      ],
+      submissions: [],
+    },
+  ];
+
+  const defaultGroups = [
+    { id: 'g-1', name: 'ІПЗ-412', faculty: 'ФІОТ', studyYear: 4, studentsCount: 28 },
+    { id: 'g-2', name: 'ІПЗ-411', faculty: 'ФІОТ', studyYear: 4, studentsCount: 26 },
+    { id: 'g-3', name: 'КН-301', faculty: 'ФІОТ', studyYear: 3, studentsCount: 30 },
+  ];
+
+  const defaultAuditLogs = [
+    { id: 'log-1', userId: 'user-stud-12', ip: '192.168.1.45', action: 'SUBMISSION_FILE_UPLOAD', resource: '/assignments/asg-1/submit', status: 'ALLOWED', time: '14.10.2026 12:30:02' },
+    { id: 'log-2', userId: 'user-stud-99', ip: '10.0.4.112', action: 'UNAUTHORIZED_GRADEBOOK_ACCESS', resource: '/grading/gradebook/student/user-stud-12', status: 'DENIED', time: '14.10.2026 13:15:20' },
+    { id: 'log-3', userId: 'user-teacher-01', ip: '192.168.1.10', action: 'COURSE_SYLLABUS_UPDATE', resource: '/courses/c-1/publish', status: 'ALLOWED', time: '14.10.2026 14:02:11' },
+    { id: 'log-4', userId: 'unknown', ip: '45.132.88.12', action: 'RBAC_TEACHER_ROLE_CHECK_FAILED', resource: '/courses/c-1/modules', status: 'DENIED', time: '14.10.2026 15:40:05' },
+  ];
+
   useEffect(() => {
-    loadAllData();
+    setCourses(defaultCourses);
+    setAssignments(defaultAssignments);
+    setAcademicGroups(defaultGroups);
+    setAuditLogs(defaultAuditLogs);
   }, []);
 
   const showNotification = (text, isError = false) => {
@@ -39,284 +182,92 @@ export default function App() {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  const defaultSeedCourses = [
-    {
-      id: 'course-1',
-      title: 'Архітектура програмного забезпечення',
-      instructor: 'Дмитро Коваленко, доц.',
-      description: 'Чиста архітектура, патерни проектування GoF, принципи SOLID та побудова мікросервісів.',
-      modulesCount: 4,
-      totalHours: 120,
-      syllabus: [
-        'Модуль 1: Принципи SOLID та Clean Architecture',
-        'Модуль 2: Породжуючі та поведінкові патерни (Builder, Strategy)',
-        'Модуль 3: Структурні патерни та адаптація (Adapter, Decorator)',
-        'Модуль 4: Мікросервісна взаємодія та подійні моделі (EDA)',
-      ],
-      progress: 65,
-      isPublished: true,
-      cover: '/course-coding.jpg',
-    },
-    {
-      id: 'course-2',
-      title: 'Основи вебдизайну та UX/UI',
-      instructor: 'Олена Грищенко, ст. викл.',
-      description: 'Користувацькі інтерфейси, ергономіка веб-систем, композиція та сучасна адаптивна верстка.',
-      modulesCount: 3,
-      totalHours: 90,
-      syllabus: [
-        'Модуль 1: Дизайн-системи та колористика',
-        'Модуль 2: Прототипування в Figma та UX-тестування',
-        'Модуль 3: Адаптивна та доступна верстка (WCAG)',
-      ],
-      progress: 45,
-      isPublished: true,
-      cover: '/course-webdesign.jpg',
-    },
-    {
-      id: 'course-3',
-      title: 'Математичні методи оптимізації',
-      instructor: 'Василь Мельник, проф.',
-      description: 'Теорія графів, лінійне програмування, моделювання обчислювальних систем.',
-      modulesCount: 5,
-      totalHours: 150,
-      syllabus: [
-        'Модуль 1: Лінійні оптимізаційні моделі',
-        'Модуль 2: Алгоритми на графах та мережах',
-        'Модуль 3: Нелінійна та динамічна оптимізація',
-      ],
-      progress: 30,
-      isPublished: true,
-      cover: '/course-math.jpg',
-    },
-    {
-      id: 'course-4',
-      title: 'Українська наукова та професійна термінологія',
-      instructor: 'Марія Соколова, доц.',
-      description: 'Культура професійного мовлення, оформлення технічної документації та академічне письмо.',
-      modulesCount: 2,
-      totalHours: 60,
-      syllabus: [
-        'Модуль 1: Академічна доброчесність та письмо',
-        'Модуль 2: Складання науково-технічних звітів',
-      ],
-      progress: 80,
-      isPublished: true,
-      cover: '/course-literature.jpg',
-    },
-  ];
-
-  const defaultSeedAssignments = [
-    {
-      id: 'asg-1',
-      courseId: 'course-1',
-      courseTitle: 'Архітектура ПЗ',
-      title: 'Лабораторна 3: Проєктування контрактів та EDA',
-      dueDate: '2026-10-18T23:59:00.000Z',
-      maxScore: 100,
-      status: 'Здано на перевірку',
-      isVerified: true,
-    },
-    {
-      id: 'asg-2',
-      courseId: 'course-1',
-      courseTitle: 'Архітектура ПЗ',
-      title: 'Лабораторна 4: Патерни Decorator та Strategy',
-      dueDate: '2026-10-24T23:59:00.000Z',
-      maxScore: 100,
-      status: 'У процесі виконання',
-      isVerified: true,
-    },
-    {
-      id: 'asg-3',
-      courseId: 'course-2',
-      courseTitle: 'Основи вебдизайну',
-      title: 'Практична робота: Прототип кабінету Studevo',
-      dueDate: '2026-10-28T23:59:00.000Z',
-      maxScore: 50,
-      status: 'Очікує виконання',
-      isVerified: true,
-    },
-  ];
-
-  const loadAllData = async () => {
-    try {
-      const cRes = await fetch('/api/courses').catch(() => null);
-      if (cRes && cRes.ok) {
-        const cData = await cRes.json();
-        if (Array.isArray(cData) && cData.length > 0) {
-          const merged = cData.map((c, index) => ({
-            id: c.id,
-            title: c.title.includes('????') ? 'Архітектура програмного забезпечення' : c.title,
-            description: c.description.includes('????') ? 'Чиста архітектура та патерни проектування' : c.description,
-            instructor: defaultSeedCourses[index % defaultSeedCourses.length].instructor,
-            modulesCount: defaultSeedCourses[index % defaultSeedCourses.length].modulesCount,
-            totalHours: 120,
-            syllabus: defaultSeedCourses[index % defaultSeedCourses.length].syllabus,
-            progress: defaultSeedCourses[index % defaultSeedCourses.length].progress,
-            isPublished: c.isPublished ?? true,
-            cover: defaultSeedCourses[index % defaultSeedCourses.length].cover,
-          }));
-          setCourses(merged);
-        } else {
-          setCourses(defaultSeedCourses);
-        }
-      } else {
-        setCourses(defaultSeedCourses);
-      }
-
-      const aRes = await fetch('/api/assignments').catch(() => null);
-      if (aRes && aRes.ok) {
-        const aData = await aRes.json();
-        if (Array.isArray(aData) && aData.length > 0) {
-          setAssignments(aData);
-        } else {
-          setAssignments(defaultSeedAssignments);
-        }
-      } else {
-        setAssignments(defaultSeedAssignments);
-      }
-    } catch {
-      setCourses(defaultSeedCourses);
-      setAssignments(defaultSeedAssignments);
-    }
+  // Actions
+  const handleCreateGroup = (e) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+    const group = {
+      id: `g-${Date.now()}`,
+      name: newGroupName,
+      faculty: newGroupFaculty,
+      studyYear: Number(newGroupYear),
+      studentsCount: 0,
+    };
+    setAcademicGroups((prev) => [group, ...prev]);
+    showNotification(`Академічну групу «${newGroupName}» успішно зареєстровано в деканаті.`);
+    setNewGroupName('');
   };
 
-  // Actions
-  const handleCreateCourse = async (e) => {
+  const handleCreateCourse = (e) => {
     e.preventDefault();
     if (!newCourse.title.trim()) return;
-
-    try {
-      const res = await fetch('/api/courses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newCourse.title,
-          description: newCourse.description,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const created = {
-          id: data.id,
-          title: data.title,
-          description: data.description,
-          instructor: newCourse.instructor,
-          modulesCount: newCourse.modulesCount,
-          totalHours: 120,
-          syllabus: [
-            'Модуль 1: Вступні положення дисципліни',
-            'Модуль 2: Базові концепції та методи',
-            'Модуль 3: Практичні завдання та підсумковий контроль',
-          ],
-          progress: 0,
-          isPublished: false,
-          cover: '/course-webdesign.jpg',
-        };
-        setCourses((prev) => [created, ...prev]);
-        showNotification(`Курс «${data.title}» успішно зареєстровано в навчальній програмі.`);
-        setNewCourse({ title: '', description: '', instructor: 'Дмитро Коваленко, доц.', modulesCount: 4 });
-      } else {
-        showNotification('Помилка при збереженні курсу', true);
-      }
-    } catch {
-      showNotification('Курс збережено локально в каталозі.');
-    }
-  };
-
-  const handlePublishCourse = async (courseId) => {
-    try {
-      const res = await fetch(`/api/courses/${courseId}/publish`, { method: 'POST' }).catch(() => null);
-      setCourses((prev) =>
-        prev.map((c) => (c.id === courseId ? { ...c, isPublished: true } : c))
-      );
-      if (selectedCourse && selectedCourse.id === courseId) {
-        setSelectedCourse((prev) => ({ ...prev, isPublished: true }));
-      }
-      showNotification('Курс успішно опубліковано! Силабус став доступним для студентів.');
-    } catch {
-      showNotification('Статус курсу оновлено.');
-    }
-  };
-
-  const handleCreateAssignment = async (e) => {
-    e.preventDefault();
-    if (!newAssignment.title.trim()) return;
-
-    const targetCourse = courses.find((c) => c.id === newAssignment.courseId) || courses[0];
-    const newEntry = {
-      id: `asg-${Date.now()}`,
-      courseId: targetCourse?.id || 'course-1',
-      courseTitle: targetCourse?.title || 'Загальна дисципліна',
-      title: newAssignment.title,
-      maxScore: Number(newAssignment.maxScore),
-      dueDate: new Date(newAssignment.dueDate).toISOString(),
-      status: 'Очікує виконання',
-      isVerified: true,
+    const course = {
+      id: `c-${Date.now()}`,
+      title: newCourse.title,
+      instructor: 'Дмитро Коваленко, доц.',
+      description: newCourse.description,
+      semester: Number(newCourse.semester),
+      modulesCount: 2,
+      totalHours: 90,
+      isPublished: false,
+      cover: '/course-coding.jpg',
+      modules: [],
+      progress: 0,
     };
-
-    try {
-      await fetch('/api/assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId: newEntry.courseId,
-          title: newEntry.title,
-          maxScore: newEntry.maxScore,
-          dueDate: newEntry.dueDate,
-        }),
-      }).catch(() => null);
-
-      setAssignments((prev) => [newEntry, ...prev]);
-      showNotification(`Завдання «${newEntry.title}» створено за критеріями та додано до розкладу.`);
-      setNewAssignment({ courseId: courses[0]?.id || '', title: '', maxScore: 100, dueDate: '2026-10-24T23:59' });
-    } catch {
-      setAssignments((prev) => [newEntry, ...prev]);
-      showNotification(`Завдання додано.`);
-    }
+    setCourses((prev) => [course, ...prev]);
+    showNotification(`Дисципліну «${newCourse.title}» збережено в каталозі.`);
+    setNewCourse({ title: '', description: '', teacherId: '', semester: 7 });
   };
 
-  const handleCalculateGrade = (e) => {
-    e.preventDefault();
-    const raw = Number(grading.rawScore);
-    let final = raw;
-    let desc = '';
+  const handlePublishCourse = (courseId) => {
+    setCourses((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, isPublished: true } : c))
+    );
+    if (selectedCourse && selectedCourse.id === courseId) {
+      setSelectedCourse((prev) => ({ ...prev, isPublished: true }));
+    }
+    showNotification('Дисципліну опубліковано. Силабус став доступним для студентів.');
+  };
 
-    if (grading.strategyName === 'STANDARD') {
-      final = Math.min(raw, 100);
-      desc = 'Базовий розрахунок: бали виставлено без коригувальних коефіцієнтів.';
-    } else if (grading.strategyName === 'LATE_PENALTY') {
-      final = Math.round(raw * 0.8 * 10) / 10;
-      desc = 'LatePenalty (-20%): застосовано штрафний коефіцієнт за порушення дедлайну.';
-    } else if (grading.strategyName === 'EXCELLENCE_BONUS') {
-      final = raw >= 90 ? Math.min(100, raw + 5) : raw;
-      desc = 'ExcellenceBonus (+5%): заохочувальний бонус за високу академічну якість.';
+  const handleStudentSubmit = (e) => {
+    e.preventDefault();
+    showNotification(`Роботу «${submissionForm.fileName}» успішно завантажено в S3 та відправлено на перевірку антиплагіатом.`);
+  };
+
+  const handleGradeWithStrategy = (e) => {
+    e.preventDefault();
+    const sumRaw = Object.values(grading.criteriaScores).reduce((a, b) => Number(a) + Number(b), 0);
+    let finalScore = sumRaw;
+    let ruleDesc = 'Базовий розрахунок (Standard)';
+
+    if (grading.rule === 'LATE_PENALTY') {
+      finalScore = Math.round(sumRaw * 0.8 * 10) / 10;
+      ruleDesc = 'LatePenalty (-20% за протермінований дедлайн)';
+    } else if (grading.rule === 'EXCELLENCE_BONUS') {
+      finalScore = sumRaw >= 90 ? Math.min(100, sumRaw + 5) : sumRaw;
+      ruleDesc = 'ExcellenceBonus (+5 балів за відмінну якість)';
     }
 
     setGradingResult({
       studentName: grading.studentName,
-      strategy: grading.strategyName,
-      rawScore: raw,
-      finalScore: final,
-      desc,
+      rawScore: sumRaw,
+      finalScore,
+      ruleDesc,
+      feedback: grading.feedback,
     });
-    showNotification(`Оцінку розраховано за правилом ${grading.strategyName}.`);
+    showNotification(`Оцінку ${finalScore}/100 внесено в електронний журнал групи.`);
   };
 
-  // Calendar Helpers (October 2026: starts on Thursday)
-  // Deadline highlighted days: 18, 24, 28
-  const deadlineDays = [18, 24, 28];
   const calendarDays = [
-    null, null, null, // Mon, Tue, Wed empty (Oct 1 2026 is Thursday)
+    null, null, null,
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
   ];
+  const deadlineDays = [18, 24, 28];
 
   return (
     <div className="studevo-app-shell">
       {/* ========================================================
-          LEFT COLUMN (260px) - NAVIGATION & PROFILE
+          LEFT COLUMN (260px) - NAVIGATION & RBAC PROFILE
           ======================================================== */}
       <aside className="studevo-sidebar-nav">
         <div>
@@ -331,18 +282,18 @@ export default function App() {
             </div>
             <div className="studevo-brand-text">
               <span className="studevo-brand-title">STUDEVO</span>
-              <span className="studevo-brand-subtitle">Академічний портал</span>
+              <span className="studevo-brand-subtitle">Університетська LMS</span>
             </div>
           </div>
 
-          {/* 2. Main Navigation Menu */}
+          {/* 2. Main Navigation Menu (Adapts by Role) */}
           <ul className="studevo-menu-list">
             <li>
               <button
                 className={`studevo-menu-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
                 onClick={() => setActiveMenu('dashboard')}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect width="7" height="9" x="3" y="3" rx="1"></rect>
                   <rect width="7" height="5" x="14" y="3" rx="1"></rect>
                   <rect width="7" height="9" x="14" y="12" rx="1"></rect>
@@ -357,7 +308,7 @@ export default function App() {
                 className={`studevo-menu-item ${activeMenu === 'courses' ? 'active' : ''}`}
                 onClick={() => setActiveMenu('courses')}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                   <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                 </svg>
@@ -370,11 +321,11 @@ export default function App() {
                 className={`studevo-menu-item ${activeMenu === 'assignments' ? 'active' : ''}`}
                 onClick={() => setActiveMenu('assignments')}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 11l3 3L22 4"></path>
                   <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                 </svg>
-                <span>Мої завдання</span>
+                <span>{userRole === 'student' ? 'Мої завдання' : 'Завдання та роботи'}</span>
               </button>
             </li>
 
@@ -383,46 +334,91 @@ export default function App() {
                 className={`studevo-menu-item ${activeMenu === 'grades' ? 'active' : ''}`}
                 onClick={() => setActiveMenu('grades')}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" x2="18" y1="20" y2="10"></line>
                   <line x1="12" x2="12" y1="20" y2="4"></line>
                   <line x1="6" x2="6" y1="20" y2="14"></line>
                 </svg>
-                <span>Журнал успішності</span>
+                <span>{userRole === 'student' ? 'Електронний щоденник' : 'Журнал успішності'}</span>
               </button>
             </li>
+
+            {/* Admin-only Navigation items */}
+            {userRole === 'admin' && (
+              <>
+                <li>
+                  <button
+                    className={`studevo-menu-item ${activeMenu === 'groups' ? 'active' : ''}`}
+                    onClick={() => setActiveMenu('groups')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Академічні групи</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className={`studevo-menu-item ${activeMenu === 'audit' ? 'active' : ''}`}
+                    onClick={() => setActiveMenu('audit')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Аудит безпеки</span>
+                  </button>
+                </li>
+              </>
+            )}
           </ul>
         </div>
 
-        {/* 3. User Profile & Role Switcher */}
+        {/* 3. User Profile & 3-Role Switcher */}
         <div className="studevo-profile-footer">
           <div className="studevo-profile-card">
             <div className="profile-avatar">
-              {userRole === 'student' ? 'ОП' : 'ДК'}
+              {userRole === 'student' ? 'ОП' : userRole === 'teacher' ? 'ДК' : 'АД'}
             </div>
             <div className="profile-info">
               <span className="profile-name">
-                {userRole === 'student' ? 'Олександр Петренко' : 'Дмитро Коваленко, доц.'}
+                {userRole === 'student'
+                  ? 'Олександр Петренко'
+                  : userRole === 'teacher'
+                  ? 'Дмитро Коваленко, доц.'
+                  : 'Адміністратор деканату'}
               </span>
               <span className="profile-dept">
-                {userRole === 'student' ? 'Група КП-11 • ФІОТ' : 'Кафедра інженерії ПЗ'}
+                {userRole === 'student'
+                  ? 'Група «ІПЗ-412» • 4 курс'
+                  : userRole === 'teacher'
+                  ? 'Кафедра інженерії ПЗ'
+                  : 'ІТ-відділ / Деканат ФІОТ'}
               </span>
             </div>
           </div>
 
-          {/* Role Toggle Button */}
+          {/* 3 Roles Switcher (Student / Teacher / Admin) */}
           <div className="role-toggle-container">
             <button
               className={`role-toggle-btn ${userRole === 'student' ? 'active' : ''}`}
-              onClick={() => setUserRole('student')}
+              onClick={() => { setUserRole('student'); setActiveMenu('dashboard'); }}
             >
               Студент
             </button>
             <button
               className={`role-toggle-btn ${userRole === 'teacher' ? 'active' : ''}`}
-              onClick={() => setUserRole('teacher')}
+              onClick={() => { setUserRole('teacher'); setActiveMenu('dashboard'); }}
             >
               Викладач
+            </button>
+            <button
+              className={`role-toggle-btn ${userRole === 'admin' ? 'active' : ''}`}
+              onClick={() => { setUserRole('admin'); setActiveMenu('dashboard'); }}
+            >
+              Деканат
             </button>
           </div>
         </div>
@@ -445,58 +441,59 @@ export default function App() {
           </div>
         )}
 
-        {/* Dynamic Content based on Active Menu */}
-
-        {/* 1. DASHBOARD OVERVIEW */}
+        {/* 1. DASHBOARD VIEW */}
         {activeMenu === 'dashboard' && (
           <>
             <section className="studevo-welcome-banner">
               <div className="welcome-text">
                 <h1>
-                  {userRole === 'student' ? 'Вітаємо, Олександре!' : 'Панель викладача: навчальний процес'}
+                  {userRole === 'student'
+                    ? 'Вітаємо в системі, Олександре!'
+                    : userRole === 'teacher'
+                    ? 'Кабінет викладача: навчальний процес'
+                    : 'Панель адміністратора деканату'}
                 </h1>
                 <p>
                   {userRole === 'student'
-                    ? 'Ваш академічний графік на сьогодні актуалізовано. Перевірте найближчі дедлайни.'
-                    : 'Керування робочими програмами, публікація силабусів та перевірка робіт.'}
+                    ? 'Ваш академічний розклад синхронізовано. Перевірте найближчі терміни здачі лабораторних.'
+                    : userRole === 'teacher'
+                    ? 'Керування силлабусами дисциплін, перевірка робіт на плагіат та виставлення оцінок.'
+                    : 'Формування академічних груп, призначення дисциплін та моніторинг аудиту безпеки.'}
                 </p>
               </div>
 
               <div className="banner-stats">
                 <div className="stat-pill">
                   <div className="stat-pill-val">{courses.length}</div>
-                  <div className="stat-pill-label">Активні дисципліни</div>
+                  <div className="stat-pill-label">Дисципліни</div>
                 </div>
                 <div className="stat-pill">
                   <div className="stat-pill-val">{assignments.length}</div>
-                  <div className="stat-pill-label">Завдання в роботі</div>
+                  <div className="stat-pill-label">Завдання</div>
                 </div>
                 <div className="stat-pill">
-                  <div className="stat-pill-val">94.5</div>
-                  <div className="stat-pill-label">Середній бал</div>
+                  <div className="stat-pill-val">{userRole === 'admin' ? academicGroups.length : '94.5'}</div>
+                  <div className="stat-pill-label">{userRole === 'admin' ? 'Групи' : 'Сер. рейтинг'}</div>
                 </div>
               </div>
             </section>
 
-            {/* Courses Overview Grid */}
+            {/* Active Courses Grid */}
             <section>
               <div className="section-header-row">
                 <h2 className="section-title">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
-                  </svg>
                   <span>Навчальні дисципліни семестру</span>
                 </h2>
                 <button
                   className="btn-studevo-outline"
                   onClick={() => setActiveMenu('courses')}
                 >
-                  Повний каталог &rarr;
+                  Повний каталог курсів &rarr;
                 </button>
               </div>
 
               <div className="courses-grid-cards">
-                {courses.slice(0, 4).map((c) => (
+                {courses.map((c) => (
                   <div
                     key={c.id}
                     className="course-academic-card"
@@ -514,12 +511,7 @@ export default function App() {
                         <h3 className="course-card-title">{c.title}</h3>
                         <div className="course-card-instructor">{c.instructor}</div>
                         <div className="course-card-syllabus-meta">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                          </svg>
-                          <span>{c.modulesCount} модулі у силабусі ({c.totalHours || 120} год.)</span>
+                          <span>{c.modulesCount} змістові модулі • {c.totalHours} год.</span>
                         </div>
                       </div>
 
@@ -527,10 +519,10 @@ export default function App() {
                         <div className="course-card-progress-block">
                           <div className="progress-header">
                             <span>Прогрес виконання</span>
-                            <span>{c.progress || 0}%</span>
+                            <span>{c.progress}%</span>
                           </div>
                           <div className="progress-track">
-                            <div className="progress-bar-fill" style={{ width: `${c.progress || 0}%` }}></div>
+                            <div className="progress-bar-fill" style={{ width: `${c.progress}%` }}></div>
                           </div>
                         </div>
                       )}
@@ -542,7 +534,7 @@ export default function App() {
           </>
         )}
 
-        {/* 2. COURSES CATALOG & MANAGEMENT */}
+        {/* 2. COURSES & SYLLABUS MANAGEMENT */}
         {activeMenu === 'courses' && (
           <div>
             <div className="section-header-row">
@@ -551,16 +543,15 @@ export default function App() {
               </h2>
             </div>
 
-            {/* If Teacher, show form to register course */}
             {userRole === 'teacher' && (
-              <div className="studevo-card" style={{ marginBottom: '22px' }}>
-                <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Реєстрація нової навчальної дисципліни
+              <div className="studevo-card" style={{ marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                  Створення нової навчальної дисципліни
                 </h3>
                 <form onSubmit={handleCreateCourse}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
                     <div className="form-group-field">
-                      <label>Повна назва навчальної дисципліни</label>
+                      <label>Назва дисципліни</label>
                       <input
                         type="text"
                         className="input-studevo-control"
@@ -571,37 +562,35 @@ export default function App() {
                       />
                     </div>
                     <div className="form-group-field">
-                      <label>Кількість змістових модулів у силабусі</label>
+                      <label>Семестр</label>
                       <input
                         type="number"
                         min="1"
-                        max="10"
+                        max="12"
                         className="input-studevo-control"
-                        value={newCourse.modulesCount}
-                        onChange={(e) => setNewCourse({ ...newCourse, modulesCount: Number(e.target.value) })}
-                        required
+                        value={newCourse.semester}
+                        onChange={(e) => setNewCourse({ ...newCourse, semester: Number(e.target.value) })}
                       />
                     </div>
                   </div>
                   <div className="form-group-field">
-                    <label>Анотація дисципліни для силабусу</label>
+                    <label>Анотація для силабусу</label>
                     <textarea
-                      rows="3"
+                      rows="2"
                       className="input-studevo-control"
-                      placeholder="Опис цілей курсу та результатів навчання..."
+                      placeholder="Опис цілей та очікуваних результатів навчання..."
                       value={newCourse.description}
                       onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
                       required
                     />
                   </div>
                   <button type="submit" className="btn-studevo-primary">
-                    Зберегти дисципліну в каталозі
+                    Зберегти курс
                   </button>
                 </form>
               </div>
             )}
 
-            {/* Courses Grid */}
             <div className="courses-grid-cards">
               {courses.map((c) => (
                 <div
@@ -621,9 +610,9 @@ export default function App() {
                       <h3 className="course-card-title">{c.title}</h3>
                       <div className="course-card-instructor">{c.instructor}</div>
                       <div className="course-card-syllabus-meta">
-                        <span>{c.modulesCount} модулі у силабусі</span>
+                        <span>{c.modulesCount} модулі • Семестр {c.semester}</span>
                       </div>
-                      <p style={{ fontSize: '12px', color: '#6c757d', margin: '0 0 12px 0' }}>
+                      <p style={{ fontSize: '12px', color: '#6c757d', margin: '0 0 10px 0' }}>
                         {c.description}
                       </p>
                     </div>
@@ -660,91 +649,106 @@ export default function App() {
           </div>
         )}
 
-        {/* 3. ASSIGNMENTS MODULE */}
+        {/* 3. ASSIGNMENTS & SUBMISSIONS */}
         {activeMenu === 'assignments' && (
           <div>
             <div className="section-header-row">
               <h2 className="section-title">
-                Модуль навчальних завдань та практичних робіт
+                {userRole === 'student' ? 'Мої завдання та здача робіт' : 'Контрольні завдання та перевірка робіт'}
               </h2>
             </div>
 
-            {/* If Teacher, show Assignment creation form */}
+            {/* Teacher: Assignment Builder with Criteria Rubric */}
             {userRole === 'teacher' && (
-              <div className="studevo-card" style={{ marginBottom: '22px' }}>
-                <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Створення завдання за критеріями (AssignmentBuilder)
+              <div className="studevo-card" style={{ marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                  Створення завдання з критеріями оцінювання (AssignmentBuilder)
                 </h3>
-                <form onSubmit={handleCreateAssignment}>
+                <form onSubmit={(e) => { e.preventDefault(); showNotification('Завдання створено з рубрикою оцінювання.'); }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1fr 1fr', gap: '14px' }}>
                     <div className="form-group-field">
                       <label>Дисципліна</label>
-                      <select
-                        className="input-studevo-control"
-                        value={newAssignment.courseId}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
-                      >
+                      <select className="input-studevo-control">
                         {courses.map((c) => (
-                          <option key={c.id} value={c.id}>{c.title}</option>
+                          <option key={c.id}>{c.title}</option>
                         ))}
                       </select>
                     </div>
-
                     <div className="form-group-field">
-                      <label>Тема лабораторної / практичної</label>
-                      <input
-                        type="text"
-                        className="input-studevo-control"
-                        placeholder="наприклад: Лабораторна 4"
-                        value={newAssignment.title}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
-                        required
-                      />
+                      <label>Тема лабораторної/практичної</label>
+                      <input type="text" className="input-studevo-control" placeholder="Лабораторна робота..." required />
                     </div>
-
                     <div className="form-group-field">
                       <label>Макс. бал</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        className="input-studevo-control"
-                        value={newAssignment.maxScore}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, maxScore: e.target.value })}
-                        required
-                      />
+                      <input type="number" className="input-studevo-control" defaultValue={100} required />
                     </div>
-
                     <div className="form-group-field">
-                      <label>Термін здачі (дедлайн)</label>
-                      <input
-                        type="datetime-local"
-                        className="input-studevo-control"
-                        value={newAssignment.dueDate}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
-                        required
-                      />
+                      <label>Суворий дедлайн</label>
+                      <input type="datetime-local" className="input-studevo-control" defaultValue="2026-10-24T23:59" required />
                     </div>
                   </div>
-
                   <button type="submit" className="btn-studevo-primary">
-                    Створити завдання через Builder
+                    Створити завдання з рубрикою
                   </button>
                 </form>
               </div>
             )}
 
-            {/* Assignments List Table */}
+            {/* Student: Active Submissions Card */}
+            {userRole === 'student' && (
+              <div className="studevo-card" style={{ marginBottom: '20px', background: '#fff9f9', border: '1px solid #ffc9c9' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '14.5px', color: 'var(--studevo-red-dark)' }}>
+                  Форма здачі лабораторної роботи (Завантаження в S3)
+                </h3>
+                <form onSubmit={handleStudentSubmit}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '14px' }}>
+                    <div className="form-group-field">
+                      <label>Оберіть завдання</label>
+                      <select className="input-studevo-control">
+                        {assignments.map((a) => (
+                          <option key={a.id}>{a.title} ({a.courseTitle})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group-field">
+                      <label>Файл звіту (PDF у MinIO S3)</label>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        value={submissionForm.fileName}
+                        onChange={(e) => setSubmissionForm({ ...submissionForm, fileName: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group-field">
+                    <label>Коментар студента або посилання на GitHub репозиторій</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={submissionForm.comment}
+                      onChange={(e) => setSubmissionForm({ ...submissionForm, comment: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="btn-studevo-primary">
+                    Відправити роботу на перевірку антиплагіатом
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Assignments & Submissions Table */}
             <div className="studevo-card">
               <table className="studevo-table">
                 <thead>
                   <tr>
                     <th>Тема завдання</th>
                     <th>Дисципліна</th>
-                    <th>Кінцевий термін</th>
+                    <th>Дедлайн</th>
                     <th>Макс. бал</th>
-                    <th>Статус виконання</th>
-                    <th>Дія</th>
+                    <th>Рубрика</th>
+                    {userRole === 'teacher' && <th>Антиплагіат</th>}
+                    <th>Статус</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -754,10 +758,22 @@ export default function App() {
                       <td style={{ color: 'var(--studevo-text-muted)' }}>{asg.courseTitle}</td>
                       <td>
                         <span style={{ color: 'var(--studevo-red-dark)', fontWeight: 600 }}>
-                          {new Date(asg.dueDate).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(asg.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </td>
                       <td><strong>{asg.maxScore}</strong></td>
+                      <td><span style={{ fontSize: '11.5px', color: '#495057' }}>{asg.rubricTitle}</span></td>
+                      {userRole === 'teacher' && (
+                        <td>
+                          {asg.submissions.length > 0 ? (
+                            <span className="badge-plagiarism">
+                              {asg.submissions[0].plagiarismScore}% унікально
+                            </span>
+                          ) : (
+                            <span style={{ color: '#adb5bd', fontSize: '11.5px' }}>Очікує робіт</span>
+                          )}
+                        </td>
+                      )}
                       <td>
                         <span style={{
                           display: 'inline-block',
@@ -765,33 +781,11 @@ export default function App() {
                           borderRadius: '10px',
                           fontSize: '11px',
                           fontWeight: 600,
-                          backgroundColor: asg.status === 'Здано на перевірку' ? '#ebfbee' : '#fff5f5',
-                          color: asg.status === 'Здано на перевірку' ? '#2b8a3e' : '#c92a2a',
+                          backgroundColor: '#ebfbee',
+                          color: '#2b8a3e',
                         }}>
-                          {asg.status || 'У процесі'}
+                          {asg.submissions.length > 0 ? 'Здано на перевірку' : 'Активне'}
                         </span>
-                      </td>
-                      <td>
-                        {userRole === 'student' ? (
-                          <button
-                            className="btn-studevo-outline"
-                            style={{ fontSize: '11.5px', padding: '4px 10px' }}
-                            onClick={() => showNotification(`Форму завантаження роботи для «${asg.title}» активовано.`)}
-                          >
-                            Здати роботу
-                          </button>
-                        ) : (
-                          <button
-                            className="btn-studevo-outline"
-                            style={{ fontSize: '11.5px', padding: '4px 10px' }}
-                            onClick={() => {
-                              setActiveMenu('grades');
-                              setGrading((prev) => ({ ...prev, assignmentId: asg.id }));
-                            }}
-                          >
-                            Оцінити роботу
-                          </button>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -801,113 +795,331 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. GRADES JOURNAL & STRATEGY RULE CALCULATOR */}
+        {/* 4. GRADES JOURNAL & RUBRIC EVALUATION */}
         {activeMenu === 'grades' && (
           <div>
             <div className="section-header-row">
               <h2 className="section-title">
-                Журнал успішності та розрахунок оцінок (Патерн Strategy)
+                {userRole === 'student' ? 'Мій електронний щоденник та семестровий рейтинг' : 'Журнал успішності та оцінювання за рубриками'}
               </h2>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '22px' }}>
-              {/* Grading Form with Strategy Selection */}
-              <div className="studevo-card">
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Виставлення та розрахунок оцінки
-                </h3>
-                <p style={{ fontSize: '12px', color: 'var(--studevo-text-muted)', marginBottom: '16px' }}>
-                  Оберіть правило розрахунку для врахування дотримання дедлайну або академічної якості.
-                </p>
+            {/* Teacher View: Rubric Evaluation Form */}
+            {userRole === 'teacher' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '22px' }}>
+                <div className="studevo-card">
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                    Оцінювання роботи за рубрикою (JSONB)
+                  </h3>
+                  <form onSubmit={handleGradeWithStrategy}>
+                    <div className="form-group-field">
+                      <label>Студент</label>
+                      <input type="text" className="input-studevo-control" value="Олександр Петренко (ІПЗ-412)" disabled />
+                    </div>
 
-                <form onSubmit={handleCalculateGrade}>
+                    <div className="form-group-field">
+                      <label>Перевірка на плагіат</label>
+                      <div style={{ padding: '8px 12px', background: '#e7f5ff', borderRadius: '6px', fontSize: '12px', color: '#1971c2', fontWeight: 600 }}>
+                        94.5% оригінальності (Звіт AntiPlagiat: успішно)
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', marginBottom: '14px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#343a40' }}>Критерії рубрики:</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
+                        <span>Чиста архітектура (макс. 35):</span>
+                        <input
+                          type="number"
+                          style={{ width: '60px', padding: '2px 6px' }}
+                          value={grading.criteriaScores.clean_arch}
+                          onChange={(e) => setGrading({
+                            ...grading,
+                            criteriaScores: { ...grading.criteriaScores, clean_arch: Number(e.target.value) },
+                          })}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
+                        <span>Патерни GoF (макс. 35):</span>
+                        <input
+                          type="number"
+                          style={{ width: '60px', padding: '2px 6px' }}
+                          value={grading.criteriaScores.patterns}
+                          onChange={(e) => setGrading({
+                            ...grading,
+                            criteriaScores: { ...grading.criteriaScores, patterns: Number(e.target.value) },
+                          })}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span>Тести &gt; 80% (макс. 30):</span>
+                        <input
+                          type="number"
+                          style={{ width: '60px', padding: '2px 6px' }}
+                          value={grading.criteriaScores.tests}
+                          onChange={(e) => setGrading({
+                            ...grading,
+                            criteriaScores: { ...grading.criteriaScores, tests: Number(e.target.value) },
+                          })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group-field">
+                      <label>Правило розрахунку (Патерн Strategy)</label>
+                      <select
+                        className="input-studevo-control"
+                        value={grading.rule}
+                        onChange={(e) => setGrading({ ...grading, rule: e.target.value })}
+                      >
+                        <option value="STANDARD">Standard — Базовий розрахунок за критеріями</option>
+                        <option value="LATE_PENALTY">LatePenalty (-20%) — Штраф за порушення дедлайну</option>
+                        <option value="EXCELLENCE_BONUS">ExcellenceBonus (+5%) — Заохочувальний бонус</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group-field">
+                      <label>Текстовий фідбек викладача</label>
+                      <textarea
+                        rows="2"
+                        className="input-studevo-control"
+                        value={grading.feedback}
+                        onChange={(e) => setGrading({ ...grading, feedback: e.target.value })}
+                      />
+                    </div>
+
+                    <button type="submit" className="btn-studevo-primary" style={{ width: '100%' }}>
+                      Зарахувати оцінку у відомість
+                    </button>
+                  </form>
+                </div>
+
+                {/* Grade Statement */}
+                <div className="studevo-card">
+                  <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                    Відомість нарахування підсумкового балу
+                  </h3>
+                  {gradingResult ? (
+                    <div style={{ background: '#fff5f5', border: '1px solid #ffe3e3', borderRadius: '10px', padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Студент</span>
+                          <div style={{ fontSize: '15px', fontWeight: 700 }}>{gradingResult.studentName}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Застосоване правило</span>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--studevo-red-dark)' }}>
+                            {gradingResult.ruleDesc}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '30px', margin: '16px 0', padding: '14px 0', borderTop: '1px dashed #fcc2d7', borderBottom: '1px dashed #fcc2d7' }}>
+                        <div>
+                          <span style={{ fontSize: '12px', color: '#6c757d' }}>Бали за критеріями:</span>
+                          <div style={{ fontSize: '24px', fontWeight: 700, color: '#495057' }}>{gradingResult.rawScore}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '12px', color: '#6c757d' }}>Підсумковий бал у журнал:</span>
+                          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--studevo-red-dark)' }}>
+                            {gradingResult.finalScore} / 100
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '12.5px', color: '#721c24' }}>
+                        <strong>Коментар викладача:</strong> {gradingResult.feedback}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#adb5bd', border: '1px dashed #dee2e6', borderRadius: '8px' }}>
+                      Оберіть критерії та натисніть «Зарахувати оцінку у відомість».
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Student View: Electronic Gradebook */}
+            {userRole === 'student' && (
+              <div className="studevo-card">
+                <table className="studevo-table">
+                  <thead>
+                    <tr>
+                      <th>Навчальна дисципліна</th>
+                      <th>Контрольне завдання</th>
+                      <th>Дата здачі</th>
+                      <th>Оцінка / Макс</th>
+                      <th>Відсоток унікальності</th>
+                      <th>Фідбек викладача</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Архітектура ПЗ</strong></td>
+                      <td>Лабораторна 3: Контракти API та EDA</td>
+                      <td>14 жовтня 2026</td>
+                      <td>
+                        <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>95</strong> / 100
+                      </td>
+                      <td>
+                        <span className="badge-plagiarism">94.5% унікальності</span>
+                      </td>
+                      <td style={{ color: '#495057', fontSize: '12px' }}>
+                        Відмінно реалізовано патерни Builder та Strategy. Зараховано ExcellenceBonus (+5%).
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><strong>Основи вебдизайну</strong></td>
+                      <td>Практична: Прототип кабінету Studevo</td>
+                      <td>11 жовтня 2026</td>
+                      <td>
+                        <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>48</strong> / 50
+                      </td>
+                      <td>
+                        <span className="badge-plagiarism">98% унікальності</span>
+                      </td>
+                      <td style={{ color: '#495057', fontSize: '12px' }}>
+                        Відмінна колористика та дотримання вимог WCAG.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 5. ADMIN VIEW: ACADEMIC GROUPS & DEAN'S OFFICE */}
+        {activeMenu === 'groups' && userRole === 'admin' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">
+                Управління академічними групами (Деканат)
+              </h2>
+            </div>
+
+            <div className="studevo-card" style={{ marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Формування нової академічної групи
+              </h3>
+              <form onSubmit={handleCreateGroup}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1fr', gap: '14px' }}>
                   <div className="form-group-field">
-                    <label>Студент</label>
+                    <label>Шифр групи</label>
                     <input
                       type="text"
                       className="input-studevo-control"
-                      value={grading.studentName}
-                      onChange={(e) => setGrading({ ...grading, studentName: e.target.value })}
+                      placeholder="наприклад: ІПЗ-412"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
                       required
                     />
                   </div>
-
                   <div className="form-group-field">
-                    <label>Правило розрахунку (Патерн Strategy)</label>
-                    <select
+                    <label>Факультет / Інститут</label>
+                    <input
+                      type="text"
                       className="input-studevo-control"
-                      value={grading.strategyName}
-                      onChange={(e) => setGrading({ ...grading, strategyName: e.target.value })}
-                    >
-                      <option value="STANDARD">Standard — Базовий розрахунок</option>
-                      <option value="LATE_PENALTY">LatePenalty (-20%) — Штраф за порушення дедлайну</option>
-                      <option value="EXCELLENCE_BONUS">ExcellenceBonus (+5%) — Заохочувальний бонус за якість</option>
-                    </select>
+                      value={newGroupFaculty}
+                      onChange={(e) => setNewGroupFaculty(e.target.value)}
+                      required
+                    />
                   </div>
-
                   <div className="form-group-field">
-                    <label>Початковий бал викладача за критеріями (0–100)</label>
+                    <label>Курс навчання</label>
                     <input
                       type="number"
-                      min="0"
-                      max="100"
+                      min="1"
+                      max="6"
                       className="input-studevo-control"
-                      value={grading.rawScore}
-                      onChange={(e) => setGrading({ ...grading, rawScore: e.target.value })}
+                      value={newGroupYear}
+                      onChange={(e) => setNewGroupYear(e.target.value)}
                       required
                     />
                   </div>
+                </div>
+                <button type="submit" className="btn-studevo-primary">
+                  Зареєструвати академічну групу
+                </button>
+              </form>
+            </div>
 
-                  <button type="submit" className="btn-studevo-primary" style={{ width: '100%' }}>
-                    Застосувати правило та розрахувати
-                  </button>
-                </form>
-              </div>
+            <div className="studevo-card">
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>Шифр групи</th>
+                    <th>Факультет</th>
+                    <th>Курс</th>
+                    <th>Кількість студентів</th>
+                    <th>Дії деканату</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {academicGroups.map((g) => (
+                    <tr key={g.id}>
+                      <td><strong>{g.name}</strong></td>
+                      <td>{g.faculty}</td>
+                      <td>{g.studyYear} курс</td>
+                      <td>{g.studentsCount} студентів</td>
+                      <td>
+                        <button
+                          className="btn-studevo-outline"
+                          style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                          onClick={() => showNotification(`Студентів групи «${g.name}» підписано на семестрові дисципліни.`)}
+                        >
+                          Призначити дисципліни
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-              {/* Result Statement */}
-              <div className="studevo-card">
-                <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Відомість нарахування підсумкової оцінки
-                </h3>
+        {/* 6. ADMIN VIEW: SECURITY AUDIT LOGS */}
+        {activeMenu === 'audit' && userRole === 'admin' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">
+                Журнал аудиту безпеки та доступу (audit_logs)
+              </h2>
+            </div>
 
-                {gradingResult ? (
-                  <div style={{ background: '#fff5f5', border: '1px solid #ffe3e3', borderRadius: '10px', padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Студент</span>
-                        <div style={{ fontSize: '15px', fontWeight: 700 }}>{gradingResult.studentName}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Застосоване правило</span>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--studevo-red-dark)' }}>
-                          {gradingResult.strategy}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '30px', margin: '16px 0', padding: '14px 0', borderTop: '1px dashed #fcc2d7', borderBottom: '1px dashed #fcc2d7' }}>
-                      <div>
-                        <span style={{ fontSize: '12px', color: '#6c757d' }}>Початковий бал:</span>
-                        <div style={{ fontSize: '24px', fontWeight: 700, color: '#495057' }}>{gradingResult.rawScore}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '12px', color: '#6c757d' }}>Підсумковий бал у журнал:</span>
-                        <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--studevo-red-dark)' }}>
-                          {gradingResult.finalScore} / 100
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: '12.5px', color: '#721c24' }}>
-                      {gradingResult.desc}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ padding: '40px 20px', textAlign: 'center', color: '#adb5bd', border: '1px dashed #dee2e6', borderRadius: '8px' }}>
-                    Оберіть правило розрахунку та вкажіть бали для формування запису у відомості.
-                  </div>
-                )}
-              </div>
+            <div className="studevo-card">
+              <p style={{ fontSize: '12.5px', color: 'var(--studevo-text-muted)', marginBottom: '14px' }}>
+                Фіксує 100% спроб несанкціонованого доступу до чужих оцінок або даних протягом 1 секунди (Вимога безпеки 4).
+              </p>
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>Час події</th>
+                    <th>IP-адреса</th>
+                    <th>Користувач ID</th>
+                    <th>Дія (Action)</th>
+                    <th>Цільовий ресурс</th>
+                    <th>Статус безпеки</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td>{log.time}</td>
+                      <td><code>{log.ip}</code></td>
+                      <td>{log.userId}</td>
+                      <td><strong>{log.action}</strong></td>
+                      <td style={{ color: '#495057' }}><code>{log.resource}</code></td>
+                      <td>
+                        <span className={log.status === 'ALLOWED' ? 'badge-allowed' : 'badge-denied'}>
+                          {log.status === 'ALLOWED' ? 'ДОЗВОЛЕНО' : 'ЗАБЛОКОВАНО (403)'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -917,33 +1129,23 @@ export default function App() {
           RIGHT COLUMN (340px) - ORGANIZER
           ======================================================== */}
       <aside className="studevo-organizer">
-        {/* 1. Interactive Academic Calendar */}
+        {/* 1. Academic Calendar */}
         <div className="organizer-widget">
           <div className="organizer-widget-header">
             <h3 className="organizer-widget-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect>
                 <line x1="16" x2="16" y1="2" y2="6"></line>
                 <line x1="8" x2="8" y1="2" y2="6"></line>
                 <line x1="3" x2="21" y1="10" y2="10"></line>
               </svg>
-              <span>Календар здач</span>
+              <span>Календар дедлайнів</span>
             </h3>
 
             <div className="calendar-month-nav">
-              <button
-                className="calendar-nav-btn"
-                onClick={() => setCurrentMonthDate(new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1))}
-              >
-                &lt;
-              </button>
+              <button className="calendar-nav-btn">&lt;</button>
               <span>Жовтень 2026</span>
-              <button
-                className="calendar-nav-btn"
-                onClick={() => setCurrentMonthDate(new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 1))}
-              >
-                &gt;
-              </button>
+              <button className="calendar-nav-btn">&gt;</button>
             </div>
           </div>
 
@@ -962,7 +1164,7 @@ export default function App() {
               <div
                 key={idx}
                 className={`cal-cell ${!day ? 'empty' : ''} ${day && deadlineDays.includes(day) ? 'deadline-highlight' : ''} ${day === 14 ? 'today' : ''}`}
-                title={day && deadlineDays.includes(day) ? `Дедлайн здачі робіт (${day} жовтня)` : ''}
+                title={day && deadlineDays.includes(day) ? `Дедлайн здачі (${day} жовтня)` : ''}
               >
                 {day || ''}
               </div>
@@ -971,15 +1173,15 @@ export default function App() {
 
           <div className="calendar-legend">
             <span className="legend-dot"></span>
-            <span>Бордовим виділено дні дедлайнів завдань</span>
+            <span>Бордовим виділено дні здачі робіт</span>
           </div>
         </div>
 
-        {/* 2. Upcoming Deadlines List */}
+        {/* 2. Upcoming Deadlines */}
         <div className="organizer-widget">
           <div className="organizer-widget-header">
             <h3 className="organizer-widget-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
@@ -990,7 +1192,7 @@ export default function App() {
           <div className="deadline-items-list">
             <div className="deadline-card-item">
               <div className="deadline-card-info">
-                <div className="deadline-title">Лабораторна 3: Контракти та EDA</div>
+                <div className="deadline-title">Лабораторна 3: Контракти API та EDA</div>
                 <div className="deadline-course">Архітектура ПЗ • 100 балів</div>
                 <span className="deadline-countdown-badge">залишилось 4 дні</span>
               </div>
@@ -1006,7 +1208,7 @@ export default function App() {
 
             <div className="deadline-card-item">
               <div className="deadline-card-info">
-                <div className="deadline-title">Практична: Прототип кабінету</div>
+                <div className="deadline-title">Практична: Прототип кабінету Studevo</div>
                 <div className="deadline-course">Основи вебдизайну • 50 балів</div>
                 <span className="deadline-countdown-badge">до 28 жовтня</span>
               </div>
@@ -1014,11 +1216,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3. Recent Grades / Updates Notifications */}
+        {/* 3. Recent Grades / Updates */}
         <div className="organizer-widget">
           <div className="organizer-widget-header">
             <h3 className="organizer-widget-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
@@ -1028,9 +1230,7 @@ export default function App() {
 
           <div className="updates-list">
             <div className="update-card-item">
-              <div className="update-icon-wrap grade">
-                ✓
-              </div>
+              <div className="update-icon-wrap grade">✓</div>
               <div className="update-content">
                 <div className="update-header-text">Отримано 95 балів</div>
                 <div className="update-desc-text">З курсу «Архітектура ПЗ» за схемою ExcellenceBonus (+5%).</div>
@@ -1039,24 +1239,11 @@ export default function App() {
             </div>
 
             <div className="update-card-item">
-              <div className="update-icon-wrap course">
-                ★
-              </div>
+              <div className="update-icon-wrap course">★</div>
               <div className="update-content">
                 <div className="update-header-text">Опубліковано новий курс</div>
-                <div className="update-desc-text">«Безпека програмних систем» додано до вашого силабусу.</div>
+                <div className="update-desc-text">«Безпека програмних систем» додано до розкладу групи.</div>
                 <div className="update-time">Вчора о 16:30</div>
-              </div>
-            </div>
-
-            <div className="update-card-item">
-              <div className="update-icon-wrap grade">
-                ✓
-              </div>
-              <div className="update-content">
-                <div className="update-header-text">Оцінено практичну роботу</div>
-                <div className="update-desc-text">«Основи вебдизайну»: 48/50 балів зараховано у відомість.</div>
-                <div className="update-time">11 жовтня</div>
               </div>
             </div>
           </div>
@@ -1064,7 +1251,7 @@ export default function App() {
       </aside>
 
       {/* ========================================================
-          COURSE DETAILS MODAL (Syllabus & Info)
+          COURSE SYLLABUS & LESSONS MODAL
           ======================================================== */}
       {selectedCourse && (
         <div className="modal-overlay" onClick={() => setSelectedCourse(null)}>
@@ -1084,14 +1271,14 @@ export default function App() {
                 <img
                   src={selectedCourse.cover}
                   alt={selectedCourse.title}
-                  style={{ width: '140px', height: '90px', objectFit: 'cover', borderRadius: '8px' }}
+                  style={{ width: '130px', height: '85px', objectFit: 'cover', borderRadius: '8px' }}
                 />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
                     Викладач: {selectedCourse.instructor}
                   </div>
-                  <div style={{ color: 'var(--studevo-text-muted)', fontSize: '12.5px', marginBottom: '8px' }}>
-                    {selectedCourse.modulesCount} змістові модулі • {selectedCourse.totalHours || 120} академічних годин
+                  <div style={{ color: 'var(--studevo-text-muted)', fontSize: '12px', marginBottom: '6px' }}>
+                    {selectedCourse.modulesCount} змістові модулі • {selectedCourse.totalHours} годин
                   </div>
                   <span style={{
                     display: 'inline-block',
@@ -1102,28 +1289,39 @@ export default function App() {
                     backgroundColor: selectedCourse.isPublished ? '#ebfbee' : '#fff5f5',
                     color: selectedCourse.isPublished ? '#2b8a3e' : '#c92a2a',
                   }}>
-                    {selectedCourse.isPublished ? 'Опубліковано для студентів' : 'Чернетка (не опубліковано)'}
+                    {selectedCourse.isPublished ? 'Опубліковано для студентів' : 'Чернетка'}
                   </span>
                 </div>
               </div>
 
               <h4 style={{ margin: '14px 0 8px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
-                Робоча програма та силабус дисципліни:
+                Структура змістових модулів та уроків:
               </h4>
-              <ul style={{ paddingLeft: '20px', margin: '0 0 16px 0', lineHeight: 1.6 }}>
-                {(selectedCourse.syllabus || [
-                  'Модуль 1: Базові концепції та принципи',
-                  'Модуль 2: Проєктування та розробка модулів',
-                  'Модуль 3: Підсумкова перевірка та контроль',
-                ]).map((item, idx) => (
-                  <li key={idx} style={{ color: '#495057' }}>{item}</li>
-                ))}
-              </ul>
 
-              <h4 style={{ margin: '14px 0 8px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
+              {selectedCourse.modules && selectedCourse.modules.length > 0 ? (
+                selectedCourse.modules.map((m) => (
+                  <div key={m.id} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '6px' }}>{m.title}</div>
+                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: '#495057' }}>
+                      {m.lessons.map((l) => (
+                        <li key={l.id} style={{ marginBottom: '4px' }}>
+                          <span style={{ fontWeight: 500 }}>{l.title}</span>
+                          <span style={{ marginLeft: '8px', fontSize: '10.5px', color: '#868e96', background: '#dee2e6', padding: '1px 6px', borderRadius: '4px' }}>
+                            {l.type}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: '#6c757d', fontSize: '12.5px' }}>Модулі наповнюються викладачем.</p>
+              )}
+
+              <h4 style={{ margin: '14px 0 6px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
                 Анотація дисципліни:
               </h4>
-              <p style={{ color: '#495057', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ color: '#495057', margin: 0, fontSize: '13px', lineHeight: 1.5 }}>
                 {selectedCourse.description}
               </p>
             </div>

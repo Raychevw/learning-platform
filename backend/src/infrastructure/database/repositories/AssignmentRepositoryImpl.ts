@@ -26,13 +26,13 @@ export class AssignmentRepositoryImpl implements IAssignmentRepository {
   async findById(id: string): Promise<Assignment | null> {
     const entity = await this.typeOrmRepository.findOne({ where: { id } });
     if (!entity) return null;
-    return Assignment.restore(entity.id, entity.courseId, entity.title, entity.maxScore, entity.dueDate);
+    return Assignment.restore(entity.id, entity.courseId || '', entity.title, entity.maxScore, entity.dueDate);
   }
 
   async findByCourseId(courseId: string): Promise<Assignment[]> {
     const entities = await this.typeOrmRepository.find({ where: { courseId } });
     return entities.map(entity => 
-      Assignment.restore(entity.id, entity.courseId, entity.title, entity.maxScore, entity.dueDate)
+      Assignment.restore(entity.id, entity.courseId || '', entity.title, entity.maxScore, entity.dueDate)
     );
   }
 }
