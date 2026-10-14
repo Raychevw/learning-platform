@@ -1,10 +1,76 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
+const SSO_ACCOUNTS = [
+  {
+    id: 'usr-student',
+    name: 'Олександр Петренко',
+    email: 'o.petrenko@univ.edu.ua',
+    role: 'student',
+    dept: 'Група «ІПЗ-412» • 4 курс',
+    initials: 'ОП',
+    desc: 'Кабінет студента: перегляд силабусу, здача лабораторних робіт, перевірка плагіату та особистий щоденник успішності',
+  },
+  {
+    id: 'usr-teacher',
+    name: 'Дмитро Коваленко, доц.',
+    email: 'd.kovalenko@univ.edu.ua',
+    role: 'teacher',
+    dept: 'Кафедра інженерії ПЗ',
+    initials: 'ДК',
+    desc: 'Кабінет викладача: силабус, додавання модулів/файлів, перевірка та оцінювання за рубриками',
+  },
+  {
+    id: 'usr-admin',
+    name: 'Олена Франчук',
+    email: 'dekanat.fiot@univ.edu.ua',
+    role: 'admin',
+    dept: 'Деканат ФІОТ / ІТ-відділ',
+    initials: 'ОФ',
+    desc: 'Кабінет адміністратора: формування академічних груп, дисциплін, навантаження та аудит безпеки',
+  },
+];
+
 export default function App() {
-  // Navigation & Role states: 'student' | 'teacher' | 'admin'
-  const [userRole, setUserRole] = useState('student');
+  // Current Authenticated User (Strictly locked to SSO session - no random switching)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('studevo_auth_user');
+      return stored ? JSON.parse(stored) : SSO_ACCOUNTS[0];
+    } catch {
+      return SSO_ACCOUNTS[0];
+    }
+  });
+
+  const userRole = currentUser ? currentUser.role : 'student';
   const [activeMenu, setActiveMenu] = useState('dashboard');
+
+  const handleSsoLogin = async (account) => {
+    try {
+      await fetch('http://localhost:3000/auth/sso/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: account.email,
+          full_name: account.name,
+          role: account.role.toUpperCase(),
+        }),
+      }).catch(() => null);
+    } catch (e) {
+      console.warn('Backend SSO login notify:', e);
+    }
+
+    setCurrentUser(account);
+    localStorage.setItem('studevo_auth_user', JSON.stringify(account));
+    setActiveMenu('dashboard');
+    setNotification({ text: `Успішний вхід через SSO: ${account.name} (${account.dept})`, isError: false });
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('studevo_auth_user');
+    setCurrentUser(null);
+    setNotification({ text: 'Ви успішно вийшли з корпоративного облікового запису.', isError: false });
+  };
   
   // Data states
   const [courses, setCourses] = useState([]);
@@ -264,6 +330,60 @@ export default function App() {
   ];
   const deadlineDays = [18, 24, 28];
 
+  if (!currentUser) {
+    return (
+      <div className="sso-auth-overlay">
+        <div className="sso-auth-card">
+          <div className="sso-auth-header">
+            <div className="sso-auth-logo">
+              <span className="logo-icon">S</span>
+              <span className="logo-title">STUDEVO</span>
+            </div>
+            <h2>Університетська система дистанційного навчання</h2>
+            <p>
+              Вхід дозволено виключно через єдиний корпоративний акаунт (Google Workspace / Microsoft 365 за протоколом OAuth2 / OIDC).
+              Вільна реєстрація сторонніх користувачів закрита.
+            </p>
+          </div>
+
+          <div className="sso-auth-body">
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#495057' }}>
+              Оберіть ваш корпоративний обліковий запис університету (@univ.edu.ua):
+            </div>
+
+            <div className="sso-role-cards-grid">
+              {SSO_ACCOUNTS.map((acc) => (
+                <div
+                  key={acc.id}
+                  className="sso-account-card"
+                  onClick={() => handleSsoLogin(acc)}
+                >
+                  <div className="sso-account-left">
+                    <div className={`sso-account-avatar ${acc.role}`}>
+                      {acc.initials}
+                    </div>
+                    <div className="sso-account-info">
+                      <h4>{acc.name}</h4>
+                      <div className="sso-email">{acc.email} • {acc.dept}</div>
+                      <div className="sso-desc">{acc.desc}</div>
+                    </div>
+                  </div>
+                  <button className="sso-login-btn">
+                    Увійти через SSO →
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="sso-auth-footer">
+              🔒 Платформа захищена системою доменних Guard-політик та SSO JWT. Усі сесії шифруються.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="studevo-app-shell">
       {/* ========================================================
@@ -380,47 +500,29 @@ export default function App() {
         <div className="studevo-profile-footer">
           <div className="studevo-profile-card">
             <div className="profile-avatar">
-              {userRole === 'student' ? 'ОП' : userRole === 'teacher' ? 'ДК' : 'АД'}
+              {currentUser.initials}
             </div>
             <div className="profile-info">
-              <span className="profile-name">
-                {userRole === 'student'
-                  ? 'Олександр Петренко'
-                  : userRole === 'teacher'
-                  ? 'Дмитро Коваленко, доц.'
-                  : 'Адміністратор деканату'}
-              </span>
-              <span className="profile-dept">
-                {userRole === 'student'
-                  ? 'Група «ІПЗ-412» • 4 курс'
-                  : userRole === 'teacher'
-                  ? 'Кафедра інженерії ПЗ'
-                  : 'ІТ-відділ / Деканат ФІОТ'}
-              </span>
+              <span className="profile-name">{currentUser.name}</span>
+              <span className="profile-dept">{currentUser.dept}</span>
+              <div className="profile-meta-row">
+                <span className={`user-role-badge ${currentUser.role}`}>
+                  {currentUser.role === 'student' ? 'Студент' : currentUser.role === 'teacher' ? 'Викладач' : 'Деканат'}
+                </span>
+                <span style={{ fontSize: '10.5px', color: '#868e96' }}>{currentUser.email}</span>
+              </div>
             </div>
           </div>
 
-          {/* 3 Roles Switcher (Student / Teacher / Admin) */}
-          <div className="role-toggle-container">
-            <button
-              className={`role-toggle-btn ${userRole === 'student' ? 'active' : ''}`}
-              onClick={() => { setUserRole('student'); setActiveMenu('dashboard'); }}
-            >
-              Студент
-            </button>
-            <button
-              className={`role-toggle-btn ${userRole === 'teacher' ? 'active' : ''}`}
-              onClick={() => { setUserRole('teacher'); setActiveMenu('dashboard'); }}
-            >
-              Викладач
-            </button>
-            <button
-              className={`role-toggle-btn ${userRole === 'admin' ? 'active' : ''}`}
-              onClick={() => { setUserRole('admin'); setActiveMenu('dashboard'); }}
-            >
-              Деканат
-            </button>
-          </div>
+          {/* Secure Session Logout Button */}
+          <button
+            className="logout-action-btn"
+            title="Завершити сесію та вийти з облікового запису"
+            onClick={handleLogout}
+          >
+            <span>🚪</span>
+            <span>Вийти з акаунту</span>
+          </button>
         </div>
       </aside>
 

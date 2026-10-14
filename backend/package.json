@@ -30,6 +30,7 @@
     "@nestjs/typeorm": "^12.0.2",
     "ioredis": "^5.11.1",
     "pg": "^8.23.1",
+    "pg-mem": "^3.0.14",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
