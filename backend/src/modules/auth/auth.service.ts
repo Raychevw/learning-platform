@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity, UserRole } from '../../infrastructure/database/entities/UserEntity.js';
 
+import crypto from 'crypto';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -17,12 +19,13 @@ export class AuthService {
     let user = await this.userRepo.findOne({ where: { email } });
     if (!user) {
       user = this.userRepo.create({
+        id: crypto.randomUUID(),
         email,
         full_name: fullName,
         role,
         sso_id: ssoId || `sso-google-${Date.now()}`,
       });
-      await this.userRepo.save(user);
+      user = await this.userRepo.save(user);
     }
     return user;
   }
