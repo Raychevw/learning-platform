@@ -9,7 +9,7 @@ const SSO_ACCOUNTS = [
     role: 'student',
     dept: 'Група «ІПЗ-412» • 4 курс',
     initials: 'ОП',
-    desc: 'Кабінет студента: перегляд силабусу, здача лабораторних робіт, перевірка плагіату та особистий щоденник успішності',
+    desc: 'Кабінет студента: перегляд силабусу, здача лабораторних робіт та особистий щоденник успішності',
   },
   {
     id: 'usr-teacher',
@@ -201,8 +201,6 @@ export default function App() {
           submittedAt: '2026-10-14T12:30:00.000Z',
           fileUrl: 'https://storage.univ.edu.ua/lms-files/lab3_petrenko.pdf',
           status: 'READY_FOR_GRADING',
-          plagiarismScore: 94.5, // 94.5% unique
-          plagiarismReportUrl: 'https://antiplagiat.univ.edu.ua/reports/sub-1',
           score: null,
         },
       ],
@@ -297,21 +295,21 @@ export default function App() {
 
   const handleStudentSubmit = (e) => {
     e.preventDefault();
-    showNotification(`Роботу «${submissionForm.fileName}» успішно завантажено в S3 та відправлено на перевірку антиплагіатом.`);
+    showNotification(`Роботу «${submissionForm.fileName}» успішно здано на перевірку викладачу.`);
   };
 
   const handleGradeWithStrategy = (e) => {
     e.preventDefault();
     const sumRaw = Object.values(grading.criteriaScores).reduce((a, b) => Number(a) + Number(b), 0);
     let finalScore = sumRaw;
-    let ruleDesc = 'Базовий розрахунок (Standard)';
+    let ruleDesc = 'Базовий розрахунок за критеріями';
 
     if (grading.rule === 'LATE_PENALTY') {
       finalScore = Math.round(sumRaw * 0.8 * 10) / 10;
-      ruleDesc = 'LatePenalty (-20% за протермінований дедлайн)';
+      ruleDesc = 'Зниження на 20% (порушення дедлайну)';
     } else if (grading.rule === 'EXCELLENCE_BONUS') {
       finalScore = sumRaw >= 90 ? Math.min(100, sumRaw + 5) : sumRaw;
-      ruleDesc = 'ExcellenceBonus (+5 балів за відмінну якість)';
+      ruleDesc = 'Заохочувальний бонус (+5 балів)';
     }
 
     setGradingResult({
@@ -559,7 +557,7 @@ export default function App() {
                   {userRole === 'student'
                     ? 'Ваш академічний розклад синхронізовано. Перевірте найближчі терміни здачі лабораторних.'
                     : userRole === 'teacher'
-                    ? 'Керування силлабусами дисциплін, перевірка робіт на плагіат та виставлення оцінок.'
+                    ? 'Керування силабусами дисциплін, перевірка робіт студентів та виставлення оцінок.'
                     : 'Формування академічних груп, призначення дисциплін та моніторинг аудиту безпеки.'}
                 </p>
               </div>
@@ -833,7 +831,7 @@ export default function App() {
                     />
                   </div>
                   <button type="submit" className="btn-studevo-primary">
-                    Відправити роботу на перевірку антиплагіатом
+                    Здати роботу на перевірку
                   </button>
                 </form>
               </div>
@@ -849,7 +847,6 @@ export default function App() {
                     <th>Дедлайн</th>
                     <th>Макс. бал</th>
                     <th>Рубрика</th>
-                    {userRole === 'teacher' && <th>Антиплагіат</th>}
                     <th>Статус</th>
                   </tr>
                 </thead>
@@ -865,17 +862,6 @@ export default function App() {
                       </td>
                       <td><strong>{asg.maxScore}</strong></td>
                       <td><span style={{ fontSize: '11.5px', color: '#495057' }}>{asg.rubricTitle}</span></td>
-                      {userRole === 'teacher' && (
-                        <td>
-                          {asg.submissions.length > 0 ? (
-                            <span className="badge-plagiarism">
-                              {asg.submissions[0].plagiarismScore}% унікально
-                            </span>
-                          ) : (
-                            <span style={{ color: '#adb5bd', fontSize: '11.5px' }}>Очікує робіт</span>
-                          )}
-                        </td>
-                      )}
                       <td>
                         <span style={{
                           display: 'inline-block',
@@ -911,19 +897,12 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '22px' }}>
                 <div className="studevo-card">
                   <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                    Оцінювання роботи за рубрикою (JSONB)
+                    Оцінювання роботи за рубрикою
                   </h3>
                   <form onSubmit={handleGradeWithStrategy}>
                     <div className="form-group-field">
                       <label>Студент</label>
                       <input type="text" className="input-studevo-control" value="Олександр Петренко (ІПЗ-412)" disabled />
-                    </div>
-
-                    <div className="form-group-field">
-                      <label>Перевірка на плагіат</label>
-                      <div style={{ padding: '8px 12px', background: '#e7f5ff', borderRadius: '6px', fontSize: '12px', color: '#1971c2', fontWeight: 600 }}>
-                        94.5% оригінальності (Звіт AntiPlagiat: успішно)
-                      </div>
                     </div>
 
                     <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', marginBottom: '14px' }}>
@@ -967,15 +946,15 @@ export default function App() {
                     </div>
 
                     <div className="form-group-field">
-                      <label>Правило розрахунку (Патерн Strategy)</label>
+                      <label>Правило розрахунку оцінки</label>
                       <select
                         className="input-studevo-control"
                         value={grading.rule}
                         onChange={(e) => setGrading({ ...grading, rule: e.target.value })}
                       >
-                        <option value="STANDARD">Standard — Базовий розрахунок за критеріями</option>
-                        <option value="LATE_PENALTY">LatePenalty (-20%) — Штраф за порушення дедлайну</option>
-                        <option value="EXCELLENCE_BONUS">ExcellenceBonus (+5%) — Заохочувальний бонус</option>
+                        <option value="STANDARD">Базовий розрахунок за критеріями</option>
+                        <option value="LATE_PENALTY">Штраф (-20%) за порушення дедлайну</option>
+                        <option value="EXCELLENCE_BONUS">Заохочувальний бонус (+5 балів)</option>
                       </select>
                     </div>
 
@@ -1051,8 +1030,7 @@ export default function App() {
                       <th>Контрольне завдання</th>
                       <th>Дата здачі</th>
                       <th>Оцінка / Макс</th>
-                      <th>Відсоток унікальності</th>
-                      <th>Фідбек викладача</th>
+                      <th>Коментар викладача</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1063,11 +1041,8 @@ export default function App() {
                       <td>
                         <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>95</strong> / 100
                       </td>
-                      <td>
-                        <span className="badge-plagiarism">94.5% унікальності</span>
-                      </td>
                       <td style={{ color: '#495057', fontSize: '12px' }}>
-                        Відмінно реалізовано патерни Builder та Strategy. Зараховано ExcellenceBonus (+5%).
+                        Відмінно виконано завдання. Дотримано всіх вимог силабусу.
                       </td>
                     </tr>
                     <tr>
@@ -1077,11 +1052,8 @@ export default function App() {
                       <td>
                         <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>48</strong> / 50
                       </td>
-                      <td>
-                        <span className="badge-plagiarism">98% унікальності</span>
-                      </td>
                       <td style={{ color: '#495057', fontSize: '12px' }}>
-                        Відмінна колористика та дотримання вимог WCAG.
+                        Відмінна колористика та якісне компонування інтерфейсу.
                       </td>
                     </tr>
                   </tbody>
@@ -1335,7 +1307,7 @@ export default function App() {
               <div className="update-icon-wrap grade">✓</div>
               <div className="update-content">
                 <div className="update-header-text">Отримано 95 балів</div>
-                <div className="update-desc-text">З курсу «Архітектура ПЗ» за схемою ExcellenceBonus (+5%).</div>
+                <div className="update-desc-text">З курсу «Архітектура ПЗ» за Лабораторну роботу №3.</div>
                 <div className="update-time">2 години тому</div>
               </div>
             </div>
