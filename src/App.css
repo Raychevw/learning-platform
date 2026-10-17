@@ -276,12 +276,12 @@ html, body, #root {
 }
 
 /* ========================================================
-   UNIVERSITY SSO AUTH OVERLAY & MODAL
+   LOGIN PAGE (EMAIL/LOGIN & PASSWORD)
    ======================================================== */
 .sso-auth-overlay {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at 10% 20%, #4a0404 0%, #1f0202 90%);
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -291,19 +291,20 @@ html, body, #root {
 
 .sso-auth-card {
   background: #ffffff;
-  border-radius: 20px;
-  max-width: 640px;
+  border-radius: 18px;
+  max-width: 430px;
   width: 100%;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.35);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  text-align: left;
 }
 
 .sso-auth-header {
-  background: linear-gradient(135deg, #991b1b 0%, #c92a2a 60%, #e03131 100%);
+  background: linear-gradient(135deg, #991b1b 0%, #c92a2a 100%);
   color: #ffffff;
-  padding: 30px 32px 26px;
+  padding: 28px 32px 24px;
   text-align: center;
 }
 
@@ -311,156 +312,72 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .sso-auth-logo .logo-icon {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   background: #ffffff;
   color: #991b1b;
-  border-radius: 10px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 20px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  font-size: 19px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
 }
 
 .sso-auth-logo .logo-title {
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 2px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   color: #ffffff;
 }
 
 .sso-auth-header h2 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 4px;
-  opacity: 0.95;
-}
-
-.sso-auth-header p {
-  font-size: 12.5px;
-  opacity: 0.88;
-  margin-top: 6px;
-  line-height: 1.4;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 4px 0 0 0;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .sso-auth-body {
-  padding: 28px 32px;
+  padding: 28px 32px 26px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.sso-role-cards-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sso-account-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: #f8f9fa;
-  border: 1.5px solid #e9ecef;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
   text-align: left;
 }
 
-.sso-account-card:hover {
-  border-color: #c92a2a;
-  background: #fff5f5;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(201, 42, 42, 0.1);
-}
-
-.sso-account-left {
+.login-quick-fill-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
-}
-
-.sso-account-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.sso-account-avatar.student {
-  background: #e6fcf5;
-  color: #0ca678;
-}
-
-.sso-account-avatar.teacher {
-  background: #e7f5ff;
-  color: #1971c2;
-}
-
-.sso-account-avatar.admin {
-  background: #fff0f6;
-  color: #c92a2a;
-}
-
-.sso-account-info h4 {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #212529;
-  margin: 0;
-}
-
-.sso-account-info .sso-email {
-  font-size: 11.5px;
-  color: #868e96;
-  margin-top: 2px;
-}
-
-.sso-account-info .sso-desc {
-  font-size: 11px;
-  color: #495057;
-  margin-top: 2px;
-}
-
-.sso-login-btn {
-  display: inline-flex;
-  align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 8px 14px;
-  background: #991b1b;
-  color: #ffffff;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease;
-}
-
-.sso-account-card:hover .sso-login-btn {
-  background: #c92a2a;
-}
-
-.sso-auth-footer {
-  text-align: center;
-  font-size: 11.5px;
-  color: #868e96;
+  padding-top: 12px;
   border-top: 1px solid #f1f3f5;
-  padding-top: 14px;
-  margin-top: 4px;
+  font-size: 11.5px;
+  color: #6c757d;
+}
+
+.login-quick-chip {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  color: #495057;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.login-quick-chip:hover {
+  border-color: #c92a2a;
+  color: #991b1b;
+  background: #fff5f5;
 }
 
 /* ========================================================
@@ -473,47 +390,62 @@ html, body, #root {
   padding: 24px 28px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
+  text-align: left;
 }
 
 /* Top Banner Header */
 .studevo-welcome-banner {
-  background: linear-gradient(135deg, #991b1b 0%, #c92a2a 50%, #d9480f 100%);
+  background: linear-gradient(135deg, #991b1b 0%, #c92a2a 60%, #e03131 100%);
   border-radius: var(--studevo-radius-lg);
-  padding: 28px 34px;
+  padding: 24px 30px;
   color: #ffffff;
-  box-shadow: 0 8px 24px rgba(153, 27, 27, 0.2);
+  box-shadow: 0 6px 20px rgba(153, 27, 27, 0.18);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 24px;
   position: relative;
   overflow: hidden;
+  text-align: left;
+}
+
+.welcome-text {
+  flex: 1;
+  text-align: left;
 }
 
 .welcome-text h1 {
-  font-size: 24px;
+  font-size: 21px;
   font-weight: 700;
   margin: 0 0 6px 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
+  color: #ffffff !important;
+  line-height: 1.25;
+  text-align: left;
 }
 
 .welcome-text p {
-  font-size: 13.5px;
+  font-size: 13px;
   margin: 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9) !important;
+  line-height: 1.45;
+  text-align: left;
 }
 
 .banner-stats {
   display: flex;
-  gap: 16px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .stat-pill {
-  background-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: var(--studevo-radius-md);
-  padding: 10px 18px;
+  padding: 10px 16px;
+  min-width: 96px;
   text-align: center;
 }
 
@@ -521,13 +453,14 @@ html, body, #root {
   font-size: 20px;
   font-weight: 800;
   color: #ffffff;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 .stat-pill-label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   margin-top: 4px;
+  white-space: nowrap;
 }
 
 /* Notification Alert */
@@ -1112,3 +1045,837 @@ html, body, #root {
   color: var(--studevo-text-dim);
   margin-top: 4px;
 }
+
+/* ========================================================
+   PRODUCTION EXTENSIONS: LESSONS, WEBINARS, FILTERS, UPLOAD
+   ======================================================== */
+.toolbar-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid var(--studevo-border);
+  border-radius: var(--studevo-radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--studevo-shadow-sm);
+}
+
+.filter-pills-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-pill-btn {
+  border: 1px solid var(--studevo-border-strong);
+  background: #f8f9fa;
+  color: #495057;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-pill-btn:hover {
+  border-color: var(--studevo-red);
+  color: var(--studevo-red-dark);
+}
+
+.filter-pill-btn.active {
+  background: var(--studevo-red);
+  color: #ffffff;
+  border-color: var(--studevo-red);
+}
+
+.modal-window.modal-wide {
+  width: 860px;
+  max-width: 94vw;
+}
+
+.lesson-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid var(--studevo-border);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lesson-item-row:hover {
+  border-color: #ffc9c9;
+  background: #fff9f9;
+}
+
+.lesson-item-row.active-lesson {
+  border-color: var(--studevo-red);
+  background: #fff5f5;
+}
+
+.lesson-viewer-box {
+  background: #ffffff;
+  border: 1.5px solid #ffc9c9;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 12px;
+  box-shadow: var(--studevo-shadow-sm);
+}
+
+.file-dropzone-box {
+  border: 1.5px dashed #e03131;
+  background: #fff5f5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.file-dropzone-box:hover {
+  background: #ffe3e3;
+}
+
+.webinar-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffe3e3;
+  color: #c92a2a;
+}
+
+.webinar-chat-box {
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+  border: 1px solid var(--studevo-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.webinar-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.webinar-chat-bubble {
+  background: #ffffff;
+  border: 1px solid var(--studevo-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+.role-quick-switcher {
+  display: flex;
+  gap: 4px;
+  background: #f1f3f5;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.role-quick-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #495057;
+  transition: all 0.15s;
+}
+
+.role-quick-btn.active {
+  background: #ffffff;
+  color: var(--studevo-red-dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ects-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 11.5px;
+  background: #ebfbee;
+  color: #2b8a3e;
+  border: 1px solid #b2f2bb;
+}
+
+/* ========================================================
+   ROLE-SPECIFIC PORTAL THEMES (STUDENT vs TEACHER vs ADMIN)
+   ======================================================== */
+
+/* 1. STUDENT PORTAL THEME (Academic Crimson) */
+.studevo-app-shell.role-theme-student {
+  --role-primary: #c92a2a;
+  --role-dark: #991b1b;
+  --role-light: #fff5f5;
+}
+
+/* 2. TEACHER PORTAL THEME (Department Indigo / Royal Blue) */
+.studevo-app-shell.role-theme-teacher {
+  --studevo-red: #1864ab;
+  --studevo-red-dark: #104378;
+  --studevo-red-light: #e7f5ff;
+  --studevo-red-hover: #1971c2;
+  --studevo-accent: #228be6;
+  --studevo-accent-subtle: #d0ebff;
+}
+
+.studevo-app-shell.role-theme-teacher .studevo-welcome-banner {
+  background: linear-gradient(135deg, #0b3c68 0%, #1864ab 55%, #1971c2 100%);
+  box-shadow: 0 8px 24px rgba(24, 100, 171, 0.22);
+}
+
+.studevo-app-shell.role-theme-teacher .studevo-brand-icon {
+  background: linear-gradient(135deg, #1971c2, #0b3c68);
+  box-shadow: 0 3px 8px rgba(24, 100, 171, 0.3);
+}
+
+.studevo-app-shell.role-theme-teacher .studevo-menu-item.active {
+  background-color: #1864ab;
+  box-shadow: 0 3px 10px rgba(24, 100, 171, 0.25);
+}
+
+/* 3. DEAN'S OFFICE / ADMIN PORTAL THEME (Executive Slate & Dark Sidebar) */
+.studevo-app-shell.role-theme-admin {
+  --studevo-red: #0f766e;
+  --studevo-red-dark: #115e59;
+  --studevo-red-light: #e6fcf5;
+  --studevo-red-hover: #0d9488;
+  --studevo-accent: #14b8a6;
+  --studevo-accent-subtle: #c3fae8;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-sidebar-nav {
+  background-color: #181e29;
+  border-right: 1px solid #2b3445;
+  color: #f8f9fa;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-block {
+  border-bottom-color: #2b3445;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-title {
+  color: #ffffff;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-subtitle {
+  color: #5eead4;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-icon {
+  background: linear-gradient(135deg, #0d9488, #115e59);
+  box-shadow: 0 3px 10px rgba(13, 148, 136, 0.4);
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item {
+  color: #cbd5e1;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item:hover {
+  background-color: #263042;
+  color: #ffffff;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item.active {
+  background-color: #0d9488;
+  color: #ffffff;
+  box-shadow: 0 3px 12px rgba(13, 148, 136, 0.35);
+}
+
+.studevo-app-shell.role-theme-admin .studevo-profile-footer {
+  border-top-color: #2b3445;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-profile-card {
+  background-color: #222b3a;
+  border-color: #334155;
+}
+
+.studevo-app-shell.role-theme-admin .profile-name {
+  color: #f8fafc;
+}
+
+.studevo-app-shell.role-theme-admin .profile-dept {
+  color: #94a3b8;
+}
+
+.studevo-app-shell.role-theme-admin .role-quick-switcher {
+  background: #222b3a;
+}
+
+.studevo-app-shell.role-theme-admin .role-quick-btn {
+  color: #94a3b8;
+}
+
+.studevo-app-shell.role-theme-admin .role-quick-btn.active {
+  background: #0d9488;
+  color: #ffffff;
+}
+
+.studevo-app-shell.role-theme-admin .logout-action-btn {
+  background-color: #222b3a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.studevo-app-shell.role-theme-admin .logout-action-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-welcome-banner {
+  background: linear-gradient(135deg, #111827 0%, #134e4a 60%, #0f766e 100%);
+  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.22);
+}
+
+/* Role Top Context Header Strip */
+.portal-role-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--studevo-border);
+  box-shadow: var(--studevo-shadow-sm);
+}
+
+.portal-role-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--studevo-red-dark);
+}
+
+.kpi-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.kpi-metric-card {
+  background: #ffffff;
+  border: 1px solid var(--studevo-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--studevo-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-metric-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--studevo-red-dark);
+  line-height: 1.1;
+}
+
+.kpi-metric-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.kpi-metric-sub {
+  font-size: 11px;
+  color: #868e96;
+}
+
+.queue-review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--studevo-border);
+  border-left: 4px solid var(--studevo-red);
+  border-radius: 8px;
+  background: #ffffff;
+  margin-bottom: 10px;
+}
+
+.infra-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border: 1px solid var(--studevo-border);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.status-dot-online {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #12b886;
+  margin-right: 6px;
+}
+
+/* ========================================================
+   ZOOM-LIKE LIVE CONFERENCE ROOM
+   ======================================================== */
+.webinar-selector-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.zoom-room-container {
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  border: 1px solid #333333;
+}
+
+.zoom-room-main {
+  display: flex;
+  height: 620px;
+  position: relative;
+  background: #111111;
+}
+
+.zoom-stage-area {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0d0d0d;
+}
+
+.zoom-top-info-bar {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.zoom-meeting-title-pill {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 14px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-view-switch-btns {
+  pointer-events: auto;
+  display: flex;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.zoom-view-btn {
+  background: transparent;
+  border: none;
+  color: #a0a0a0;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.zoom-view-btn.active {
+  background: #2d8cff;
+  color: #ffffff;
+}
+
+.zoom-view-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* Gallery View (Grid of participants) */
+.zoom-gallery-grid {
+  flex: 1;
+  padding: 56px 16px 16px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+.zoom-participant-tile {
+  position: relative;
+  background: #242424;
+  border-radius: 10px;
+  height: 100%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s;
+}
+
+.zoom-participant-tile.active-speaker {
+  border-color: #00d26a;
+}
+
+.zoom-participant-tile.is-me {
+  border-color: #2d8cff;
+}
+
+.zoom-tile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1864ab, #228be6);
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.zoom-tile-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.zoom-tile-name-tag {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: #ffffff;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 4;
+}
+
+.zoom-tile-indicators {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 4;
+}
+
+.zoom-hand-badge {
+  background: #f59f00;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  animation: bounceHand 1s infinite alternate ease-in-out;
+}
+
+@keyframes bounceHand {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+/* Speaker View (Big presentation / video + top speaker ribbon) */
+.zoom-speaker-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-top: 52px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.zoom-participants-ribbon {
+  display: flex;
+  gap: 8px;
+  padding: 6px 16px 10px 16px;
+  overflow-x: auto;
+  min-height: 110px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.zoom-ribbon-tile {
+  flex-shrink: 0;
+  width: 140px;
+  height: 90px;
+  background: #242424;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.zoom-main-spotlight {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+}
+
+/* Zoom Sidebar (Chat & Participants panels) */
+.zoom-side-panel {
+  width: 320px;
+  background: #1f1f1f;
+  border-left: 1px solid #333333;
+  display: flex;
+  flex-direction: column;
+}
+
+.zoom-side-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #333333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.zoom-side-tabs {
+  display: flex;
+  border-bottom: 1px solid #333333;
+}
+
+.zoom-side-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #888888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.zoom-side-tab-btn.active {
+  color: #2d8cff;
+  border-bottom-color: #2d8cff;
+  background: rgba(45, 140, 255, 0.06);
+}
+
+.zoom-participants-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-participant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px;
+  color: #e0e0e0;
+}
+
+.zoom-chat-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.zoom-chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-msg-box {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.zoom-msg-author {
+  font-weight: 700;
+  color: #2d8cff;
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.zoom-chat-form {
+  padding: 10px;
+  border-top: 1px solid #333333;
+  display: flex;
+  gap: 6px;
+}
+
+.zoom-chat-input {
+  flex: 1;
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.zoom-chat-input:focus {
+  border-color: #2d8cff;
+}
+
+/* Bottom Toolbar (Authentic Zoom dark control strip) */
+.zoom-toolbar {
+  background: #181818;
+  border-top: 1px solid #2d2d2d;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  min-height: 64px;
+}
+
+.zoom-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-tool-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 10px;
+  min-width: 60px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.zoom-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.zoom-tool-btn.is-active {
+  color: #00d26a;
+}
+
+.zoom-tool-btn.is-danger {
+  color: #ff4d4f;
+}
+
+.zoom-tool-btn.share-btn {
+  color: #00d26a;
+  font-weight: 700;
+}
+
+.zoom-end-btn {
+  background: #e02828;
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background 0.15s;
+}
+
+.zoom-end-btn:hover {
+  background: #c92a2a;
+}
+
+
+
+

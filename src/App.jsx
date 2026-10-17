@@ -1,333 +1,1591 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 
-const SSO_ACCOUNTS = [
+const API_BASE = 'http://localhost:3000';
+const STORAGE_KEY = 'studevo_lms_state_v2';
+
+const LECTURE_SLIDES = [
   {
-    id: 'usr-student',
-    name: 'Олександр Петренко',
-    email: 'o.petrenko@univ.edu.ua',
-    role: 'student',
-    dept: 'Група «ІПЗ-412» • 4 курс',
-    initials: 'ОП',
-    desc: 'Кабінет студента: перегляд силабусу, здача лабораторних робіт та особистий щоденник успішності',
+    slideNum: 1,
+    tag: 'Модуль 2 • Поведінкові патерни GoF',
+    title: 'Патерн проектування Strategy (Стратегія)',
+    points: [
+      'Відокремлення алгоритмів розрахунку від основного бізнес-контексту сервісу',
+      'Заміна складних умовних конструкцій if/else на поліморфні класи стратегій',
+      'Можливість перемикання алгоритму під час виконання програми (Runtime)',
+    ],
+    code: `interface GradingStrategy {
+  calculate(rawScore: number, maxScore: number): number;
+}`,
   },
   {
-    id: 'usr-teacher',
-    name: 'Дмитро Коваленко, доц.',
-    email: 'd.kovalenko@univ.edu.ua',
-    role: 'teacher',
-    dept: 'Кафедра інженерії ПЗ',
-    initials: 'ДК',
-    desc: 'Кабінет викладача: силабус, додавання модулів/файлів, перевірка та оцінювання за рубриками',
+    slideNum: 2,
+    tag: 'Практична реалізація • Чиста архітектура',
+    title: 'Інкапсуляція правил оцінювання робіт',
+    points: [
+      'StandardGradingStrategy — базовий розрахунок балів за критеріями рубрики',
+      'LatePenaltyStrategy — автоматичне застосування коефіцієнта 0.8 при простроченні',
+      'ExcellenceBonusStrategy — нарахування +5 бонусних балів за високу якість коду',
+    ],
+    code: `class LatePenaltyStrategy implements GradingStrategy {
+  calculate(raw: number, max: number): number {
+    return Math.min(max, Math.round(raw * 0.8 * 10) / 10);
+  }
+}`,
   },
   {
-    id: 'usr-admin',
-    name: 'Олена Франчук',
-    email: 'dekanat.fiot@univ.edu.ua',
-    role: 'admin',
-    dept: 'Деканат ФІОТ / ІТ-відділ',
-    initials: 'ОФ',
-    desc: 'Кабінет адміністратора: формування академічних груп, дисциплін, навантаження та аудит безпеки',
+    slideNum: 3,
+    tag: 'Принципи SOLID • Open/Closed Principle',
+    title: 'Переваги для тестування та масштабування',
+    points: [
+      'Нові правила додаються без модифікації існуючого коду сервісу перевірки робіт',
+      'Кожна стратегія покривається ізольованими Unit-тестами за мілісекунди',
+      'Відсутність побічних ефектів при зміні регламенту семестрового контролю',
+    ],
+    code: `const context = new SubmissionGrader(new ExcellenceBonusStrategy());
+const finalScore = context.evaluate(submission); // 99 / 100 (ECTS: A)`,
+  },
+  {
+    slideNum: 4,
+    tag: 'Підсумки заняття та Q&A',
+    title: 'Вимоги до захисту Лабораторної роботи №4',
+    points: [
+      'Реалізувати щонайменше 3 власні класи стратегій у доменному шарі проекту',
+      'Налаштувати діаграму класів UML та додати її у PDF-звіт',
+      'Завантажити архів або PDF-звіт у розділі «Завдання» до встановленого дедлайну',
+    ],
+    code: `// Успішного виконання лабораторної роботи!
+// Запитання можна ставити у чаті трансляції або голосом (Підняти руку)`,
   },
 ];
 
+const ACCOUNTS = [
+  {
+    id: 'usr-student',
+    login: 'student',
+    email: 'o.petrenko@univ.edu.ua',
+    password: '123456',
+    name: 'Олександр Петренко',
+    role: 'student',
+    dept: 'Група ІПЗ-412 • 4 курс',
+    initials: 'ОП',
+  },
+  {
+    id: 'usr-teacher',
+    login: 'teacher',
+    email: 'd.kovalenko@univ.edu.ua',
+    password: '123456',
+    name: 'Дмитро Коваленко, доц.',
+    role: 'teacher',
+    dept: 'Кафедра інженерії ПЗ',
+    initials: 'ДК',
+  },
+  {
+    id: 'usr-admin',
+    login: 'admin',
+    email: 'dekanat.fiot@univ.edu.ua',
+    password: '123456',
+    name: 'Олена Франчук',
+    role: 'admin',
+    dept: 'Деканат ФІОТ',
+    initials: 'ОФ',
+  },
+];
+
+const INITIAL_COURSES = [
+  {
+    id: 'c-1',
+    title: 'Архітектура програмного забезпечення',
+    instructor: 'Дмитро Коваленко, доц.',
+    description: 'Чиста архітектура, патерни проектування GoF, принципи SOLID та побудова сучасних веб-систем.',
+    semester: 7,
+    modulesCount: 2,
+    totalHours: 120,
+    isPublished: true,
+    cover: '/course-coding.jpg',
+    modules: [
+      {
+        id: 'm-1',
+        title: 'Модуль 1: Принципи SOLID та Чиста архітектура',
+        lessons: [
+          {
+            id: 'l-1',
+            title: 'Лекція 1: Огляд шарів домену та інфраструктури',
+            type: 'Лекція',
+            completed: true,
+            content:
+              'У чистій архітектурі бізнес-логіка знаходиться в центрі системи та не залежить від бази даних чи зовнішніх бібліотек. Усі залежності спрямовані всередину до доменної моделі.',
+          },
+          {
+            id: 'l-2',
+            title: 'Методичні вказівки до виконання лабораторних робіт',
+            type: 'Методичка',
+            completed: true,
+            content:
+              'Посібник містить вимоги до оформлення звітів, побудови діаграм класів та критерії оцінювання практичних завдань.',
+          },
+        ],
+      },
+      {
+        id: 'm-2',
+        title: 'Модуль 2: Породжуючі та поведінкові патерни проектування',
+        lessons: [
+          {
+            id: 'l-3',
+            title: 'Відео-лекція: Застосування патерна Strategy на практиці',
+            type: 'Відео',
+            completed: false,
+            content:
+              'Розгляд гнучкого вибору алгоритмів під час виконання програми на прикладі розрахунку рейтингових балів студентів.',
+          },
+          {
+            id: 'l-4',
+            title: 'Презентація: Побудова складних об’єктів через Builder',
+            type: 'Презентація',
+            completed: false,
+            content:
+              'Покрокове конструювання об’єктів навчальних завдань із критеріями оцінювання та термінами здачі.',
+          },
+        ],
+      },
+    ],
+    progress: 50,
+  },
+  {
+    id: 'c-2',
+    title: 'Основи вебдизайну та ергономіка UX/UI',
+    instructor: 'Олена Грищенко, ст. викл.',
+    description: 'Проєктування інтерфейсів, доступність, типографіка та компонування сучасних освітніх платформ.',
+    semester: 7,
+    modulesCount: 1,
+    totalHours: 90,
+    isPublished: true,
+    cover: '/course-webdesign.jpg',
+    modules: [
+      {
+        id: 'm-3',
+        title: 'Модуль 1: Дизайн-системи та візуальна ієрархія',
+        lessons: [
+          {
+            id: 'l-5',
+            title: 'Лекція: Колірні схеми та контрастність в інтерфейсах',
+            type: 'Лекція',
+            completed: true,
+            content:
+              'Правильно підібрана сітка та візуальні акценти дозволяють користувачу швидко знаходити потрібні розділи без зайвого візуального шуму.',
+          },
+          {
+            id: 'l-6',
+            title: 'Практикум: Інтерактивне прототипування у Figma',
+            type: 'Методичка',
+            completed: false,
+            content:
+              'Побудова адаптивних компонентів карток курсів, таблиць журналу та модальних вікон.',
+          },
+        ],
+      },
+    ],
+    progress: 50,
+  },
+  {
+    id: 'c-3',
+    title: 'Математичні методи дослідження операцій',
+    instructor: 'Василь Мельник, проф.',
+    description: 'Теорія графів, симплекс-метод, оптимізаційні алгоритми та моделювання систем.',
+    semester: 7,
+    modulesCount: 1,
+    totalHours: 120,
+    isPublished: true,
+    cover: '/course-math.jpg',
+    modules: [
+      {
+        id: 'm-4',
+        title: 'Модуль 1: Лінійне програмування та потоки в мережах',
+        lessons: [
+          {
+            id: 'l-7',
+            title: 'Лекція 1: Постановка задачі лінійної оптимізації',
+            type: 'Лекція',
+            completed: false,
+            content:
+              'Канонічна та стандартна форми задачі лінійного програмування. Геометрична інтерпретація допустимих розв’язків.',
+          },
+        ],
+      },
+    ],
+    progress: 0,
+  },
+];
+
+const INITIAL_ASSIGNMENTS = [
+  {
+    id: 'asg-1',
+    courseId: 'c-1',
+    courseTitle: 'Архітектура програмного забезпечення',
+    title: 'Лабораторна робота 3: Проектування REST API та взаємодії модулів',
+    description: 'Спроектувати контракти взаємодії між модулями курсів та оцінювання.',
+    type: 'Лабораторна',
+    deadline: '2026-10-18T23:59:00.000Z',
+    maxScore: 100,
+    rubricTitle: 'Чиста архітектура (3 критерії)',
+    criteria: [
+      { id: 'clean_arch', name: 'Чиста архітектура та поділ шарів', max: 35 },
+      { id: 'patterns', name: 'Правильність застосування патернів', max: 35 },
+      { id: 'tests', name: 'Покриття модульними тестами', max: 30 },
+    ],
+    submissions: [
+      {
+        id: 'sub-1',
+        studentId: 'usr-student',
+        studentName: 'Олександр Петренко',
+        group: 'ІПЗ-412',
+        submittedAt: '2026-10-14T12:30:00.000Z',
+        fileName: 'Звіт_Лаб3_Петренко_ІПЗ412.pdf',
+        fileSize: '1.4 МБ',
+        comment: 'Виконано відповідно до методичних вказівок. Посилання на репозиторій додано у звіт.',
+        status: 'READY_FOR_GRADING',
+        score: null,
+      },
+    ],
+  },
+  {
+    id: 'asg-2',
+    courseId: 'c-1',
+    courseTitle: 'Архітектура програмного забезпечення',
+    title: 'Лабораторна робота 4: Патерни Decorator та Strategy',
+    description: 'Реалізувати гнучкий розрахунок підсумкових балів та кешування даних.',
+    type: 'Лабораторна',
+    deadline: '2026-10-24T23:59:00.000Z',
+    maxScore: 100,
+    rubricTitle: 'Шаблони проектування GoF',
+    criteria: [
+      { id: 'clean_arch', name: 'Реалізація патерна Strategy', max: 40 },
+      { id: 'patterns', name: 'Реалізація патерна Decorator', max: 35 },
+      { id: 'tests', name: 'Модульні тести та висновки', max: 25 },
+    ],
+    submissions: [],
+  },
+  {
+    id: 'asg-3',
+    courseId: 'c-2',
+    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
+    title: 'Практична робота 2: Макет навчального кабінету',
+    description: 'Розробити інтерактивний дизайн-прототип системи навчання.',
+    type: 'Практична',
+    deadline: '2026-10-28T23:59:00.000Z',
+    maxScore: 100,
+    rubricTitle: 'Ергономіка та дизайн',
+    criteria: [
+      { id: 'clean_arch', name: 'Компонування та модульна сітка', max: 40 },
+      { id: 'patterns', name: 'Колористика та типографіка', max: 35 },
+      { id: 'tests', name: 'Зручність навігації', max: 25 },
+    ],
+    submissions: [],
+  },
+];
+
+const INITIAL_GRADES = [
+  {
+    id: 'grd-1',
+    assignmentId: 'asg-prev-1',
+    submissionId: 'sub-prev-1',
+    studentId: 'usr-student',
+    studentName: 'Олександр Петренко',
+    group: 'ІПЗ-412',
+    courseTitle: 'Архітектура програмного забезпечення',
+    assignmentTitle: 'Лабораторна робота 2: Декомпозиція модулів системи',
+    submittedAt: '10 жовтня 2026',
+    rawScore: 95,
+    finalScore: 95,
+    maxScore: 100,
+    rule: 'STANDARD',
+    ruleDesc: 'Стандартний розрахунок',
+    feedback: 'Відмінно виконано декомпозицію модулів. Дотримано всіх вимог.',
+  },
+  {
+    id: 'grd-2',
+    assignmentId: 'asg-prev-2',
+    submissionId: 'sub-prev-2',
+    studentId: 'usr-student',
+    studentName: 'Олександр Петренко',
+    group: 'ІПЗ-412',
+    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
+    assignmentTitle: 'Практична робота 1: Аналіз патернів навігації',
+    submittedAt: '11 жовтня 2026',
+    rawScore: 92,
+    finalScore: 97,
+    maxScore: 100,
+    rule: 'EXCELLENCE_BONUS',
+    ruleDesc: 'Заохочувальний бонус (+5 балів)',
+    feedback: 'Гарна колористика та якісне компонування інтерфейсу.',
+  },
+];
+
+const INITIAL_GROUPS = [
+  {
+    id: 'g-1',
+    name: 'ІПЗ-412',
+    faculty: 'ФІОТ',
+    studyYear: 4,
+    studentsCount: 28,
+    assignedCourseIds: ['c-1', 'c-2', 'c-3'],
+    studentsList: ['Олександр Петренко', 'Марія Бондаренко', 'Ігор Ткаченко', 'Софія Кравчук'],
+  },
+  {
+    id: 'g-2',
+    name: 'ІПЗ-411',
+    faculty: 'ФІОТ',
+    studyYear: 4,
+    studentsCount: 26,
+    assignedCourseIds: ['c-1', 'c-2'],
+    studentsList: ['Андрій Шевченко', 'Дарина Лисенко', 'Максим Поліщук'],
+  },
+  {
+    id: 'g-3',
+    name: 'КН-301',
+    faculty: 'ФІОТ',
+    studyYear: 3,
+    studentsCount: 30,
+    assignedCourseIds: ['c-2', 'c-3'],
+    studentsList: ['Богдан Савченко', 'Вікторія Романюк'],
+  },
+];
+
+const INITIAL_WEBINARS = [
+  {
+    id: 'web-1',
+    courseId: 'c-1',
+    courseTitle: 'Архітектура програмного забезпечення',
+    title: 'Онлайн-лекція: Чиста архітектура та інверсія залежностей',
+    instructor: 'Дмитро Коваленко, доц.',
+    scheduledAt: '2026-10-16T18:00:00.000Z',
+    status: 'LIVE',
+    chat: [
+      {
+        id: 'msg-1',
+        senderName: 'Дмитро Коваленко, доц.',
+        senderRole: 'teacher',
+        text: 'Вітаю групу ІПЗ-412! Сьогодні розбираємо побудову чистої архітектури та підготовку до Лабораторної №4.',
+        time: '18:02',
+      },
+      {
+        id: 'msg-2',
+        senderName: 'Олександр Петренко',
+        senderRole: 'student',
+        text: 'Добрий вечір! Підкажіть, чи можна здати звіт у форматі PDF разом із посиланням на GitHub?',
+        time: '18:05',
+      },
+      {
+        id: 'msg-3',
+        senderName: 'Дмитро Коваленко, доц.',
+        senderRole: 'teacher',
+        text: 'Так, звісно. Прикріплюйте PDF-файл у розділі «Завдання» та додавайте посилання в коментарі.',
+        time: '18:06',
+      },
+    ],
+  },
+  {
+    id: 'web-2',
+    courseId: 'c-2',
+    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
+    title: 'Практичний семінар: Розбір макетів студентських робіт',
+    instructor: 'Олена Грищенко, ст. викл.',
+    scheduledAt: '2026-10-21T14:30:00.000Z',
+    status: 'SCHEDULED',
+    chat: [
+      {
+        id: 'msg-4',
+        senderName: 'Олена Грищенко, ст. викл.',
+        senderRole: 'teacher',
+        text: 'Підготуйте ваші прототипи для спільного обговорення на занятті.',
+        time: '14:00',
+      },
+    ],
+  },
+];
+
+const INITIAL_AUDIT_LOGS = [
+  {
+    id: 'log-1',
+    userId: 'Олександр Петренко (ІПЗ-412)',
+    ip: '192.168.1.45',
+    action: 'Завантаження звіту лабораторної роботи №3',
+    resource: 'Архітектура ПЗ',
+    status: 'ALLOWED',
+    time: '14.10.2026 12:30',
+  },
+  {
+    id: 'log-2',
+    userId: 'Дмитро Коваленко, доц.',
+    ip: '192.168.1.10',
+    action: 'Оновлення робочої програми дисципліни',
+    resource: 'Архітектура ПЗ',
+    status: 'ALLOWED',
+    time: '14.10.2026 14:02',
+  },
+  {
+    id: 'log-3',
+    userId: 'Олена Франчук (Деканат)',
+    ip: '192.168.1.5',
+    action: 'Затвердження навчального плану групи ІПЗ-412',
+    resource: 'Деканат ФІОТ',
+    status: 'ALLOWED',
+    time: '15.10.2026 10:15',
+  },
+];
+
+const INITIAL_EVENTS = [
+  {
+    id: 'ev-1',
+    type: 'grade',
+    title: 'Виставлено 97 балів (ECTS: A)',
+    desc: 'Основи вебдизайну — Практична робота №1.',
+    time: 'Нещодавно',
+  },
+  {
+    id: 'ev-2',
+    type: 'course',
+    title: 'Триває онлайн-лекція',
+    desc: 'Архітектура ПЗ: Чиста архітектура та інверсія залежностей.',
+    time: 'Сьогодні о 18:00',
+  },
+];
+
+function getEctsLetter(score) {
+  const num = Number(score) || 0;
+  if (num >= 90) return 'A';
+  if (num >= 82) return 'B';
+  if (num >= 74) return 'C';
+  if (num >= 64) return 'D';
+  if (num >= 60) return 'E';
+  return 'FX';
+}
+
+function calcCourseProgress(modules) {
+  if (!modules || modules.length === 0) return 0;
+  const allLessons = modules.flatMap((m) => m.lessons || []);
+  if (allLessons.length === 0) return 0;
+  const completedCount = allLessons.filter((l) => l.completed).length;
+  return Math.round((completedCount / allLessons.length) * 100);
+}
+
+const UK_MONTHS = [
+  'Січень',
+  'Лютий',
+  'Березень',
+  'Квітень',
+  'Травень',
+  'Червень',
+  'Липень',
+  'Серпень',
+  'Вересень',
+  'Жовтень',
+  'Листопад',
+  'Грудень',
+];
+
 export default function App() {
-  // Current Authenticated User (Strictly locked to SSO session - no random switching)
+  const loadStoredState = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  const persisted = useMemo(() => loadStoredState(), []);
+
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const stored = localStorage.getItem('studevo_auth_user');
-      return stored ? JSON.parse(stored) : SSO_ACCOUNTS[0];
+      return stored ? JSON.parse(stored) : null;
     } catch {
-      return SSO_ACCOUNTS[0];
+      return null;
     }
   });
+
+  // Login Form States
+  const [loginInput, setLoginInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const userRole = currentUser ? currentUser.role : 'student';
   const [activeMenu, setActiveMenu] = useState('dashboard');
 
-  const handleSsoLogin = async (account) => {
+  // Core Data States
+  const [courses, setCourses] = useState(() => persisted?.courses || INITIAL_COURSES);
+  const [assignments, setAssignments] = useState(() => persisted?.assignments || INITIAL_ASSIGNMENTS);
+  const [grades, setGrades] = useState(() => persisted?.grades || INITIAL_GRADES);
+  const [academicGroups, setAcademicGroups] = useState(() => persisted?.academicGroups || INITIAL_GROUPS);
+  const [webinars, setWebinars] = useState(() => persisted?.webinars || INITIAL_WEBINARS);
+  const [auditLogs, setAuditLogs] = useState(() => persisted?.auditLogs || INITIAL_AUDIT_LOGS);
+  const [eventsFeed, setEventsFeed] = useState(() => persisted?.eventsFeed || INITIAL_EVENTS);
+
+  useEffect(() => {
     try {
-      await fetch('http://localhost:3000/auth/sso/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: account.email,
-          full_name: account.name,
-          role: account.role.toUpperCase(),
-        }),
-      }).catch(() => null);
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          courses,
+          assignments,
+          grades,
+          academicGroups,
+          webinars,
+          auditLogs,
+          eventsFeed,
+        })
+      );
     } catch (e) {
-      console.warn('Backend SSO login notify:', e);
+      console.warn('Could not save state:', e);
+    }
+  }, [courses, assignments, grades, academicGroups, webinars, auditLogs, eventsFeed]);
+
+  // Real-time synchronization across multiple browser tabs/windows (e.g. Teacher in Tab 1, Student in Tab 2)
+  useEffect(() => {
+    let bc;
+    try {
+      bc = new BroadcastChannel('studevo_live_webinar_bus');
+      bc.onmessage = (event) => {
+        const { type, payload } = event.data || {};
+        if (type === 'WEBINAR_UPDATE') {
+          setWebinars(payload);
+        } else if (type === 'CHAT_MESSAGE') {
+          setWebinars((prev) =>
+            prev.map((w) => (w.id === payload.webinarId ? { ...w, chat: [...(w.chat || []), payload.message] } : w))
+          );
+        } else if (type === 'STATUS_CHANGE') {
+          setWebinars((prev) =>
+            prev.map((w) => (w.id === payload.webinarId ? { ...w, status: payload.newStatus } : w))
+          );
+        }
+      };
+    } catch {
+      // Fallback for environments without BroadcastChannel
     }
 
-    setCurrentUser(account);
-    localStorage.setItem('studevo_auth_user', JSON.stringify(account));
-    setActiveMenu('dashboard');
-    setNotification({ text: `Успішний вхід через SSO: ${account.name} (${account.dept})`, isError: false });
-  };
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.webinars) setWebinars(parsed.webinars);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
 
-  const handleLogout = () => {
-    localStorage.removeItem('studevo_auth_user');
-    setCurrentUser(null);
-    setNotification({ text: 'Ви успішно вийшли з корпоративного облікового запису.', isError: false });
-  };
-  
-  // Data states
-  const [courses, setCourses] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [academicGroups, setAcademicGroups] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null);
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // UI & Filter States
   const [notification, setNotification] = useState(null);
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 9, 1));
-  
-  // Forms & Interactive states
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupFaculty, setNewGroupFaculty] = useState('Факультет інформатики та обчислювальної техніки');
-  const [newGroupYear, setNewGroupYear] = useState(4);
-  const [newCourse, setNewCourse] = useState({ title: '', description: '', teacherId: '', semester: 7 });
-  const [newAssignment, setNewAssignment] = useState({
-    courseId: '',
+  const [courseSearch, setCourseSearch] = useState('');
+  const [courseFilter, setCourseFilter] = useState('ALL');
+  const [auditSearch, setAuditSearch] = useState('');
+
+  // Course Modal & Lesson Viewer/Editor States
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [activeLessonId, setActiveLessonId] = useState(null);
+  const [newModuleTitle, setNewModuleTitle] = useState('');
+  const [newLessonForm, setNewLessonForm] = useState({
+    moduleId: '',
     title: '',
+    type: 'Лекція',
+    content: '',
+  });
+
+  // Group Management Modal State (Admin)
+  const [managingGroupId, setManagingGroupId] = useState(null);
+  const [newStudentNameInGroup, setNewStudentNameInGroup] = useState('');
+
+  // Calendar State
+  const [calendarDate, setCalendarDate] = useState(new Date(2026, 9, 1));
+  const [selectedCalDay, setSelectedCalDay] = useState(null);
+
+  // Forms: Create Group (Admin)
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupFaculty, setNewGroupFaculty] = useState('ФІОТ');
+  const [newGroupYear, setNewGroupYear] = useState(4);
+
+  // Forms: Create Course (Teacher)
+  const [newCourse, setNewCourse] = useState({
+    title: '',
+    description: '',
+    semester: 7,
+    totalHours: 90,
+    cover: '/course-coding.jpg',
+  });
+
+  // Forms: Create Assignment (Teacher)
+  const [newAssignment, setNewAssignment] = useState({
+    courseId: 'c-1',
+    title: '',
+    description: '',
+    type: 'Лабораторна',
     maxScore: 100,
-    deadline: '2026-10-24T23:59',
-    type: 'LAB',
+    deadline: '2026-10-29T23:59',
+    rubricTitle: 'Критерії оцінювання роботи',
+    crit1Name: 'Архітектура та якість коду',
+    crit1Max: 40,
+    crit2Name: 'Повнота реалізації завдання',
+    crit2Max: 35,
+    crit3Name: 'Тестування та оформлення звіту',
+    crit3Max: 25,
   });
+
+  // Forms: Student Submission
   const [submissionForm, setSubmissionForm] = useState({
-    assignmentId: '',
-    comment: 'Виконано відповідно до методичних вказівок. Посилання на репозиторій додано.',
-    fileName: 'Звіт_Лабораторна_Петренко_ІПЗ412.pdf',
+    assignmentId: 'asg-2',
+    comment: 'Виконано згідно з методичними вказівками. Посилання на репозиторій додано.',
+    fileName: 'Звіт_Лабораторна4_Петренко_ІПЗ412.pdf',
+    fileSize: '1.8 МБ',
   });
+
+  // Teacher Grading States
+  const allSubmissionsList = useMemo(() => {
+    return assignments.flatMap((asg) =>
+      (asg.submissions || []).map((sub) => ({
+        ...sub,
+        assignmentId: asg.id,
+        assignmentTitle: asg.title,
+        courseTitle: asg.courseTitle,
+        maxScore: asg.maxScore,
+        criteria: asg.criteria || [
+          { id: 'clean_arch', name: 'Критерій 1', max: 35 },
+          { id: 'patterns', name: 'Критерій 2', max: 35 },
+          { id: 'tests', name: 'Критерій 3', max: 30 },
+        ],
+      }))
+    );
+  }, [assignments]);
+
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState('sub-1');
+  const currentGradingSub = useMemo(() => {
+    return allSubmissionsList.find((s) => s.id === selectedSubmissionId) || allSubmissionsList[0] || null;
+  }, [allSubmissionsList, selectedSubmissionId]);
+
   const [grading, setGrading] = useState({
-    studentName: 'Олександр Петренко',
-    submissionId: 'sub-1',
     rule: 'STANDARD',
     criteriaScores: {
-      'clean_arch': 30,
-      'patterns': 35,
-      'tests': 25,
+      clean_arch: 32,
+      patterns: 34,
+      tests: 28,
     },
-    feedback: 'Архітектура відповідає принципам Clean Architecture. Патерни реалізовано коректно.',
+    feedback: 'Завдання виконано якісно, всі вимоги робочої програми дотримано.',
   });
   const [gradingResult, setGradingResult] = useState(null);
 
-  // Initial Seed Data for Higher Education University LMS
-  const defaultCourses = [
-    {
-      id: 'c-1',
-      title: 'Архітектура програмного забезпечення',
-      instructor: 'Дмитро Коваленко, доц.',
-      description: 'Чиста архітектура, патерни проектування GoF, принципи SOLID та побудова мікросервісів.',
-      semester: 7,
-      modulesCount: 4,
-      totalHours: 120,
-      isPublished: true,
-      cover: '/course-coding.jpg',
-      modules: [
-        {
-          id: 'm-1',
-          title: 'Модуль 1: Принципи SOLID та Clean Architecture',
-          lessons: [
-            { id: 'l-1', title: 'Лекція 1: Огляд шарів домену та інфраструктури', type: 'TEXT', completed: true },
-            { id: 'l-2', title: 'Методичні вказівки до лабораторного циклу', type: 'GUIDE', completed: true },
-          ],
-        },
-        {
-          id: 'm-2',
-          title: 'Модуль 2: Породжуючі та поведінкові патерни (Builder, Strategy)',
-          lessons: [
-            { id: 'l-3', title: 'Відео-лекція: Патерн Strategy в оцінюванні', type: 'VIDEO', completed: false },
-            { id: 'l-4', title: 'Презентація: Конструювання об’єктів через Builder', type: 'PRESENTATION', completed: false },
-          ],
-        },
-      ],
-      progress: 50,
-    },
-    {
-      id: 'c-2',
-      title: 'Основи вебдизайну та ергономіка UX/UI',
-      instructor: 'Олена Грищенко, ст. викл.',
-      description: 'Проєктування інтерфейсів, доступність WCAG, компонування сучасних LMS платформ.',
-      semester: 7,
-      modulesCount: 3,
-      totalHours: 90,
-      isPublished: true,
-      cover: '/course-webdesign.jpg',
-      modules: [
-        {
-          id: 'm-3',
-          title: 'Модуль 1: Дизайн-системи та колористика',
-          lessons: [
-            { id: 'l-5', title: 'Лекція: Колірні схеми в академічних системах', type: 'TEXT', completed: true },
-          ],
-        },
-      ],
-      progress: 65,
-    },
-    {
-      id: 'c-3',
-      title: 'Математичні методи дослідження операцій',
-      instructor: 'Василь Мельник, проф.',
-      description: 'Теорія графів, оптимізаційні алгоритми та моделювання систем.',
-      semester: 7,
-      modulesCount: 3,
-      totalHours: 120,
-      isPublished: true,
-      cover: '/course-math.jpg',
-      modules: [],
-      progress: 25,
-    },
-  ];
+  // Webinars & Zoom Room State
+  const [activeWebinarId, setActiveWebinarId] = useState('web-1');
+  const [chatInput, setChatInput] = useState('');
+  const [newWebinarForm, setNewWebinarForm] = useState({
+    courseId: 'c-1',
+    title: '',
+    scheduledAt: '2026-10-25T16:00',
+  });
+  const [streamSource, setStreamSource] = useState('slides'); // 'slides' | 'camera' | 'screen'
+  const [activeSlideIdx, setActiveSlideIdx] = useState(0);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [streamSeconds, setStreamSeconds] = useState(845); // 14:05 initial live timer
+  const [liveViewersCount, setLiveViewersCount] = useState(24);
+  const [zoomViewMode, setZoomViewMode] = useState('speaker'); // 'speaker' | 'gallery'
+  const [zoomSideTab, setZoomSideTab] = useState('chat'); // 'chat' | 'participants' | 'none'
+  const videoStreamRef = useRef(null);
+  const mediaStreamObjRef = useRef(null);
 
-  const defaultAssignments = [
-    {
-      id: 'asg-1',
-      courseTitle: 'Архітектура програмного забезпечення',
-      title: 'Лабораторна робота 3: Контракти API та черги EDA',
-      type: 'LAB',
-      deadline: '2026-10-18T23:59:00.000Z',
-      maxScore: 100,
-      rubricTitle: 'Рубрика: Чиста архітектура (3 критерії)',
-      criteria: [
-        { id: 'clean_arch', name: 'Чиста архітектура та шари', max: 35 },
-        { id: 'patterns', name: 'Правильність застосування патернів', max: 35 },
-        { id: 'tests', name: 'Модульні тести (coverage > 80%)', max: 30 },
-      ],
-      submissions: [
-        {
-          id: 'sub-1',
-          studentName: 'Олександр Петренко',
-          group: 'ІПЗ-412',
-          submittedAt: '2026-10-14T12:30:00.000Z',
-          fileUrl: 'https://storage.univ.edu.ua/lms-files/lab3_petrenko.pdf',
-          status: 'READY_FOR_GRADING',
-          score: null,
-        },
-      ],
-    },
-    {
-      id: 'asg-2',
-      courseTitle: 'Архітектура програмного забезпечення',
-      title: 'Лабораторна робота 4: Патерни Decorator та Strategy',
-      type: 'LAB',
-      deadline: '2026-10-24T23:59:00.000Z',
-      maxScore: 100,
-      rubricTitle: 'Рубрика: Шаблони GoF',
-      criteria: [
-        { id: 'strategy', name: 'Реалізація інтерфейсу Strategy', max: 50 },
-        { id: 'decorator', name: 'Реалізація кешувального Decorator', max: 50 },
-      ],
-      submissions: [],
-    },
-  ];
+  const zoomAttendees = useMemo(() => [
+    { id: 'usr-teacher', name: 'Дмитро Коваленко (Викладач)', role: 'teacher', isHost: true, isSpeaking: true, mic: !isMicMuted, camera: streamSource === 'camera' },
+    { id: 'usr-student', name: 'Олександр Петренко (Ви)', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: isHandRaised },
+    { id: 'usr-m1', name: 'Марія Бондаренко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
+    { id: 'usr-v2', name: 'Владислав Шевченко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
+    { id: 'usr-a3', name: 'Анна Ткаченко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
+    { id: 'usr-d4', name: 'Денис Мельник', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
+  ], [isMicMuted, streamSource, isHandRaised]);
 
-  const defaultGroups = [
-    { id: 'g-1', name: 'ІПЗ-412', faculty: 'ФІОТ', studyYear: 4, studentsCount: 28 },
-    { id: 'g-2', name: 'ІПЗ-411', faculty: 'ФІОТ', studyYear: 4, studentsCount: 26 },
-    { id: 'g-3', name: 'КН-301', faculty: 'ФІОТ', studyYear: 3, studentsCount: 30 },
-  ];
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === selectedCourseId) || null,
+    [courses, selectedCourseId]
+  );
 
-  const defaultAuditLogs = [
-    { id: 'log-1', userId: 'user-stud-12', ip: '192.168.1.45', action: 'SUBMISSION_FILE_UPLOAD', resource: '/assignments/asg-1/submit', status: 'ALLOWED', time: '14.10.2026 12:30:02' },
-    { id: 'log-2', userId: 'user-stud-99', ip: '10.0.4.112', action: 'UNAUTHORIZED_GRADEBOOK_ACCESS', resource: '/grading/gradebook/student/user-stud-12', status: 'DENIED', time: '14.10.2026 13:15:20' },
-    { id: 'log-3', userId: 'user-teacher-01', ip: '192.168.1.10', action: 'COURSE_SYLLABUS_UPDATE', resource: '/courses/c-1/publish', status: 'ALLOWED', time: '14.10.2026 14:02:11' },
-    { id: 'log-4', userId: 'unknown', ip: '45.132.88.12', action: 'RBAC_TEACHER_ROLE_CHECK_FAILED', resource: '/courses/c-1/modules', status: 'DENIED', time: '14.10.2026 15:40:05' },
-  ];
+  const activeWebinar = useMemo(
+    () => webinars.find((w) => w.id === activeWebinarId) || webinars[0] || null,
+    [webinars, activeWebinarId]
+  );
 
-  useEffect(() => {
-    setCourses(defaultCourses);
-    setAssignments(defaultAssignments);
-    setAcademicGroups(defaultGroups);
-    setAuditLogs(defaultAuditLogs);
-  }, []);
+  const managingGroup = useMemo(
+    () => academicGroups.find((g) => g.id === managingGroupId) || null,
+    [academicGroups, managingGroupId]
+  );
 
   const showNotification = (text, isError = false) => {
     setNotification({ text, isError });
-    setTimeout(() => setNotification(null), 5000);
   };
 
-  // Actions
+  const appendAuditLog = (action, resource, status = 'ALLOWED', customUser = null) => {
+    const nowStr = new Date().toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const actor = customUser || (currentUser ? currentUser.name : 'Користувач');
+    const newEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      userId: actor,
+      ip: '192.168.1.45',
+      action,
+      resource,
+      status,
+      time: nowStr,
+    };
+    setAuditLogs((prev) => [newEntry, ...prev]);
+  };
+
+  const appendEvent = (type, title, desc) => {
+    const ev = {
+      id: `ev-${Date.now()}`,
+      type,
+      title,
+      desc,
+      time: 'Щойно',
+    };
+    setEventsFeed((prev) => [ev, ...prev.slice(0, 7)]);
+  };
+
+  const syncBackend = async (path, method = 'POST', body = {}, overrideRole = null) => {
+    try {
+      const roleHeader = (overrideRole || userRole || 'student').toUpperCase();
+      await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': roleHeader,
+          'x-user-id': currentUser?.id || 'usr-student',
+        },
+        body: method === 'GET' ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      // Offline / local fallback
+    }
+  };
+
+  // ========================================================
+  // LOGIN WITH USERNAME/EMAIL & PASSWORD
+  // ========================================================
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const q = loginInput.trim().toLowerCase();
+    const matched = ACCOUNTS.find(
+      (a) => a.login.toLowerCase() === q || a.email.toLowerCase() === q
+    );
+
+    if (!matched || !passwordInput.trim()) {
+      setLoginError('Невірний логін або пароль. Перевірте введені дані.');
+      return;
+    }
+
+    await syncBackend(
+      '/auth/sso/login',
+      'POST',
+      {
+        email: matched.email,
+        full_name: matched.name,
+        role: matched.role.toUpperCase(),
+      },
+      matched.role
+    );
+
+    setCurrentUser(matched);
+    localStorage.setItem('studevo_auth_user', JSON.stringify(matched));
+    setActiveMenu('dashboard');
+    setNotification(null);
+    appendAuditLog('Вхід у систему', matched.dept, 'ALLOWED', matched.name);
+  };
+
+  const handleLogout = () => {
+    appendAuditLog('Вихід із системи', currentUser?.dept || 'Кабінет', 'ALLOWED');
+    localStorage.removeItem('studevo_auth_user');
+    setCurrentUser(null);
+    setLoginInput('');
+    setPasswordInput('');
+    setLoginError('');
+    setNotification(null);
+  };
+
+  // ========================================================
+  // 1. COURSES, MODULES & LESSONS
+  // ========================================================
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    if (!newCourse.title.trim()) return;
+    const courseId = `c-${Date.now()}`;
+    const created = {
+      id: courseId,
+      title: newCourse.title.trim(),
+      instructor: currentUser?.name || 'Дмитро Коваленко, доц.',
+      description: newCourse.description.trim(),
+      semester: Number(newCourse.semester) || 7,
+      modulesCount: 1,
+      totalHours: Number(newCourse.totalHours) || 90,
+      isPublished: false,
+      cover: newCourse.cover || '/course-coding.jpg',
+      modules: [
+        {
+          id: `m-${Date.now()}`,
+          title: 'Модуль 1: Вступ та основні поняття курсу',
+          lessons: [
+            {
+              id: `l-${Date.now()}`,
+              title: 'Лекція 1: Вступна лекція та робоча програма',
+              type: 'Лекція',
+              completed: false,
+              content: newCourse.description.trim() || 'Матеріали вступної лекції та критерії оцінювання за семестр.',
+            },
+          ],
+        },
+      ],
+      progress: 0,
+    };
+
+    await syncBackend('/courses', 'POST', {
+      title: created.title,
+      description: created.description,
+      teacher_id: currentUser?.id || 'usr-teacher',
+      semester: created.semester,
+    });
+
+    setCourses((prev) => [created, ...prev]);
+    appendAuditLog('Створення нової дисципліни', created.title, 'ALLOWED');
+    appendEvent('course', 'Нова дисципліна', `«${created.title}» (${created.totalHours} год.) додано до каталогу.`);
+    showNotification(`Дисципліну «${created.title}» створено.`);
+    setNewCourse({ title: '', description: '', semester: 7, totalHours: 90, cover: '/course-coding.jpg' });
+  };
+
+  const handlePublishCourse = async (courseId) => {
+    await syncBackend(`/courses/${courseId}/publish`, 'POST');
+    const target = courses.find((c) => c.id === courseId);
+    setCourses((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, isPublished: true } : c))
+    );
+    if (target) {
+      appendAuditLog('Публікація курсу для студентів', target.title, 'ALLOWED');
+      appendEvent('course', 'Опубліковано курс', `Дисципліна «${target.title}» відкрита для студентів.`);
+    }
+    showNotification('Дисципліну опубліковано для студентів.');
+  };
+
+  const handleToggleLessonCompleted = async (courseId, lessonId) => {
+    await syncBackend(`/courses/lessons/${lessonId}/complete/${currentUser?.id || 'usr-student'}`, 'POST');
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const updatedModules = c.modules.map((m) => ({
+          ...m,
+          lessons: m.lessons.map((l) =>
+            l.id === lessonId ? { ...l, completed: !l.completed } : l
+          ),
+        }));
+        const newProgress = calcCourseProgress(updatedModules);
+        return {
+          ...c,
+          modules: updatedModules,
+          progress: newProgress,
+        };
+      })
+    );
+    showNotification('Прогрес вивчення матеріалу оновлено.');
+  };
+
+  const handleAddModuleToCourse = async (e) => {
+    e.preventDefault();
+    if (!selectedCourse || !newModuleTitle.trim()) return;
+    const newModId = `m-${Date.now()}`;
+    await syncBackend(`/courses/${selectedCourse.id}/modules`, 'POST', {
+      title: newModuleTitle.trim(),
+      order_index: (selectedCourse.modules?.length || 0) + 1,
+    });
+
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id !== selectedCourse.id) return c;
+        const updatedModules = [
+          ...(c.modules || []),
+          { id: newModId, title: newModuleTitle.trim(), lessons: [] },
+        ];
+        return {
+          ...c,
+          modules: updatedModules,
+          modulesCount: updatedModules.length,
+          progress: calcCourseProgress(updatedModules),
+        };
+      })
+    );
+    setNewModuleTitle('');
+    setNewLessonForm((prev) => ({ ...prev, moduleId: newModId }));
+    showNotification('Новий змістовий модуль додано.');
+  };
+
+  const handleAddLessonToModule = async (e) => {
+    e.preventDefault();
+    if (!selectedCourse || !newLessonForm.title.trim()) return;
+    const targetModId = newLessonForm.moduleId || selectedCourse.modules?.[0]?.id;
+    if (!targetModId) {
+      showNotification('Спочатку додайте змістовий модуль.', true);
+      return;
+    }
+
+    const newLesson = {
+      id: `l-${Date.now()}`,
+      title: newLessonForm.title.trim(),
+      type: newLessonForm.type,
+      completed: false,
+      content:
+        newLessonForm.content.trim() ||
+        'Навчальний матеріал для самостійного опрацювання та підготовки до практичних робіт.',
+    };
+
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id !== selectedCourse.id) return c;
+        const updatedModules = c.modules.map((m) =>
+          m.id === targetModId ? { ...m, lessons: [...m.lessons, newLesson] } : m
+        );
+        return {
+          ...c,
+          modules: updatedModules,
+          progress: calcCourseProgress(updatedModules),
+        };
+      })
+    );
+
+    setActiveLessonId(newLesson.id);
+    setNewLessonForm((prev) => ({ ...prev, title: '', content: '' }));
+    showNotification(`Матеріал «${newLesson.title}» додано до курсу.`);
+  };
+
+  // ========================================================
+  // 2. ASSIGNMENTS & SUBMISSIONS
+  // ========================================================
+  const handleCreateAssignment = async (e) => {
+    e.preventDefault();
+    if (!newAssignment.title.trim()) return;
+    const targetCourse = courses.find((c) => c.id === newAssignment.courseId) || courses[0];
+    const c1Max = Number(newAssignment.crit1Max) || 40;
+    const c2Max = Number(newAssignment.crit2Max) || 35;
+    const c3Max = Number(newAssignment.crit3Max) || 25;
+    const totalMax = c1Max + c2Max + c3Max;
+
+    const createdAsg = {
+      id: `asg-${Date.now()}`,
+      courseId: targetCourse.id,
+      courseTitle: targetCourse.title,
+      title: newAssignment.title.trim(),
+      description: newAssignment.description.trim() || 'Виконати завдання згідно з вимогами курсу.',
+      type: newAssignment.type,
+      deadline: new Date(newAssignment.deadline).toISOString(),
+      maxScore: totalMax,
+      rubricTitle: `Критерії оцінювання (${totalMax} балів)`,
+      criteria: [
+        { id: 'clean_arch', name: newAssignment.crit1Name || 'Критерій 1', max: c1Max },
+        { id: 'patterns', name: newAssignment.crit2Name || 'Критерій 2', max: c2Max },
+        { id: 'tests', name: newAssignment.crit3Name || 'Критерій 3', max: c3Max },
+      ],
+      submissions: [],
+    };
+
+    setAssignments((prev) => [createdAsg, ...prev]);
+    setSubmissionForm((prev) => ({ ...prev, assignmentId: createdAsg.id }));
+    appendAuditLog('Створення нового завдання', createdAsg.title, 'ALLOWED');
+    appendEvent('course', 'Нове завдання', `«${createdAsg.title}» (${createdAsg.courseTitle})`);
+    showNotification(`Завдання «${createdAsg.title}» успішно опубліковано.`);
+    setNewAssignment((prev) => ({ ...prev, title: '', description: '' }));
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    setSubmissionForm((prev) => ({
+      ...prev,
+      fileName: file.name,
+      fileSize: `${sizeMb === '0.00' ? '0.15' : sizeMb} МБ`,
+    }));
+  };
+
+  const handleStudentSubmit = async (e) => {
+    e.preventDefault();
+    const targetAsg = assignments.find((a) => a.id === submissionForm.assignmentId) || assignments[0];
+    if (!targetAsg) return;
+
+    const newSub = {
+      id: `sub-${Date.now()}`,
+      studentId: currentUser?.id || 'usr-student',
+      studentName: currentUser?.name || 'Олександр Петренко',
+      group: 'ІПЗ-412',
+      submittedAt: new Date().toISOString(),
+      fileName: submissionForm.fileName.trim() || 'Звіт_Лабораторна.pdf',
+      fileSize: submissionForm.fileSize || '1.2 МБ',
+      comment: submissionForm.comment.trim(),
+      status: 'READY_FOR_GRADING',
+      score: null,
+    };
+
+    setAssignments((prev) =>
+      prev.map((a) => {
+        if (a.id !== targetAsg.id) return a;
+        const filtered = (a.submissions || []).filter((s) => s.studentId !== newSub.studentId);
+        return {
+          ...a,
+          submissions: [newSub, ...filtered],
+        };
+      })
+    );
+
+    setSelectedSubmissionId(newSub.id);
+    appendAuditLog('Здача роботи на перевірку', targetAsg.title, 'ALLOWED');
+    appendEvent('course', 'Здано роботу', `${newSub.studentName}: «${newSub.fileName}»`);
+    showNotification(`Роботу «${newSub.fileName}» надіслано викладачу на перевірку.`);
+  };
+
+  // ========================================================
+  // 3. GRADING & GRADEBOOK
+  // ========================================================
+  const handleSelectSubmissionForGrading = (subId) => {
+    setSelectedSubmissionId(subId);
+    const found = allSubmissionsList.find((s) => s.id === subId);
+    if (found && found.criteria) {
+      const nextScores = {};
+      found.criteria.forEach((c) => {
+        nextScores[c.id] = Math.round(c.max * 0.9);
+      });
+      setGrading((prev) => ({
+        ...prev,
+        criteriaScores: nextScores,
+      }));
+    }
+  };
+
+  const liveRawScore = useMemo(() => {
+    return Object.values(grading.criteriaScores).reduce((acc, val) => acc + (Number(val) || 0), 0);
+  }, [grading.criteriaScores]);
+
+  const liveFinalScore = useMemo(() => {
+    const maxPossible = currentGradingSub?.maxScore || 100;
+    if (grading.rule === 'LATE_PENALTY') {
+      return Math.round(liveRawScore * 0.8 * 10) / 10;
+    }
+    if (grading.rule === 'EXCELLENCE_BONUS') {
+      return liveRawScore >= 90 ? Math.min(maxPossible, liveRawScore + 5) : liveRawScore;
+    }
+    return Math.min(maxPossible, liveRawScore);
+  }, [liveRawScore, grading.rule, currentGradingSub]);
+
+  const handleGradeWithStrategy = async (e) => {
+    e.preventDefault();
+    const targetSub = currentGradingSub;
+    const studentName = targetSub ? targetSub.studentName : 'Олександр Петренко';
+    const courseTitle = targetSub ? targetSub.courseTitle : 'Архітектура програмного забезпечення';
+    const assignmentTitle = targetSub ? targetSub.assignmentTitle : 'Лабораторна робота 3';
+    const maxScore = targetSub ? targetSub.maxScore : 100;
+
+    let ruleDesc = 'Стандартний розрахунок';
+    if (grading.rule === 'LATE_PENALTY') {
+      ruleDesc = 'Зниження на 20% (пізня здача)';
+    } else if (grading.rule === 'EXCELLENCE_BONUS') {
+      ruleDesc = 'Заохочувальний бонус (+5 балів)';
+    }
+
+    const resultObj = {
+      id: `grd-${Date.now()}`,
+      assignmentId: targetSub?.assignmentId || 'asg-1',
+      submissionId: targetSub?.id || 'sub-1',
+      studentId: targetSub?.studentId || 'usr-student',
+      studentName,
+      group: targetSub?.group || 'ІПЗ-412',
+      courseTitle,
+      assignmentTitle,
+      submittedAt: new Date().toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }),
+      rawScore: liveRawScore,
+      finalScore: liveFinalScore,
+      maxScore,
+      rule: grading.rule,
+      ruleDesc,
+      feedback: grading.feedback,
+    };
+
+    setGradingResult(resultObj);
+
+    setGrades((prev) => {
+      const withoutDuplicate = prev.filter((g) => g.submissionId !== resultObj.submissionId);
+      return [resultObj, ...withoutDuplicate];
+    });
+
+    if (targetSub) {
+      setAssignments((prev) =>
+        prev.map((asg) => {
+          if (asg.id !== targetSub.assignmentId) return asg;
+          return {
+            ...asg,
+            submissions: (asg.submissions || []).map((s) =>
+              s.id === targetSub.id ? { ...s, status: 'GRADED', score: liveFinalScore } : s
+            ),
+          };
+        })
+      );
+    }
+
+    appendAuditLog(`Виставлення оцінки (${liveFinalScore}/${maxScore})`, assignmentTitle, 'ALLOWED');
+    appendEvent(
+      'grade',
+      `Виставлено ${liveFinalScore}/${maxScore} (ECTS: ${getEctsLetter(liveFinalScore)})`,
+      `${studentName} — «${assignmentTitle}»`
+    );
+    showNotification(`Оцінку ${liveFinalScore}/${maxScore} (ECTS: ${getEctsLetter(liveFinalScore)}) збережено в журналі.`);
+  };
+
+  const handleExportGradesCsv = () => {
+    const headers = ['Студент', 'Група', 'Дисципліна', 'Завдання', 'Дата', 'Бал', 'Макс', 'ECTS', 'Примітка', 'Коментар'];
+    const rows = grades.map((g) => [
+      `"${g.studentName}"`,
+      `"${g.group}"`,
+      `"${g.courseTitle}"`,
+      `"${g.assignmentTitle}"`,
+      `"${g.submittedAt}"`,
+      g.finalScore,
+      g.maxScore,
+      getEctsLetter(g.finalScore),
+      `"${g.ruleDesc}"`,
+      `"${(g.feedback || '').replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Відомість_Studevo_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification('Відомість успішно завантажено у форматі CSV.');
+  };
+
+  // ========================================================
+  // 4. WEBINARS, LIVE BROADCAST (WebRTC) & LIVE CHAT
+  // ========================================================
+  const stopHardwareStream = () => {
+    if (mediaStreamObjRef.current) {
+      mediaStreamObjRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamObjRef.current = null;
+    }
+    if (videoStreamRef.current) {
+      videoStreamRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopHardwareStream();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeWebinar?.status !== 'LIVE') return;
+    const interval = setInterval(() => {
+      setStreamSeconds((prev) => prev + 1);
+      setLiveViewersCount((prev) => {
+        const delta = Math.random() > 0.7 ? (Math.random() > 0.5 ? 1 : -1) : 0;
+        return Math.max(18, Math.min(32, prev + delta));
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeWebinar?.status]);
+
+  useEffect(() => {
+    if (videoStreamRef.current && mediaStreamObjRef.current && (streamSource === 'camera' || streamSource === 'screen')) {
+      videoStreamRef.current.srcObject = mediaStreamObjRef.current;
+    }
+  }, [streamSource, activeWebinarId]);
+
+  const formatStreamTimer = (totalSec) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const handleToggleCameraStream = async () => {
+    if (userRole !== 'teacher') {
+      showNotification('Керувати трансляцією з камери може лише викладач.', true);
+      return;
+    }
+
+    // If camera is currently active, turn it off and return to slides
+    if (streamSource === 'camera') {
+      stopHardwareStream();
+      setStreamSource('slides');
+      showNotification('Камеру вимкнено. Перемкнено на слайди лекції.');
+      return;
+    }
+
+    try {
+      stopHardwareStream();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      // apply current mic state
+      stream.getAudioTracks().forEach((t) => {
+        t.enabled = !isMicMuted;
+      });
+      mediaStreamObjRef.current = stream;
+      setStreamSource('camera');
+      if (activeWebinar && activeWebinar.status !== 'LIVE') {
+        handleChangeWebinarStatus(activeWebinar.id, 'LIVE');
+      }
+      if (videoStreamRef.current) {
+        videoStreamRef.current.srcObject = stream;
+      }
+      showNotification('Камеру успішно увімкнено.');
+    } catch (err) {
+      console.warn('Camera error:', err);
+      setStreamSource('slides');
+      showNotification('Не вдалося отримати доступ до камери або його скасовано.', true);
+    }
+  };
+
+  const handleToggleScreenShare = async () => {
+    if (userRole !== 'teacher') {
+      showNotification('Демонстрацію екрана лектора може запускати лише викладач.', true);
+      return;
+    }
+
+    // If screen share is active, stop it and return to slides
+    if (streamSource === 'screen') {
+      stopHardwareStream();
+      setStreamSource('slides');
+      showNotification('Демонстрацію екрана вимкнено.');
+      return;
+    }
+
+    try {
+      stopHardwareStream();
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: 'always' },
+        audio: false,
+      });
+      stream.getVideoTracks()[0].onended = () => {
+        stopHardwareStream();
+        setStreamSource('slides');
+        showNotification('Демонстрацію екрана завершено.');
+      };
+      mediaStreamObjRef.current = stream;
+      setStreamSource('screen');
+      if (activeWebinar && activeWebinar.status !== 'LIVE') {
+        handleChangeWebinarStatus(activeWebinar.id, 'LIVE');
+      }
+      if (videoStreamRef.current) {
+        videoStreamRef.current.srcObject = stream;
+      }
+      showNotification('Демонстрацію екрана запущено в прямому ефірі.');
+    } catch {
+      setStreamSource('slides');
+      showNotification('Демонстрацію екрана скасовано.', true);
+    }
+  };
+
+  const handleToggleMic = () => {
+    const nextMuted = !isMicMuted;
+    setIsMicMuted(nextMuted);
+    if (mediaStreamObjRef.current) {
+      mediaStreamObjRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
+      });
+    }
+    showNotification(nextMuted ? 'Мікрофон вимкнено.' : 'Мікрофон увімкнено.');
+  };
+
+  const handleSwitchToSlides = () => {
+    stopHardwareStream();
+    setStreamSource('slides');
+    showNotification('Увімкнено режим демонстрації слайдів лекції.');
+  };
+
+  const handleToggleFullscreen = (e) => {
+    const stageEl = e.currentTarget.closest('.stream-stage-viewport');
+    if (!stageEl) return;
+    if (!document.fullscreenElement) {
+      stageEl.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const handleToggleRaiseHand = () => {
+    const nextState = !isHandRaised;
+    setIsHandRaised(nextState);
+    if (nextState && activeWebinar) {
+      const msg = {
+        id: `msg-${Date.now()}`,
+        senderName: currentUser?.name || 'Олександр Петренко',
+        senderRole: userRole,
+        text: '✋ Підняв(-ла) руку для запитання до лектора.',
+        time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setWebinars((prev) =>
+        prev.map((w) => (w.id === activeWebinar.id ? { ...w, chat: [...(w.chat || []), msg] } : w))
+      );
+      try {
+        const bc = new BroadcastChannel('studevo_live_webinar_bus');
+        bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
+        bc.close();
+      } catch {}
+      showNotification('Ви підняли руку. Викладач отримав сповіщення.');
+    }
+  };
+
+  const handleScheduleWebinar = async (e) => {
+    e.preventDefault();
+    if (!newWebinarForm.title.trim()) return;
+    const targetCourse = courses.find((c) => c.id === newWebinarForm.courseId) || courses[0];
+    const createdWeb = {
+      id: `web-${Date.now()}`,
+      courseId: targetCourse.id,
+      courseTitle: targetCourse.title,
+      title: newWebinarForm.title.trim(),
+      instructor: currentUser?.name || 'Дмитро Коваленко, доц.',
+      scheduledAt: new Date(newWebinarForm.scheduledAt).toISOString(),
+      status: 'SCHEDULED',
+      chat: [
+        {
+          id: `msg-${Date.now()}`,
+          senderName: currentUser?.name || 'Викладач',
+          senderRole: userRole,
+          text: `Онлайн-заняття «${newWebinarForm.title.trim()}» додано до розкладу.`,
+          time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
+        },
+      ],
+    };
+
+    setWebinars((prev) => {
+      const updated = [createdWeb, ...prev];
+      try {
+        const bc = new BroadcastChannel('studevo_live_webinar_bus');
+        bc.postMessage({ type: 'WEBINAR_UPDATE', payload: updated });
+        bc.close();
+      } catch {}
+      return updated;
+    });
+    setActiveWebinarId(createdWeb.id);
+    setNewWebinarForm((prev) => ({ ...prev, title: '' }));
+    appendEvent('course', 'Заплановано онлайн-заняття', `«${createdWeb.title}» (${createdWeb.courseTitle})`);
+    showNotification(`Онлайн-заняття «${createdWeb.title}» додано до розкладу.`);
+  };
+
+  const handleChangeWebinarStatus = (webinarId, newStatus) => {
+    if (newStatus === 'FINISHED') {
+      stopHardwareStream();
+      setStreamSource('slides');
+    } else if (newStatus === 'LIVE') {
+      setStreamSeconds(0);
+    }
+    setWebinars((prev) =>
+      prev.map((w) => (w.id === webinarId ? { ...w, status: newStatus } : w))
+    );
+    try {
+      const bc = new BroadcastChannel('studevo_live_webinar_bus');
+      bc.postMessage({ type: 'STATUS_CHANGE', payload: { webinarId, newStatus } });
+      bc.close();
+    } catch {}
+    showNotification(newStatus === 'LIVE' ? 'Прямий ефір розпочато!' : 'Трансляцію завершено.');
+  };
+
+  const handleSendWebinarChat = (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !activeWebinar) return;
+    const msg = {
+      id: `msg-${Date.now()}`,
+      senderName: currentUser?.name || 'Користувач',
+      senderRole: userRole,
+      text: chatInput.trim(),
+      time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setWebinars((prev) =>
+      prev.map((w) => (w.id === activeWebinar.id ? { ...w, chat: [...(w.chat || []), msg] } : w))
+    );
+    try {
+      const bc = new BroadcastChannel('studevo_live_webinar_bus');
+      bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
+      bc.close();
+    } catch {}
+    setChatInput('');
+  };
+
+  // ========================================================
+  // 5. ADMIN: ACADEMIC GROUPS & COURSES
+  // ========================================================
   const handleCreateGroup = (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     const group = {
       id: `g-${Date.now()}`,
-      name: newGroupName,
-      faculty: newGroupFaculty,
+      name: newGroupName.trim(),
+      faculty: newGroupFaculty.trim(),
       studyYear: Number(newGroupYear),
-      studentsCount: 0,
+      studentsCount: 25,
+      assignedCourseIds: ['c-1'],
+      studentsList: ['Олександр Петренко', 'Марія Бондаренко'],
     };
+
     setAcademicGroups((prev) => [group, ...prev]);
-    showNotification(`Академічну групу «${newGroupName}» успішно зареєстровано в деканаті.`);
+    appendAuditLog('Створення академічної групи', group.name, 'ALLOWED');
+    showNotification(`Академічну групу «${group.name}» зареєстровано.`);
     setNewGroupName('');
   };
 
-  const handleCreateCourse = (e) => {
-    e.preventDefault();
-    if (!newCourse.title.trim()) return;
-    const course = {
-      id: `c-${Date.now()}`,
-      title: newCourse.title,
-      instructor: 'Дмитро Коваленко, доц.',
-      description: newCourse.description,
-      semester: Number(newCourse.semester),
-      modulesCount: 2,
-      totalHours: 90,
-      isPublished: false,
-      cover: '/course-coding.jpg',
-      modules: [],
-      progress: 0,
-    };
-    setCourses((prev) => [course, ...prev]);
-    showNotification(`Дисципліну «${newCourse.title}» збережено в каталозі.`);
-    setNewCourse({ title: '', description: '', teacherId: '', semester: 7 });
-  };
-
-  const handlePublishCourse = (courseId) => {
-    setCourses((prev) =>
-      prev.map((c) => (c.id === courseId ? { ...c, isPublished: true } : c))
+  const handleToggleCourseForGroup = (groupId, courseId) => {
+    setAcademicGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const exists = (g.assignedCourseIds || []).includes(courseId);
+        const nextIds = exists
+          ? g.assignedCourseIds.filter((id) => id !== courseId)
+          : [...(g.assignedCourseIds || []), courseId];
+        return { ...g, assignedCourseIds: nextIds };
+      })
     );
-    if (selectedCourse && selectedCourse.id === courseId) {
-      setSelectedCourse((prev) => ({ ...prev, isPublished: true }));
-    }
-    showNotification('Дисципліну опубліковано. Силабус став доступним для студентів.');
+    showNotification('Навчальний план групи оновлено.');
   };
 
-  const handleStudentSubmit = (e) => {
+  const handleAddStudentToGroup = (e) => {
     e.preventDefault();
-    showNotification(`Роботу «${submissionForm.fileName}» успішно здано на перевірку викладачу.`);
+    if (!managingGroup || !newStudentNameInGroup.trim()) return;
+    setAcademicGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== managingGroup.id) return g;
+        const updatedList = [...(g.studentsList || []), newStudentNameInGroup.trim()];
+        return {
+          ...g,
+          studentsList: updatedList,
+          studentsCount: (g.studentsCount || 0) + 1,
+        };
+      })
+    );
+    showNotification(`Студента «${newStudentNameInGroup.trim()}» додано до групи ${managingGroup.name}.`);
+    setNewStudentNameInGroup('');
   };
 
-  const handleGradeWithStrategy = (e) => {
-    e.preventDefault();
-    const sumRaw = Object.values(grading.criteriaScores).reduce((a, b) => Number(a) + Number(b), 0);
-    let finalScore = sumRaw;
-    let ruleDesc = 'Базовий розрахунок за критеріями';
+  const handleRemoveStudentFromGroup = (studentName) => {
+    if (!managingGroup) return;
+    setAcademicGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== managingGroup.id) return g;
+        const updatedList = (g.studentsList || []).filter((s) => s !== studentName);
+        return {
+          ...g,
+          studentsList: updatedList,
+          studentsCount: Math.max(0, (g.studentsCount || 1) - 1),
+        };
+      })
+    );
+    showNotification(`Студента «${studentName}» вилучено зі складу групи.`);
+  };
 
-    if (grading.rule === 'LATE_PENALTY') {
-      finalScore = Math.round(sumRaw * 0.8 * 10) / 10;
-      ruleDesc = 'Зниження на 20% (порушення дедлайну)';
-    } else if (grading.rule === 'EXCELLENCE_BONUS') {
-      finalScore = sumRaw >= 90 ? Math.min(100, sumRaw + 5) : sumRaw;
-      ruleDesc = 'Заохочувальний бонус (+5 балів)';
-    }
+  // ========================================================
+  // COMPUTED METRICS & CALENDAR
+  // ========================================================
+  const averageStudentGrade = useMemo(() => {
+    if (!grades || grades.length === 0) return '0.0';
+    const sum = grades.reduce((acc, g) => acc + Number(g.finalScore || 0), 0);
+    return (sum / grades.length).toFixed(1);
+  }, [grades]);
 
-    setGradingResult({
-      studentName: grading.studentName,
-      rawScore: sumRaw,
-      finalScore,
-      ruleDesc,
-      feedback: grading.feedback,
+  const ungradedSubmissions = useMemo(() => {
+    return allSubmissionsList.filter((s) => s.status !== 'GRADED');
+  }, [allSubmissionsList]);
+
+  const totalFacultyStudents = useMemo(() => {
+    return academicGroups.reduce((acc, g) => acc + (Number(g.studentsCount) || 0), 0);
+  }, [academicGroups]);
+
+  const filteredCourses = useMemo(() => {
+    return courses.filter((c) => {
+      const matchesSearch =
+        c.title.toLowerCase().includes(courseSearch.toLowerCase()) ||
+        c.instructor.toLowerCase().includes(courseSearch.toLowerCase());
+      if (!matchesSearch) return false;
+      if (courseFilter === 'PUBLISHED') return c.isPublished;
+      if (courseFilter === 'DRAFT') return !c.isPublished;
+      if (courseFilter === 'IN_PROGRESS') return c.progress > 0 && c.progress < 100;
+      return true;
     });
-    showNotification(`Оцінку ${finalScore}/100 внесено в електронний журнал групи.`);
+  }, [courses, courseSearch, courseFilter]);
+
+  const filteredAuditLogs = useMemo(() => {
+    return auditLogs.filter((log) => {
+      if (!auditSearch.trim()) return true;
+      const q = auditSearch.toLowerCase();
+      return (
+        log.action.toLowerCase().includes(q) ||
+        log.userId.toLowerCase().includes(q) ||
+        log.resource.toLowerCase().includes(q)
+      );
+    });
+  }, [auditLogs, auditSearch]);
+
+  const calYear = calendarDate.getFullYear();
+  const calMonth = calendarDate.getMonth();
+
+  const calendarCells = useMemo(() => {
+    const firstDayOfMonth = new Date(calYear, calMonth, 1).getDay();
+    const mondayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < mondayOffset; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    return cells;
+  }, [calYear, calMonth]);
+
+  const monthDeadlineMap = useMemo(() => {
+    const map = {};
+    assignments.forEach((asg) => {
+      const d = new Date(asg.deadline);
+      if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+        const dayNum = d.getDate();
+        if (!map[dayNum]) map[dayNum] = [];
+        map[dayNum].push({ type: 'DEADLINE', title: asg.title, course: asg.courseTitle });
+      }
+    });
+    webinars.forEach((web) => {
+      const d = new Date(web.scheduledAt);
+      if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+        const dayNum = d.getDate();
+        if (!map[dayNum]) map[dayNum] = [];
+        map[dayNum].push({ type: 'WEBINAR', title: web.title, course: web.courseTitle });
+      }
+    });
+    return map;
+  }, [assignments, webinars, calYear, calMonth]);
+
+  const handlePrevMonth = () => {
+    setSelectedCalDay(null);
+    setCalendarDate(new Date(calYear, calMonth - 1, 1));
   };
 
-  const calendarDays = [
-    null, null, null,
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-  ];
-  const deadlineDays = [18, 24, 28];
+  const handleNextMonth = () => {
+    setSelectedCalDay(null);
+    setCalendarDate(new Date(calYear, calMonth + 1, 1));
+  };
 
+  // ========================================================
+  // CLEAN LOGIN PAGE (LOGIN & PASSWORD)
+  // ========================================================
   if (!currentUser) {
     return (
       <div className="sso-auth-overlay">
@@ -337,59 +1595,120 @@ export default function App() {
               <span className="logo-icon">S</span>
               <span className="logo-title">STUDEVO</span>
             </div>
-            <h2>Університетська система дистанційного навчання</h2>
-            <p>
-              Вхід дозволено виключно через єдиний корпоративний акаунт (Google Workspace / Microsoft 365 за протоколом OAuth2 / OIDC).
-              Вільна реєстрація сторонніх користувачів закрита.
-            </p>
+            <h2>Вхід до особистого кабінету</h2>
           </div>
 
-          <div className="sso-auth-body">
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#495057' }}>
-              Оберіть ваш корпоративний обліковий запис університету (@univ.edu.ua):
+          <form className="sso-auth-body" onSubmit={handlePasswordLogin}>
+            {loginError && (
+              <div className="studevo-alert studevo-alert-danger" style={{ padding: '10px 14px', fontSize: '12.5px' }}>
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <div className="form-group-field" style={{ marginBottom: 0 }}>
+              <label>Логін або електронна пошта</label>
+              <input
+                type="text"
+                className="input-studevo-control"
+                placeholder="Введіть логін або email"
+                value={loginInput}
+                onChange={(e) => setLoginInput(e.target.value)}
+                required
+              />
             </div>
 
-            <div className="sso-role-cards-grid">
-              {SSO_ACCOUNTS.map((acc) => (
-                <div
-                  key={acc.id}
-                  className="sso-account-card"
-                  onClick={() => handleSsoLogin(acc)}
+            <div className="form-group-field" style={{ marginBottom: 0 }}>
+              <label>Пароль</label>
+              <input
+                type="password"
+                className="input-studevo-control"
+                placeholder="Введіть пароль"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn-studevo-primary" style={{ width: '100%', padding: '10px', fontSize: '14px', marginTop: '4px' }}>
+              Увійти
+            </button>
+
+            <div className="login-quick-fill-bar">
+              <span>Швидке заповнення:</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  className="login-quick-chip"
+                  onClick={() => {
+                    setLoginInput('o.petrenko@univ.edu.ua');
+                    setPasswordInput('123456');
+                    setLoginError('');
+                  }}
                 >
-                  <div className="sso-account-left">
-                    <div className={`sso-account-avatar ${acc.role}`}>
-                      {acc.initials}
-                    </div>
-                    <div className="sso-account-info">
-                      <h4>{acc.name}</h4>
-                      <div className="sso-email">{acc.email} • {acc.dept}</div>
-                      <div className="sso-desc">{acc.desc}</div>
-                    </div>
-                  </div>
-                  <button className="sso-login-btn">
-                    Увійти через SSO →
-                  </button>
-                </div>
-              ))}
+                  Студент
+                </button>
+                <button
+                  type="button"
+                  className="login-quick-chip"
+                  onClick={() => {
+                    setLoginInput('d.kovalenko@univ.edu.ua');
+                    setPasswordInput('123456');
+                    setLoginError('');
+                  }}
+                >
+                  Викладач
+                </button>
+                <button
+                  type="button"
+                  className="login-quick-chip"
+                  onClick={() => {
+                    setLoginInput('dekanat.fiot@univ.edu.ua');
+                    setPasswordInput('123456');
+                    setLoginError('');
+                  }}
+                >
+                  Деканат
+                </button>
+              </div>
             </div>
-
-            <div className="sso-auth-footer">
-              🔒 Платформа захищена системою доменних Guard-політик та SSO JWT. Усі сесії шифруються.
-            </div>
-          </div>
+          </form>
         </div>
       </div>
     );
   }
 
+  // Role-specific navigation menu
+  const roleMenus =
+    userRole === 'student'
+      ? [
+          { id: 'dashboard', label: 'Головна', icon: 'grid' },
+          { id: 'courses', label: 'Мої курси', icon: 'book' },
+          { id: 'assignments', label: 'Завдання', icon: 'check' },
+          { id: 'grades', label: 'Щоденник оцінок', icon: 'chart' },
+          { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
+        ]
+      : userRole === 'teacher'
+      ? [
+          { id: 'dashboard', label: 'Головна панель', icon: 'grid' },
+          { id: 'courses', label: 'Мої курси', icon: 'book' },
+          { id: 'assignments', label: 'Завдання', icon: 'check' },
+          { id: 'grades', label: 'Журнал та оцінки', icon: 'chart' },
+          { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
+        ]
+      : [
+          { id: 'dashboard', label: 'Огляд факультету', icon: 'grid' },
+          { id: 'groups', label: 'Студенти та групи', icon: 'users' },
+          { id: 'grades', label: 'Відомості оцінок', icon: 'chart' },
+          { id: 'audit', label: 'Журнал подій', icon: 'shield' },
+        ];
+
   return (
-    <div className="studevo-app-shell">
+    <div className={`studevo-app-shell role-theme-${userRole}`}>
       {/* ========================================================
-          LEFT COLUMN (260px) - NAVIGATION & RBAC PROFILE
+          LEFT COLUMN (260px) - NAVIGATION & PROFILE
           ======================================================== */}
       <aside className="studevo-sidebar-nav">
         <div>
-          {/* 1. Branding */}
           <div className="studevo-brand-block">
             <div className="studevo-brand-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -400,101 +1719,91 @@ export default function App() {
             </div>
             <div className="studevo-brand-text">
               <span className="studevo-brand-title">STUDEVO</span>
-              <span className="studevo-brand-subtitle">Університетська LMS</span>
+              <span className="studevo-brand-subtitle">
+                {userRole === 'student'
+                  ? 'Кабінет студента'
+                  : userRole === 'teacher'
+                  ? 'Кабінет викладача'
+                  : 'Панель деканату'}
+              </span>
             </div>
           </div>
 
-          {/* 2. Main Navigation Menu (Adapts by Role) */}
           <ul className="studevo-menu-list">
-            <li>
-              <button
-                className={`studevo-menu-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
-                onClick={() => setActiveMenu('dashboard')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect width="7" height="9" x="3" y="3" rx="1"></rect>
-                  <rect width="7" height="5" x="14" y="3" rx="1"></rect>
-                  <rect width="7" height="9" x="14" y="12" rx="1"></rect>
-                  <rect width="7" height="5" x="3" y="16" rx="1"></rect>
-                </svg>
-                <span>Дашборд (Огляд)</span>
-              </button>
-            </li>
-
-            <li>
-              <button
-                className={`studevo-menu-item ${activeMenu === 'courses' ? 'active' : ''}`}
-                onClick={() => setActiveMenu('courses')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                <span>Каталог курсів</span>
-              </button>
-            </li>
-
-            <li>
-              <button
-                className={`studevo-menu-item ${activeMenu === 'assignments' ? 'active' : ''}`}
-                onClick={() => setActiveMenu('assignments')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 11l3 3L22 4"></path>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                </svg>
-                <span>{userRole === 'student' ? 'Мої завдання' : 'Завдання та роботи'}</span>
-              </button>
-            </li>
-
-            <li>
-              <button
-                className={`studevo-menu-item ${activeMenu === 'grades' ? 'active' : ''}`}
-                onClick={() => setActiveMenu('grades')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" x2="18" y1="20" y2="10"></line>
-                  <line x1="12" x2="12" y1="20" y2="4"></line>
-                  <line x1="6" x2="6" y1="20" y2="14"></line>
-                </svg>
-                <span>{userRole === 'student' ? 'Електронний щоденник' : 'Журнал успішності'}</span>
-              </button>
-            </li>
-
-            {/* Admin-only Navigation items */}
-            {userRole === 'admin' && (
-              <>
-                <li>
-                  <button
-                    className={`studevo-menu-item ${activeMenu === 'groups' ? 'active' : ''}`}
-                    onClick={() => setActiveMenu('groups')}
-                  >
+            {roleMenus.map((item) => (
+              <li key={item.id}>
+                <button
+                  className={`studevo-menu-item ${activeMenu === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveMenu(item.id)}
+                >
+                  {item.icon === 'grid' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+                      <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+                      <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+                      <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+                    </svg>
+                  )}
+                  {item.icon === 'book' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'check' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'chart' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" x2="18" y1="20" y2="10"></line>
+                      <line x1="12" x2="12" y1="20" y2="4"></line>
+                      <line x1="6" x2="6" y1="20" y2="14"></line>
+                    </svg>
+                  )}
+                  {item.icon === 'video' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                      <rect width="15" height="14" x="1" y="5" rx="2" ry="2"></rect>
+                    </svg>
+                  )}
+                  {item.icon === 'users' && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                       <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
-                    <span>Академічні групи</span>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    className={`studevo-menu-item ${activeMenu === 'audit' ? 'active' : ''}`}
-                    onClick={() => setActiveMenu('audit')}
-                  >
+                  )}
+                  {item.icon === 'shield' && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
-                    <span>Аудит безпеки</span>
-                  </button>
-                </li>
-              </>
-            )}
+                  )}
+                  <span>{item.label}</span>
+                  {item.id === 'grades' && userRole === 'teacher' && ungradedSubmissions.length > 0 && (
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        background: activeMenu === 'grades' ? '#fff' : '#1864ab',
+                        color: activeMenu === 'grades' ? '#1864ab' : '#fff',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      {ungradedSubmissions.length}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
 
-        {/* 3. User Profile & 3-Role Switcher */}
         <div className="studevo-profile-footer">
           <div className="studevo-profile-card">
             <div className="profile-avatar">
@@ -507,18 +1816,14 @@ export default function App() {
                 <span className={`user-role-badge ${currentUser.role}`}>
                   {currentUser.role === 'student' ? 'Студент' : currentUser.role === 'teacher' ? 'Викладач' : 'Деканат'}
                 </span>
-                <span style={{ fontSize: '10.5px', color: '#868e96' }}>{currentUser.email}</span>
               </div>
             </div>
           </div>
 
-          {/* Secure Session Logout Button */}
           <button
             className="logout-action-btn"
-            title="Завершити сесію та вийти з облікового запису"
             onClick={handleLogout}
           >
-            <span>🚪</span>
             <span>Вийти з акаунту</span>
           </button>
         </div>
@@ -528,7 +1833,6 @@ export default function App() {
           CENTER COLUMN (1fr) - WORKSPACE
           ======================================================== */}
       <main className="studevo-workspace">
-        {/* Notifications */}
         {notification && (
           <div className={`studevo-alert ${notification.isError ? 'studevo-alert-danger' : 'studevo-alert-success'}`}>
             <span>{notification.text}</span>
@@ -541,69 +1845,110 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. DASHBOARD VIEW */}
-        {activeMenu === 'dashboard' && (
+        {/* ========================================================
+            1A. STUDENT DASHBOARD
+            ======================================================== */}
+        {activeMenu === 'dashboard' && userRole === 'student' && (
           <>
             <section className="studevo-welcome-banner">
               <div className="welcome-text">
-                <h1>
-                  {userRole === 'student'
-                    ? 'Вітаємо в системі, Олександре!'
-                    : userRole === 'teacher'
-                    ? 'Кабінет викладача: навчальний процес'
-                    : 'Панель адміністратора деканату'}
-                </h1>
+                <h1>Вітаємо, Олександре!</h1>
                 <p>
-                  {userRole === 'student'
-                    ? 'Ваш академічний розклад синхронізовано. Перевірте найближчі терміни здачі лабораторних.'
-                    : userRole === 'teacher'
-                    ? 'Керування силабусами дисциплін, перевірка робіт студентів та виставлення оцінок.'
-                    : 'Формування академічних груп, призначення дисциплін та моніторинг аудиту безпеки.'}
+                  Група ІПЗ-412 • У цьому семестрі ви вивчаєте {courses.filter((c) => c.isPublished).length} дисципліни. Ваш середній бал успішності: {averageStudentGrade} ({getEctsLetter(averageStudentGrade)}).
                 </p>
               </div>
 
               <div className="banner-stats">
                 <div className="stat-pill">
-                  <div className="stat-pill-val">{courses.length}</div>
-                  <div className="stat-pill-label">Дисципліни</div>
+                  <div className="stat-pill-val">{courses.filter((c) => c.isPublished).length}</div>
+                  <div className="stat-pill-label">Мої курси</div>
                 </div>
                 <div className="stat-pill">
                   <div className="stat-pill-val">{assignments.length}</div>
                   <div className="stat-pill-label">Завдання</div>
                 </div>
                 <div className="stat-pill">
-                  <div className="stat-pill-val">{userRole === 'admin' ? academicGroups.length : '94.5'}</div>
-                  <div className="stat-pill-label">{userRole === 'admin' ? 'Групи' : 'Сер. рейтинг'}</div>
+                  <div className="stat-pill-val">{averageStudentGrade}</div>
+                  <div className="stat-pill-label">Середній бал</div>
                 </div>
               </div>
             </section>
 
-            {/* Active Courses Grid */}
+            <div className="studevo-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', background: '#fff9f9', border: '1px solid #ffc9c9' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--studevo-red-dark)', textTransform: 'uppercase' }}>
+                  Поточний урок
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '2px' }}>
+                  Архітектура ПЗ — Модуль 2: Відео-лекція «Застосування патерна Strategy»
+                </div>
+                <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '2px' }}>
+                  Викладач: Дмитро Коваленко, доц. • Прогрес курсу: {courses[0]?.progress || 50}%
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                <button
+                  className="btn-studevo-primary"
+                  onClick={() => {
+                    setSelectedCourseId('c-1');
+                    setActiveLessonId('l-3');
+                  }}
+                >
+                  Продовжити навчання
+                </button>
+                <button className="btn-studevo-outline" onClick={() => setActiveMenu('assignments')}>
+                  Здати роботу
+                </button>
+              </div>
+            </div>
+
+            <div className="toolbar-filter-row">
+              <div className="filter-pills-group">
+                <button
+                  className={`filter-pill-btn ${courseFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setCourseFilter('ALL')}
+                >
+                  Усі дисципліни ({courses.length})
+                </button>
+                <button
+                  className={`filter-pill-btn ${courseFilter === 'IN_PROGRESS' ? 'active' : ''}`}
+                  onClick={() => setCourseFilter('IN_PROGRESS')}
+                >
+                  У процесі вивчення
+                </button>
+              </div>
+
+              <input
+                type="text"
+                className="input-studevo-control"
+                style={{ width: '240px', padding: '6px 12px' }}
+                placeholder="Пошук курсу або викладача..."
+                value={courseSearch}
+                onChange={(e) => setCourseSearch(e.target.value)}
+              />
+            </div>
+
             <section>
               <div className="section-header-row">
-                <h2 className="section-title">
-                  <span>Навчальні дисципліни семестру</span>
-                </h2>
-                <button
-                  className="btn-studevo-outline"
-                  onClick={() => setActiveMenu('courses')}
-                >
-                  Повний каталог курсів &rarr;
+                <h2 className="section-title">Мої дисципліни семестру</h2>
+                <button className="btn-studevo-outline" onClick={() => setActiveMenu('grades')}>
+                  Переглянути оцінки &rarr;
                 </button>
               </div>
 
               <div className="courses-grid-cards">
-                {courses.map((c) => (
+                {filteredCourses.map((c) => (
                   <div
                     key={c.id}
                     className="course-academic-card"
-                    onClick={() => setSelectedCourse(c)}
+                    onClick={() => {
+                      setSelectedCourseId(c.id);
+                      setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
+                    }}
                   >
                     <div className="course-card-top-cover">
                       <img src={c.cover} alt={c.title} />
-                      <span className="course-card-badge">
-                        {c.isPublished ? 'Опубліковано' : 'Чернетка'}
-                      </span>
+                      <span className="course-card-badge">Семестр {c.semester}</span>
                     </div>
 
                     <div className="course-card-content">
@@ -611,21 +1956,19 @@ export default function App() {
                         <h3 className="course-card-title">{c.title}</h3>
                         <div className="course-card-instructor">{c.instructor}</div>
                         <div className="course-card-syllabus-meta">
-                          <span>{c.modulesCount} змістові модулі • {c.totalHours} год.</span>
+                          <span>{c.modules?.length || c.modulesCount} модулі • {c.totalHours} год.</span>
                         </div>
                       </div>
 
-                      {userRole === 'student' && (
-                        <div className="course-card-progress-block">
-                          <div className="progress-header">
-                            <span>Прогрес виконання</span>
-                            <span>{c.progress}%</span>
-                          </div>
-                          <div className="progress-track">
-                            <div className="progress-bar-fill" style={{ width: `${c.progress}%` }}></div>
-                          </div>
+                      <div className="course-card-progress-block">
+                        <div className="progress-header">
+                          <span>Прогрес</span>
+                          <span>{c.progress}%</span>
                         </div>
-                      )}
+                        <div className="progress-track">
+                          <div className="progress-bar-fill" style={{ width: `${c.progress}%` }}></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -634,22 +1977,298 @@ export default function App() {
           </>
         )}
 
-        {/* 2. COURSES & SYLLABUS MANAGEMENT */}
+        {/* ========================================================
+            1B. TEACHER DASHBOARD
+            ======================================================== */}
+        {activeMenu === 'dashboard' && userRole === 'teacher' && (
+          <>
+            <section className="studevo-welcome-banner">
+              <div className="welcome-text">
+                <h1>Кабінет викладача: Дмитро Коваленко, доц.</h1>
+                <p>
+                  Кафедра інженерії програмного забезпечення • Управління навчальними матеріалами, перевірка студентських робіт та виставлення оцінок.
+                </p>
+              </div>
+
+              <div className="banner-stats">
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{ungradedSubmissions.length}</div>
+                  <div className="stat-pill-label">На перевірці</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{courses.length}</div>
+                  <div className="stat-pill-label">Дисципліни</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{grades.length}</div>
+                  <div className="stat-pill-label">Оцінено робіт</div>
+                </div>
+              </div>
+            </section>
+
+            <div className="kpi-grid-4">
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Очікують перевірки</span>
+                <span className="kpi-metric-val">{ungradedSubmissions.length} роб.</span>
+                <span className="kpi-metric-sub">Нові здачі студентів</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Навчальне навантаження</span>
+                <span className="kpi-metric-val">
+                  {courses.reduce((acc, c) => acc + (Number(c.totalHours) || 0), 0)} год.
+                </span>
+                <span className="kpi-metric-sub">{courses.length} семестрові дисципліни</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Середній бал потоку</span>
+                <span className="kpi-metric-val">{averageStudentGrade}</span>
+                <span className="kpi-metric-sub">Успішність студентів груп</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Онлайн-заняття</span>
+                <span className="kpi-metric-val">{webinars.length}</span>
+                <span className="kpi-metric-sub">Заплановані лекції та ефіри</span>
+              </div>
+            </div>
+
+            <div className="studevo-card">
+              <div className="section-header-row">
+                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
+                  Здані роботи студентів ({allSubmissionsList.length})
+                </h3>
+                <button className="btn-studevo-primary" onClick={() => setActiveMenu('assignments')}>
+                  + Створити завдання
+                </button>
+              </div>
+
+              {allSubmissionsList.map((sub) => (
+                <div key={sub.id} className="queue-review-item">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#212529' }}>
+                      {sub.studentName} <span style={{ color: 'var(--studevo-red-dark)' }}>({sub.group})</span> — {sub.assignmentTitle}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
+                      Прикріплений файл: <strong>{sub.fileName}</strong> ({sub.fileSize || '1.4 МБ'}) • Коментар: «{sub.comment}»
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span className={sub.status === 'GRADED' ? 'badge-allowed' : 'user-role-badge teacher'}>
+                      {sub.status === 'GRADED' ? `Оцінено: ${sub.score}/100` : 'Нова робота'}
+                    </span>
+                    <button
+                      className="btn-studevo-primary"
+                      style={{ padding: '6px 14px', fontSize: '12px' }}
+                      onClick={() => {
+                        handleSelectSubmissionForGrading(sub.id);
+                        setActiveMenu('grades');
+                      }}
+                    >
+                      Оцінити роботу &rarr;
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="studevo-card">
+              <div className="section-header-row">
+                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
+                  Навчальні дисципліни кафедри
+                </h3>
+                <button className="btn-studevo-outline" onClick={() => setActiveMenu('courses')}>
+                  Керування курсами &rarr;
+                </button>
+              </div>
+
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>Назва дисципліни</th>
+                    <th>Семестр / Години</th>
+                    <th>Змістові модулі</th>
+                    <th>Статус</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courses.map((c) => (
+                    <tr key={c.id}>
+                      <td><strong>{c.title}</strong></td>
+                      <td>{c.semester} семестр • {c.totalHours} год.</td>
+                      <td>{c.modules?.length || 0} модулі</td>
+                      <td>
+                        <span className={c.isPublished ? 'badge-allowed' : 'badge-denied'}>
+                          {c.isPublished ? 'Опубліковано' : 'Чернетка'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn-studevo-outline"
+                            style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                            onClick={() => {
+                              setSelectedCourseId(c.id);
+                              setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
+                            }}
+                          >
+                            Редагувати матеріали
+                          </button>
+                          {!c.isPublished && (
+                            <button
+                              className="btn-studevo-primary"
+                              style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                              onClick={() => handlePublishCourse(c.id)}
+                            >
+                              Опублікувати
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* ========================================================
+            1C. DEAN'S OFFICE / ADMIN DASHBOARD
+            ======================================================== */}
+        {activeMenu === 'dashboard' && userRole === 'admin' && (
+          <>
+            <section className="studevo-welcome-banner">
+              <div className="welcome-text">
+                <h1>Панель деканату ФІОТ: Олена Франчук</h1>
+                <p>
+                  Управління академічними групами, розподіл семестрових дисциплін та контроль успішності студентів факультету.
+                </p>
+              </div>
+
+              <div className="banner-stats">
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{academicGroups.length}</div>
+                  <div className="stat-pill-label">Академ. групи</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{totalFacultyStudents}</div>
+                  <div className="stat-pill-label">Студентів</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-val">{courses.length}</div>
+                  <div className="stat-pill-label">Дисципліни</div>
+                </div>
+              </div>
+            </section>
+
+            <div className="kpi-grid-4">
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Контингент студентів</span>
+                <span className="kpi-metric-val">{totalFacultyStudents} осіб</span>
+                <span className="kpi-metric-sub">У {academicGroups.length} академічних групах</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Дисципліни в розкладі</span>
+                <span className="kpi-metric-val">{courses.length} курси</span>
+                <span className="kpi-metric-sub">Опубліковано: {courses.filter((c) => c.isPublished).length}</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Середній бал факультету</span>
+                <span className="kpi-metric-val">{averageStudentGrade}</span>
+                <span className="kpi-metric-sub">За результатами {grades.length} оцінок</span>
+              </div>
+              <div className="kpi-metric-card">
+                <span className="kpi-metric-label">Активні завдання</span>
+                <span className="kpi-metric-val">{assignments.length}</span>
+                <span className="kpi-metric-sub">Лабораторні та практичні</span>
+              </div>
+            </div>
+
+            <div className="studevo-card">
+              <div className="section-header-row">
+                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
+                  Академічні групи та навчальні плани факультету
+                </h3>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn-studevo-primary" onClick={() => setActiveMenu('groups')}>
+                    + Додати групу
+                  </button>
+                  <button className="btn-studevo-outline" onClick={handleExportGradesCsv}>
+                    Завантажити зведену відомість (CSV)
+                  </button>
+                </div>
+              </div>
+
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>Шифр групи</th>
+                    <th>Факультет / Курс</th>
+                    <th>Чисельність</th>
+                    <th>Призначені семестрові дисципліни</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {academicGroups.map((g) => (
+                    <tr key={g.id}>
+                      <td><strong>{g.name}</strong></td>
+                      <td>{g.faculty} • {g.studyYear} курс</td>
+                      <td>{g.studentsCount} студентів</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {(g.assignedCourseIds || []).map((cid) => {
+                            const cObj = courses.find((c) => c.id === cid);
+                            return cObj ? (
+                              <span
+                                key={cid}
+                                style={{
+                                  fontSize: '11px',
+                                  background: '#e6fcf5',
+                                  color: '#0f766e',
+                                  border: '1px solid #99f6e4',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {cObj.title}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="btn-studevo-outline"
+                          style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                          onClick={() => setManagingGroupId(g.id)}
+                        >
+                          Налаштувати групу
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* 2. COURSES & SYLLABUS */}
         {activeMenu === 'courses' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">
-                Каталог дисциплін та робочі програми (Силабуси)
-              </h2>
+              <h2 className="section-title">Навчальні дисципліни та силабуси</h2>
             </div>
 
             {userRole === 'teacher' && (
               <div className="studevo-card" style={{ marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Створення нової навчальної дисципліни
+                  Додати нову навчальну дисципліну
                 </h3>
                 <form onSubmit={handleCreateCourse}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr', gap: '14px' }}>
                     <div className="form-group-field">
                       <label>Назва дисципліни</label>
                       <input
@@ -672,13 +2291,37 @@ export default function App() {
                         onChange={(e) => setNewCourse({ ...newCourse, semester: Number(e.target.value) })}
                       />
                     </div>
+                    <div className="form-group-field">
+                      <label>Обсяг (годин)</label>
+                      <input
+                        type="number"
+                        min="30"
+                        max="300"
+                        step="15"
+                        className="input-studevo-control"
+                        value={newCourse.totalHours}
+                        onChange={(e) => setNewCourse({ ...newCourse, totalHours: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="form-group-field">
+                      <label>Обкладинка курсу</label>
+                      <select
+                        className="input-studevo-control"
+                        value={newCourse.cover}
+                        onChange={(e) => setNewCourse({ ...newCourse, cover: e.target.value })}
+                      >
+                        <option value="/course-coding.jpg">Програмування та ІТ</option>
+                        <option value="/course-webdesign.jpg">Дизайн та інтерфейси</option>
+                        <option value="/course-math.jpg">Математика та алгоритми</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="form-group-field">
-                    <label>Анотація для силабусу</label>
+                    <label>Опис курсу</label>
                     <textarea
                       rows="2"
                       className="input-studevo-control"
-                      placeholder="Опис цілей та очікуваних результатів навчання..."
+                      placeholder="Короткий опис тем та очікуваних результатів навчання..."
                       value={newCourse.description}
                       onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
                       required
@@ -696,7 +2339,10 @@ export default function App() {
                 <div
                   key={c.id}
                   className="course-academic-card"
-                  onClick={() => setSelectedCourse(c)}
+                  onClick={() => {
+                    setSelectedCourseId(c.id);
+                    setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
+                  }}
                 >
                   <div className="course-card-top-cover">
                     <img src={c.cover} alt={c.title} />
@@ -710,29 +2356,30 @@ export default function App() {
                       <h3 className="course-card-title">{c.title}</h3>
                       <div className="course-card-instructor">{c.instructor}</div>
                       <div className="course-card-syllabus-meta">
-                        <span>{c.modulesCount} модулі • Семестр {c.semester}</span>
+                        <span>{c.modules?.length || 0} модулі • Семестр {c.semester} • {c.totalHours} год.</span>
                       </div>
-                      <p style={{ fontSize: '12px', color: '#6c757d', margin: '0 0 10px 0' }}>
+                      <p style={{ fontSize: '12px', color: '#6c757d', margin: '0 0 12px 0' }}>
                         {c.description}
                       </p>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                       <button
                         className="btn-studevo-outline"
-                        style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                        style={{ fontSize: '11.5px', padding: '5px 10px' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedCourse(c);
+                          setSelectedCourseId(c.id);
+                          setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
                         }}
                       >
-                        Переглянути силабус
+                        Програма та уроки ({c.progress}%)
                       </button>
 
                       {userRole === 'teacher' && !c.isPublished && (
                         <button
                           className="btn-studevo-primary"
-                          style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                          style={{ fontSize: '11.5px', padding: '5px 10px' }}
                           onClick={(e) => {
                             e.stopPropagation();
                             handlePublishCourse(c.id);
@@ -754,212 +2401,372 @@ export default function App() {
           <div>
             <div className="section-header-row">
               <h2 className="section-title">
-                {userRole === 'student' ? 'Мої завдання та здача робіт' : 'Контрольні завдання та перевірка робіт'}
+                {userRole === 'student' ? 'Мої завдання та здача робіт' : 'Навчальні завдання та критерії оцінювання'}
               </h2>
             </div>
 
-            {/* Teacher: Assignment Builder with Criteria Rubric */}
             {userRole === 'teacher' && (
               <div className="studevo-card" style={{ marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Створення завдання з критеріями оцінювання (AssignmentBuilder)
+                  Створити нове завдання
                 </h3>
-                <form onSubmit={(e) => { e.preventDefault(); showNotification('Завдання створено з рубрикою оцінювання.'); }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr 1fr 1fr', gap: '14px' }}>
+                <form onSubmit={handleCreateAssignment}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.6fr 0.8fr 1.1fr', gap: '12px' }}>
                     <div className="form-group-field">
-                      <label>Дисципліна</label>
-                      <select className="input-studevo-control">
+                      <label>Навчальна дисципліна</label>
+                      <select
+                        className="input-studevo-control"
+                        value={newAssignment.courseId}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, courseId: e.target.value })}
+                      >
                         {courses.map((c) => (
-                          <option key={c.id}>{c.title}</option>
+                          <option key={c.id} value={c.id}>{c.title}</option>
                         ))}
                       </select>
                     </div>
                     <div className="form-group-field">
-                      <label>Тема лабораторної/практичної</label>
-                      <input type="text" className="input-studevo-control" placeholder="Лабораторна робота..." required />
+                      <label>Назва завдання</label>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        placeholder="напр.: Лабораторна робота 5: Проектування мікросервісів"
+                        value={newAssignment.title}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
+                        required
+                      />
                     </div>
                     <div className="form-group-field">
-                      <label>Макс. бал</label>
-                      <input type="number" className="input-studevo-control" defaultValue={100} required />
+                      <label>Тип роботи</label>
+                      <select
+                        className="input-studevo-control"
+                        value={newAssignment.type}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, type: e.target.value })}
+                      >
+                        <option value="Лабораторна">Лабораторна</option>
+                        <option value="Практична">Практична</option>
+                        <option value="Курсова">Курсова</option>
+                      </select>
                     </div>
                     <div className="form-group-field">
-                      <label>Суворий дедлайн</label>
-                      <input type="datetime-local" className="input-studevo-control" defaultValue="2026-10-24T23:59" required />
+                      <label>Термін здачі</label>
+                      <input
+                        type="datetime-local"
+                        className="input-studevo-control"
+                        value={newAssignment.deadline}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, deadline: e.target.value })}
+                        required
+                      />
                     </div>
                   </div>
+
+                  <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #e9ecef' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: 'var(--studevo-red-dark)' }}>
+                      Критерії оцінювання (Усього: {Number(newAssignment.crit1Max) + Number(newAssignment.crit2Max) + Number(newAssignment.crit3Max)} балів):
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 1fr 2fr 1fr', gap: '8px' }}>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        value={newAssignment.crit1Name}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit1Name: e.target.value })}
+                        placeholder="Критерій 1"
+                      />
+                      <input
+                        type="number"
+                        className="input-studevo-control"
+                        value={newAssignment.crit1Max}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit1Max: Number(e.target.value) })}
+                      />
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        value={newAssignment.crit2Name}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit2Name: e.target.value })}
+                        placeholder="Критерій 2"
+                      />
+                      <input
+                        type="number"
+                        className="input-studevo-control"
+                        value={newAssignment.crit2Max}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit2Max: Number(e.target.value) })}
+                      />
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        value={newAssignment.crit3Name}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit3Name: e.target.value })}
+                        placeholder="Критерій 3"
+                      />
+                      <input
+                        type="number"
+                        className="input-studevo-control"
+                        value={newAssignment.crit3Max}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, crit3Max: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
                   <button type="submit" className="btn-studevo-primary">
-                    Створити завдання з рубрикою
+                    Опублікувати завдання
                   </button>
                 </form>
               </div>
             )}
 
-            {/* Student: Active Submissions Card */}
             {userRole === 'student' && (
               <div className="studevo-card" style={{ marginBottom: '20px', background: '#fff9f9', border: '1px solid #ffc9c9' }}>
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '14.5px', color: 'var(--studevo-red-dark)' }}>
-                  Форма здачі лабораторної роботи (Завантаження в S3)
+                  Відправлення виконаної роботи на перевірку
                 </h3>
                 <form onSubmit={handleStudentSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '14px' }}>
-                    <div className="form-group-field">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr', gap: '14px', marginBottom: '12px' }}>
+                    <div className="form-group-field" style={{ marginBottom: 0 }}>
                       <label>Оберіть завдання</label>
-                      <select className="input-studevo-control">
+                      <select
+                        className="input-studevo-control"
+                        value={submissionForm.assignmentId}
+                        onChange={(e) => setSubmissionForm({ ...submissionForm, assignmentId: e.target.value })}
+                      >
                         {assignments.map((a) => (
-                          <option key={a.id}>{a.title} ({a.courseTitle})</option>
+                          <option key={a.id} value={a.id}>
+                            {a.title} ({a.courseTitle})
+                          </option>
                         ))}
                       </select>
                     </div>
-                    <div className="form-group-field">
-                      <label>Файл звіту (PDF у MinIO S3)</label>
-                      <input
-                        type="text"
-                        className="input-studevo-control"
-                        value={submissionForm.fileName}
-                        onChange={(e) => setSubmissionForm({ ...submissionForm, fileName: e.target.value })}
-                        required
-                      />
+
+                    <div className="form-group-field" style={{ marginBottom: 0 }}>
+                      <label>Файл звіту (PDF, DOCX, ZIP)</label>
+                      <label className="file-dropzone-box">
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <strong>{submissionForm.fileName}</strong>
+                          <span style={{ fontSize: '11px', color: '#6c757d', marginLeft: '8px' }}>
+                            ({submissionForm.fileSize})
+                          </span>
+                        </div>
+                        <span className="btn-studevo-outline" style={{ padding: '3px 8px', fontSize: '11px', flexShrink: 0 }}>
+                          Обрати файл...
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.zip,.rar,.doc,.docx,.png,.jpg"
+                          style={{ display: 'none' }}
+                          onChange={handleFileInputChange}
+                        />
+                      </label>
                     </div>
                   </div>
+
                   <div className="form-group-field">
-                    <label>Коментар студента або посилання на GitHub репозиторій</label>
+                    <label>Коментар або посилання на репозиторій</label>
                     <input
                       type="text"
                       className="input-studevo-control"
                       value={submissionForm.comment}
                       onChange={(e) => setSubmissionForm({ ...submissionForm, comment: e.target.value })}
+                      required
                     />
                   </div>
                   <button type="submit" className="btn-studevo-primary">
-                    Здати роботу на перевірку
+                    Здати роботу
                   </button>
                 </form>
               </div>
             )}
 
-            {/* Assignments & Submissions Table */}
             <div className="studevo-card">
               <table className="studevo-table">
                 <thead>
                   <tr>
-                    <th>Тема завдання</th>
+                    <th>Назва завдання</th>
                     <th>Дисципліна</th>
-                    <th>Дедлайн</th>
+                    <th>Термін здачі</th>
                     <th>Макс. бал</th>
-                    <th>Рубрика</th>
+                    <th>Критерії оцінювання</th>
                     <th>Статус</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {assignments.map((asg) => (
-                    <tr key={asg.id}>
-                      <td><strong>{asg.title}</strong></td>
-                      <td style={{ color: 'var(--studevo-text-muted)' }}>{asg.courseTitle}</td>
-                      <td>
-                        <span style={{ color: 'var(--studevo-red-dark)', fontWeight: 600 }}>
-                          {new Date(asg.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </td>
-                      <td><strong>{asg.maxScore}</strong></td>
-                      <td><span style={{ fontSize: '11.5px', color: '#495057' }}>{asg.rubricTitle}</span></td>
-                      <td>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          backgroundColor: '#ebfbee',
-                          color: '#2b8a3e',
-                        }}>
-                          {asg.submissions.length > 0 ? 'Здано на перевірку' : 'Активне'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {assignments.map((asg) => {
+                    const latestSub = asg.submissions?.[0];
+                    return (
+                      <tr key={asg.id}>
+                        <td>
+                          <strong>{asg.title}</strong>
+                          <div style={{ fontSize: '11px', color: '#868e96', marginTop: '2px' }}>
+                            {asg.type}
+                          </div>
+                        </td>
+                        <td style={{ color: 'var(--studevo-text-muted)' }}>{asg.courseTitle}</td>
+                        <td>
+                          <span style={{ color: 'var(--studevo-red-dark)', fontWeight: 600 }}>
+                            {new Date(asg.deadline).toLocaleDateString('uk-UA', {
+                              day: 'numeric',
+                              month: 'long',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </td>
+                        <td><strong>{asg.maxScore}</strong></td>
+                        <td>
+                          <div style={{ fontSize: '11px', color: '#495057' }}>
+                            {(asg.criteria || []).map((c) => `${c.name} (${c.max})`).join(' • ')}
+                          </div>
+                        </td>
+                        <td>
+                          {latestSub ? (
+                            <div>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 9px',
+                                  borderRadius: '10px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  backgroundColor: latestSub.status === 'GRADED' ? '#e7f5ff' : '#ebfbee',
+                                  color: latestSub.status === 'GRADED' ? '#1971c2' : '#2b8a3e',
+                                }}
+                              >
+                                {latestSub.status === 'GRADED'
+                                  ? `Оцінено: ${latestSub.score}/${asg.maxScore}`
+                                  : `Здано: ${latestSub.fileName}`}
+                              </span>
+                              {userRole === 'teacher' && (
+                                <div style={{ marginTop: '5px' }}>
+                                  <button
+                                    className="btn-studevo-outline"
+                                    style={{ padding: '2px 8px', fontSize: '11px' }}
+                                    onClick={() => {
+                                      handleSelectSubmissionForGrading(latestSub.id);
+                                      setActiveMenu('grades');
+                                    }}
+                                  >
+                                    Перевірити &rarr;
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                backgroundColor: '#fff5f5',
+                                color: '#c92a2a',
+                              }}
+                            >
+                              Очікує на здачу
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* 4. GRADES JOURNAL & RUBRIC EVALUATION */}
+        {/* 4. GRADES & EVALUATION */}
         {activeMenu === 'grades' && (
           <div>
             <div className="section-header-row">
               <h2 className="section-title">
-                {userRole === 'student' ? 'Мій електронний щоденник та семестровий рейтинг' : 'Журнал успішності та оцінювання за рубриками'}
+                {userRole === 'student'
+                  ? 'Мій щоденник оцінок'
+                  : userRole === 'teacher'
+                  ? 'Перевірка робіт та журнал успішності'
+                  : 'Відомості успішності факультету'}
               </h2>
+              <button className="btn-studevo-outline" onClick={handleExportGradesCsv}>
+                Завантажити відомість (CSV)
+              </button>
             </div>
 
-            {/* Teacher View: Rubric Evaluation Form */}
             {userRole === 'teacher' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '22px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '22px', marginBottom: '22px' }}>
                 <div className="studevo-card">
                   <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                    Оцінювання роботи за рубрикою
+                    Оцінювання роботи за критеріями
                   </h3>
                   <form onSubmit={handleGradeWithStrategy}>
                     <div className="form-group-field">
-                      <label>Студент</label>
-                      <input type="text" className="input-studevo-control" value="Олександр Петренко (ІПЗ-412)" disabled />
+                      <label>Робота студента</label>
+                      <select
+                        className="input-studevo-control"
+                        value={currentGradingSub?.id || ''}
+                        onChange={(e) => handleSelectSubmissionForGrading(e.target.value)}
+                      >
+                        {allSubmissionsList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.studentName} ({s.group}) — {s.assignmentTitle}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
+                    {currentGradingSub && (
+                      <div style={{ fontSize: '11.5px', color: '#495057', marginBottom: '10px', background: 'var(--studevo-red-light)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--studevo-accent-subtle)' }}>
+                        <div><strong>Файл:</strong> {currentGradingSub.fileName} ({currentGradingSub.fileSize || '1.4 МБ'})</div>
+                        <div><strong>Коментар:</strong> {currentGradingSub.comment}</div>
+                      </div>
+                    )}
+
                     <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', marginBottom: '14px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#343a40' }}>Критерії рубрики:</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
-                        <span>Чиста архітектура (макс. 35):</span>
-                        <input
-                          type="number"
-                          style={{ width: '60px', padding: '2px 6px' }}
-                          value={grading.criteriaScores.clean_arch}
-                          onChange={(e) => setGrading({
-                            ...grading,
-                            criteriaScores: { ...grading.criteriaScores, clean_arch: Number(e.target.value) },
-                          })}
-                        />
+                      <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#343a40' }}>
+                        Бали за критеріями:
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px' }}>
-                        <span>Патерни GoF (макс. 35):</span>
-                        <input
-                          type="number"
-                          style={{ width: '60px', padding: '2px 6px' }}
-                          value={grading.criteriaScores.patterns}
-                          onChange={(e) => setGrading({
-                            ...grading,
-                            criteriaScores: { ...grading.criteriaScores, patterns: Number(e.target.value) },
-                          })}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                        <span>Тести &gt; 80% (макс. 30):</span>
-                        <input
-                          type="number"
-                          style={{ width: '60px', padding: '2px 6px' }}
-                          value={grading.criteriaScores.tests}
-                          onChange={(e) => setGrading({
-                            ...grading,
-                            criteriaScores: { ...grading.criteriaScores, tests: Number(e.target.value) },
-                          })}
-                        />
-                      </div>
+                      {(currentGradingSub?.criteria || [
+                        { id: 'clean_arch', name: 'Чиста архітектура', max: 35 },
+                        { id: 'patterns', name: 'Патерни проектування', max: 35 },
+                        { id: 'tests', name: 'Модульні тести', max: 30 },
+                      ]).map((crit) => (
+                        <div
+                          key={crit.id}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}
+                        >
+                          <span>{crit.name} (макс. {crit.max}):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={crit.max}
+                            className="input-studevo-control"
+                            style={{ width: '72px', padding: '4px 8px' }}
+                            value={grading.criteriaScores[crit.id] ?? 0}
+                            onChange={(e) =>
+                              setGrading({
+                                ...grading,
+                                criteriaScores: {
+                                  ...grading.criteriaScores,
+                                  [crit.id]: Math.min(crit.max, Math.max(0, Number(e.target.value))),
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      ))}
                     </div>
 
                     <div className="form-group-field">
-                      <label>Правило розрахунку оцінки</label>
+                      <label>Правило нарахування балів</label>
                       <select
                         className="input-studevo-control"
                         value={grading.rule}
                         onChange={(e) => setGrading({ ...grading, rule: e.target.value })}
                       >
-                        <option value="STANDARD">Базовий розрахунок за критеріями</option>
-                        <option value="LATE_PENALTY">Штраф (-20%) за порушення дедлайну</option>
+                        <option value="STANDARD">Стандартний розрахунок за критеріями</option>
+                        <option value="LATE_PENALTY">Зниження на 20% (пізня здача)</option>
                         <option value="EXCELLENCE_BONUS">Заохочувальний бонус (+5 балів)</option>
                       </select>
                     </div>
 
                     <div className="form-group-field">
-                      <label>Текстовий фідбек викладача</label>
+                      <label>Коментар викладача</label>
                       <textarea
                         rows="2"
                         className="input-studevo-control"
@@ -969,112 +2776,674 @@ export default function App() {
                     </div>
 
                     <button type="submit" className="btn-studevo-primary" style={{ width: '100%' }}>
-                      Зарахувати оцінку у відомість
+                      Виставити оцінку ({liveFinalScore} балів, ECTS: {getEctsLetter(liveFinalScore)})
                     </button>
                   </form>
                 </div>
 
-                {/* Grade Statement */}
                 <div className="studevo-card">
                   <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                    Відомість нарахування підсумкового балу
+                    Підсумок оцінювання
                   </h3>
-                  {gradingResult ? (
-                    <div style={{ background: '#fff5f5', border: '1px solid #ffe3e3', borderRadius: '10px', padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Студент</span>
-                          <div style={{ fontSize: '15px', fontWeight: 700 }}>{gradingResult.studentName}</div>
+                  <div style={{ background: 'var(--studevo-red-light)', border: '1px solid var(--studevo-accent-subtle)', borderRadius: '10px', padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Студент</span>
+                        <div style={{ fontSize: '15px', fontWeight: 700 }}>
+                          {(gradingResult || currentGradingSub)?.studentName || 'Олександр Петренко'}
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Застосоване правило</span>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--studevo-red-dark)' }}>
-                            {gradingResult.ruleDesc}
-                          </div>
+                        <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                          {(gradingResult || currentGradingSub)?.assignmentTitle}
                         </div>
                       </div>
-
-                      <div style={{ display: 'flex', gap: '30px', margin: '16px 0', padding: '14px 0', borderTop: '1px dashed #fcc2d7', borderBottom: '1px dashed #fcc2d7' }}>
-                        <div>
-                          <span style={{ fontSize: '12px', color: '#6c757d' }}>Бали за критеріями:</span>
-                          <div style={{ fontSize: '24px', fontWeight: 700, color: '#495057' }}>{gradingResult.rawScore}</div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Правило розрахунку</span>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--studevo-red-dark)' }}>
+                          {grading.rule === 'LATE_PENALTY'
+                            ? 'Зниження на 20%'
+                            : grading.rule === 'EXCELLENCE_BONUS'
+                            ? 'Бонус +5 балів'
+                            : 'Стандартний розрахунок'}
                         </div>
-                        <div>
-                          <span style={{ fontSize: '12px', color: '#6c757d' }}>Підсумковий бал у журнал:</span>
-                          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--studevo-red-dark)' }}>
-                            {gradingResult.finalScore} / 100
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ fontSize: '12.5px', color: '#721c24' }}>
-                        <strong>Коментар викладача:</strong> {gradingResult.feedback}
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#adb5bd', border: '1px dashed #dee2e6', borderRadius: '8px' }}>
-                      Оберіть критерії та натисніть «Зарахувати оцінку у відомість».
+
+                    <div style={{ display: 'flex', gap: '30px', margin: '16px 0', padding: '14px 0', borderTop: '1px dashed var(--studevo-border-strong)', borderBottom: '1px dashed var(--studevo-border-strong)' }}>
+                      <div>
+                        <span style={{ fontSize: '12px', color: '#6c757d' }}>Сума за критеріями:</span>
+                        <div style={{ fontSize: '24px', fontWeight: 700, color: '#495057' }}>{liveRawScore}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '12px', color: '#6c757d' }}>Підсумковий бал у журнал:</span>
+                        <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--studevo-red-dark)' }}>
+                          {liveFinalScore} / {currentGradingSub?.maxScore || 100}{' '}
+                          <span className="ects-badge">{getEctsLetter(liveFinalScore)}</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    <div style={{ fontSize: '12.5px', color: '#343a40' }}>
+                      <strong>Коментар викладача:</strong> {grading.feedback}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Student View: Electronic Gradebook */}
-            {userRole === 'student' && (
-              <div className="studevo-card">
-                <table className="studevo-table">
-                  <thead>
-                    <tr>
-                      <th>Навчальна дисципліна</th>
-                      <th>Контрольне завдання</th>
-                      <th>Дата здачі</th>
-                      <th>Оцінка / Макс</th>
-                      <th>Коментар викладача</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Архітектура ПЗ</strong></td>
-                      <td>Лабораторна 3: Контракти API та EDA</td>
-                      <td>14 жовтня 2026</td>
+            <div className="studevo-card">
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                {userRole === 'student'
+                  ? `Успішність студента (${currentUser.name}) — Середній бал: ${averageStudentGrade}`
+                  : 'Відомість оцінок'}
+              </h3>
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    {userRole !== 'student' && <th>Студент / Група</th>}
+                    <th>Навчальна дисципліна</th>
+                    <th>Завдання</th>
+                    <th>Дата</th>
+                    <th>Бал / Макс</th>
+                    <th>Шкала ECTS</th>
+                    <th>Коментар викладача</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grades.map((g) => (
+                    <tr key={g.id}>
+                      {userRole !== 'student' && (
+                        <td>
+                          <strong>{g.studentName}</strong>
+                          <div style={{ fontSize: '11px', color: '#868e96' }}>{g.group}</div>
+                        </td>
+                      )}
+                      <td><strong>{g.courseTitle}</strong></td>
+                      <td>{g.assignmentTitle}</td>
+                      <td>{g.submittedAt}</td>
                       <td>
-                        <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>95</strong> / 100
+                        <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>{g.finalScore}</strong> / {g.maxScore}
                       </td>
-                      <td style={{ color: '#495057', fontSize: '12px' }}>
-                        Відмінно виконано завдання. Дотримано всіх вимог силабусу.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><strong>Основи вебдизайну</strong></td>
-                      <td>Практична: Прототип кабінету Studevo</td>
-                      <td>11 жовтня 2026</td>
                       <td>
-                        <strong style={{ color: 'var(--studevo-red-dark)', fontSize: '15px' }}>48</strong> / 50
+                        <span className="ects-badge">{getEctsLetter(g.finalScore)}</span>
                       </td>
-                      <td style={{ color: '#495057', fontSize: '12px' }}>
-                        Відмінна колористика та якісне компонування інтерфейсу.
-                      </td>
+                      <td style={{ color: '#495057', fontSize: '12px' }}>{g.feedback}</td>
                     </tr>
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 5. WEBINARS & ONLINE CLASSES */}
+        {activeMenu === 'webinars' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">Онлайн-заняття та консультації</h2>
+            </div>
+
+            {userRole === 'teacher' && (
+              <div className="studevo-card" style={{ marginBottom: '18px' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                  Запланувати онлайн-заняття
+                </h3>
+                <form onSubmit={handleScheduleWebinar}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.8fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+                    <div className="form-group-field" style={{ marginBottom: 0 }}>
+                      <label>Дисципліна</label>
+                      <select
+                        className="input-studevo-control"
+                        value={newWebinarForm.courseId}
+                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, courseId: e.target.value })}
+                      >
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group-field" style={{ marginBottom: 0 }}>
+                      <label>Тема заняття</label>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        placeholder="напр.: Лекція 5: Архітектура розподілених систем"
+                        value={newWebinarForm.title}
+                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group-field" style={{ marginBottom: 0 }}>
+                      <label>Дата та час</label>
+                      <input
+                        type="datetime-local"
+                        className="input-studevo-control"
+                        value={newWebinarForm.scheduledAt}
+                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, scheduledAt: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-studevo-primary">
+                      Додати в розклад
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* TOP SESSION SELECTOR STRIP */}
+            <div className="webinar-selector-strip">
+              {webinars.map((w) => (
+                <div
+                  key={w.id}
+                  onClick={() => setActiveWebinarId(w.id)}
+                  style={{
+                    padding: '13px 15px',
+                    borderRadius: '12px',
+                    border: activeWebinar?.id === w.id ? '2px solid var(--studevo-red)' : '1px solid var(--studevo-border)',
+                    background: activeWebinar?.id === w.id ? 'var(--studevo-red-light)' : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: 'var(--studevo-shadow-sm)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span
+                      className="webinar-live-badge"
+                      style={{
+                        background: w.status === 'LIVE' ? '#ffe3e3' : w.status === 'FINISHED' ? '#e9ecef' : '#e7f5ff',
+                        color: w.status === 'LIVE' ? '#c92a2a' : w.status === 'FINISHED' ? '#495057' : '#1971c2',
+                      }}
+                    >
+                      {w.status === 'LIVE' ? '● В ефірі' : w.status === 'FINISHED' ? 'Завершено' : 'Заплановано'}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#6c757d' }}>
+                      {new Date(w.scheduledAt).toLocaleString('uk-UA', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+
+                  <div style={{ fontWeight: 700, fontSize: '13.5px', marginBottom: '4px', lineHeight: 1.35 }}>
+                    {w.title}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#6c757d', marginBottom: userRole === 'teacher' ? '10px' : 0 }}>
+                    {w.courseTitle} • {w.instructor}
+                  </div>
+
+                  {userRole === 'teacher' && (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-studevo-primary"
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveWebinarId(w.id);
+                          handleChangeWebinarStatus(w.id, 'LIVE');
+                        }}
+                      >
+                        Увімкнути ефір
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-studevo-secondary"
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleChangeWebinarStatus(w.id, 'FINISHED');
+                        }}
+                      >
+                        Завершити
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* ZOOM-LIKE LIVE CONFERENCE ROOM */}
+            {activeWebinar && (
+              <div className="zoom-room-container">
+                {/* ZOOM ROOM MAIN STAGE + OPTIONAL SIDE PANEL */}
+                <div className="zoom-room-main">
+                  <div className="zoom-stage-area">
+                    {/* Top Floating Information Bar */}
+                    <div className="zoom-top-info-bar">
+                      <div className="zoom-meeting-title-pill">
+                        <span style={{ color: activeWebinar.status === 'LIVE' ? '#00d26a' : '#ff4d4f', fontSize: '10px' }}>
+                          ●
+                        </span>
+                        <span>{activeWebinar.title}</span>
+                        {activeWebinar.status === 'LIVE' && (
+                          <span style={{ color: '#00d26a', fontWeight: 700, marginLeft: '4px' }}>
+                            {formatStreamTimer(streamSeconds)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="zoom-view-switch-btns">
+                        <button
+                          type="button"
+                          className={`zoom-view-btn ${zoomViewMode === 'speaker' ? 'active' : ''}`}
+                          onClick={() => setZoomViewMode('speaker')}
+                        >
+                          Спікер
+                        </button>
+                        <button
+                          type="button"
+                          className={`zoom-view-btn ${zoomViewMode === 'gallery' ? 'active' : ''}`}
+                          onClick={() => setZoomViewMode('gallery')}
+                        >
+                          Галерея (Сітка)
+                        </button>
+                        <button
+                          type="button"
+                          className="zoom-view-btn"
+                          onClick={handleToggleFullscreen}
+                          title="На весь екран"
+                        >
+                          ⛶
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Hardware Video Stream Element (Camera or Screen Share) */}
+                    {(streamSource === 'camera' || streamSource === 'screen') && activeWebinar.status === 'LIVE' && (
+                      <video
+                        ref={videoStreamRef}
+                        className="stream-video-element"
+                        autoPlay
+                        playsInline
+                        muted
+                      />
+                    )}
+
+                    {/* View 1: GALLERY VIEW (Zoom Grid of video tiles) */}
+                    {zoomViewMode === 'gallery' && (
+                      <div className="zoom-gallery-grid">
+                        {zoomAttendees.map((att) => {
+                          const isHostAndLive = att.id === 'usr-teacher' && activeWebinar.status === 'LIVE';
+                          return (
+                            <div
+                              key={att.id}
+                              className={`zoom-participant-tile ${att.isSpeaking ? 'active-speaker' : ''} ${att.id === (currentUser?.id || 'usr-student') ? 'is-me' : ''}`}
+                            >
+                              {/* If teacher has camera on and we're on camera stream, show video on their tile */}
+                              {isHostAndLive && streamSource === 'camera' ? (
+                                <video
+                                  ref={(el) => {
+                                    if (el && mediaStreamObjRef.current) el.srcObject = mediaStreamObjRef.current;
+                                  }}
+                                  className="zoom-tile-video"
+                                  autoPlay
+                                  playsInline
+                                  muted
+                                />
+                              ) : (
+                                <div className="zoom-tile-avatar">
+                                  {att.name.slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+
+                              <div className="zoom-tile-indicators">
+                                {att.hand && <span className="zoom-hand-badge">✋ Рука</span>}
+                                <span style={{ fontSize: '12px' }}>{att.mic ? '🎙️' : '🔇'}</span>
+                              </div>
+
+                              <div className="zoom-tile-name-tag">
+                                <span>{att.name}</span>
+                                {att.isHost && <span style={{ color: '#2d8cff', fontWeight: 700 }}>(Організатор)</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* View 2: SPEAKER / SPOTLIGHT VIEW */}
+                    {zoomViewMode === 'speaker' && (
+                      <div className="zoom-speaker-view">
+                        {/* Top Participants Ribbon */}
+                        <div className="zoom-participants-ribbon">
+                          {zoomAttendees.map((att) => (
+                            <div key={att.id} className="zoom-ribbon-tile">
+                              <div
+                                style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  borderRadius: '50%',
+                                  background: att.isHost ? '#2d8cff' : '#495057',
+                                  color: '#fff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 700,
+                                  fontSize: '13px',
+                                }}
+                              >
+                                {att.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '4px',
+                                  left: '6px',
+                                  right: '6px',
+                                  fontSize: '10px',
+                                  color: '#ffffff',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  background: 'rgba(0,0,0,0.6)',
+                                  padding: '1px 4px',
+                                  borderRadius: '3px',
+                                }}
+                              >
+                                {att.name.split(' ')[0]} {att.mic ? '🎙️' : '🔇'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Main Spotlight Center (Active Presentation or Stream or Waiting Screen) */}
+                        <div className="zoom-main-spotlight">
+                          {activeWebinar.status === 'LIVE' ? (
+                            streamSource === 'slides' ? (
+                              <div className="stream-slide-canvas" style={{ width: '92%', height: '88%', margin: 0 }}>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                      {LECTURE_SLIDES[activeSlideIdx].tag}
+                                    </span>
+                                    <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                                      {activeWebinar.courseTitle}
+                                    </span>
+                                  </div>
+
+                                  <h3 style={{ margin: '0 0 12px 0', fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>
+                                    {LECTURE_SLIDES[activeSlideIdx].title}
+                                  </h3>
+
+                                  <ul style={{ margin: '0 0 16px 0', paddingLeft: '20px', color: '#e2e8f0', fontSize: '13.5px', lineHeight: 1.55 }}>
+                                    {LECTURE_SLIDES[activeSlideIdx].points.map((pt, idx) => (
+                                      <li key={idx} style={{ marginBottom: '5px' }}>{pt}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                <pre
+                                  style={{
+                                    margin: 0,
+                                    padding: '12px 16px',
+                                    borderRadius: '10px',
+                                    background: 'rgba(2, 6, 23, 0.88)',
+                                    border: '1px solid rgba(56, 189, 248, 0.28)',
+                                    color: '#7dd3fc',
+                                    fontSize: '12.5px',
+                                    fontFamily: 'Consolas, Monaco, monospace',
+                                    overflowX: 'auto',
+                                  }}
+                                >
+                                  {LECTURE_SLIDES[activeSlideIdx].code}
+                                </pre>
+                              </div>
+                            ) : null
+                          ) : (
+                            <div style={{ textAlign: 'center', color: '#ffffff', padding: '20px' }}>
+                              <div style={{ fontSize: '48px', marginBottom: '10px' }}>👨‍🏫</div>
+                              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px' }}>{activeWebinar.title}</h3>
+                              <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 16px 0' }}>
+                                Викладач: {activeWebinar.instructor}
+                              </p>
+                              {userRole === 'teacher' ? (
+                                <button
+                                  type="button"
+                                  className="btn-studevo-primary"
+                                  style={{ padding: '10px 22px', fontSize: '13px' }}
+                                  onClick={() => handleChangeWebinarStatus(activeWebinar.id, 'LIVE')}
+                                >
+                                  ▶ Розпочати конференцію Zoom
+                                </button>
+                              ) : (
+                                <div style={{ color: '#cbd5e1', fontSize: '13px' }}>
+                                  Очікування, поки організатор розпочне конференцію...
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT SIDE PANEL: CHAT OR PARTICIPANTS */}
+                  {zoomSideTab !== 'none' && (
+                    <aside className="zoom-side-panel">
+                      <div className="zoom-side-header">
+                        <span>{zoomSideTab === 'chat' ? 'Чат конференції' : 'Учасники'}</span>
+                        <button
+                          type="button"
+                          style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '16px' }}
+                          onClick={() => setZoomSideTab('none')}
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="zoom-side-tabs">
+                        <button
+                          type="button"
+                          className={`zoom-side-tab-btn ${zoomSideTab === 'chat' ? 'active' : ''}`}
+                          onClick={() => setZoomSideTab('chat')}
+                        >
+                          💬 Чат ({(activeWebinar.chat || []).length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`zoom-side-tab-btn ${zoomSideTab === 'participants' ? 'active' : ''}`}
+                          onClick={() => setZoomSideTab('participants')}
+                        >
+                          👥 Учасники ({zoomAttendees.length})
+                        </button>
+                      </div>
+
+                      {zoomSideTab === 'participants' && (
+                        <div className="zoom-participants-list">
+                          {zoomAttendees.map((att) => (
+                            <div key={att.id} className="zoom-participant-row">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <strong>{att.name}</strong>
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                {att.hand && <span>✋</span>}
+                                <span>{att.camera ? '📷' : '🚫'}</span>
+                                <span>{att.mic ? '🎙️' : '🔇'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {zoomSideTab === 'chat' && (
+                        <div className="zoom-chat-body">
+                          <div className="zoom-chat-scroll">
+                            {(activeWebinar.chat || []).map((m) => (
+                              <div key={m.id} className="zoom-msg-box">
+                                <div className="zoom-msg-author">
+                                  <span>{m.senderName}</span>
+                                  <span style={{ fontSize: '10px', color: '#888' }}>{m.time}</span>
+                                </div>
+                                <div style={{ color: '#e0e0e0', marginTop: '2px' }}>{m.text}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <form onSubmit={handleSendWebinarChat} className="zoom-chat-form">
+                            <input
+                              type="text"
+                              className="zoom-chat-input"
+                              placeholder="Надіслати всім..."
+                              value={chatInput}
+                              onChange={(e) => setChatInput(e.target.value)}
+                            />
+                            <button type="submit" className="btn-studevo-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                              Надіслати
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </aside>
+                  )}
+                </div>
+
+                {/* AUTHENTIC ZOOM BOTTOM TOOLBAR */}
+                <div className="zoom-toolbar">
+                  {/* Left: Audio & Video controls */}
+                  <div className="zoom-tool-group">
+                    <button
+                      type="button"
+                      className={`zoom-tool-btn ${isMicMuted ? 'is-danger' : 'is-active'}`}
+                      onClick={handleToggleMic}
+                      title={isMicMuted ? 'Увімкнути мікрофон' : 'Вимкнути мікрофон'}
+                    >
+                      <span style={{ fontSize: '18px' }}>{isMicMuted ? '🔇' : '🎙️'}</span>
+                      <span>{isMicMuted ? 'Вимкнено' : 'Увімкнено'}</span>
+                    </button>
+
+                    {userRole === 'teacher' ? (
+                      <button
+                        type="button"
+                        className={`zoom-tool-btn ${streamSource === 'camera' ? 'is-active' : ''}`}
+                        onClick={handleToggleCameraStream}
+                        title={streamSource === 'camera' ? 'Зупинити відео' : 'Увімкнути відео'}
+                      >
+                        <span style={{ fontSize: '18px' }}>{streamSource === 'camera' ? '📹' : '📷'}</span>
+                        <span>{streamSource === 'camera' ? 'Зупинити' : 'Відео'}</span>
+                      </button>
+                    ) : (
+                      <div className="zoom-tool-btn" style={{ opacity: 0.6, cursor: 'default' }} title="Трансляцію веде викладач">
+                        <span style={{ fontSize: '18px' }}>👁️</span>
+                        <span>Слухач</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Center: Meeting Controls & Interactions */}
+                  <div className="zoom-tool-group">
+                    <button
+                      type="button"
+                      className={`zoom-tool-btn ${zoomSideTab === 'participants' ? 'is-active' : ''}`}
+                      onClick={() => setZoomSideTab(zoomSideTab === 'participants' ? 'none' : 'participants')}
+                    >
+                      <span style={{ fontSize: '18px' }}>👥</span>
+                      <span>Учасники ({zoomAttendees.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`zoom-tool-btn ${zoomSideTab === 'chat' ? 'is-active' : ''}`}
+                      onClick={() => setZoomSideTab(zoomSideTab === 'chat' ? 'none' : 'chat')}
+                    >
+                      <span style={{ fontSize: '18px' }}>💬</span>
+                      <span>Чат</span>
+                    </button>
+
+                    {userRole === 'teacher' && (
+                      <>
+                        <button
+                          type="button"
+                          className={`zoom-tool-btn share-btn ${streamSource === 'screen' ? 'is-active' : ''}`}
+                          onClick={handleToggleScreenShare}
+                        >
+                          <span style={{ fontSize: '18px' }}>🖥️</span>
+                          <span>{streamSource === 'screen' ? 'Зупинити екран' : 'Поділитись'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`zoom-tool-btn ${streamSource === 'slides' ? 'is-active' : ''}`}
+                          onClick={handleSwitchToSlides}
+                        >
+                          <span style={{ fontSize: '18px' }}>📊</span>
+                          <span>Слайди</span>
+                        </button>
+
+                        {streamSource === 'slides' && (
+                          <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="zoom-tool-btn"
+                              style={{ minWidth: '40px' }}
+                              onClick={() => setActiveSlideIdx((prev) => (prev > 0 ? prev - 1 : LECTURE_SLIDES.length - 1))}
+                            >
+                              ◀
+                            </button>
+                            <span style={{ fontSize: '11px', color: '#aaa' }}>{activeSlideIdx + 1}/{LECTURE_SLIDES.length}</span>
+                            <button
+                              type="button"
+                              className="zoom-tool-btn"
+                              style={{ minWidth: '40px' }}
+                              onClick={() => setActiveSlideIdx((prev) => (prev + 1) % LECTURE_SLIDES.length)}
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {userRole === 'student' && (
+                      <button
+                        type="button"
+                        className={`zoom-tool-btn ${isHandRaised ? 'is-active' : ''}`}
+                        onClick={handleToggleRaiseHand}
+                      >
+                        <span style={{ fontSize: '18px' }}>✋</span>
+                        <span>{isHandRaised ? 'Опустити руку' : 'Підняти руку'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Right: End Meeting Button */}
+                  <div className="zoom-tool-group">
+                    {userRole === 'teacher' && activeWebinar.status === 'LIVE' ? (
+                      <button
+                        type="button"
+                        className="zoom-end-btn"
+                        onClick={() => handleChangeWebinarStatus(activeWebinar.id, 'FINISHED')}
+                      >
+                        Завершити для всіх
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="zoom-end-btn"
+                        style={{ background: '#495057' }}
+                        onClick={() => setZoomSideTab('none')}
+                      >
+                        Вийти
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* 5. ADMIN VIEW: ACADEMIC GROUPS & DEAN'S OFFICE */}
+        {/* 6. ADMIN: ACADEMIC GROUPS */}
         {activeMenu === 'groups' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">
-                Управління академічними групами (Деканат)
-              </h2>
+              <h2 className="section-title">Академічні групи факультету</h2>
             </div>
 
             <div className="studevo-card" style={{ marginBottom: '20px' }}>
               <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                Формування нової академічної групи
+                Додати нову академічну групу
               </h3>
               <form onSubmit={handleCreateGroup}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1fr', gap: '14px' }}>
@@ -1083,7 +3452,7 @@ export default function App() {
                     <input
                       type="text"
                       className="input-studevo-control"
-                      placeholder="наприклад: ІПЗ-412"
+                      placeholder="наприклад: ІПЗ-413"
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
                       required
@@ -1113,7 +3482,7 @@ export default function App() {
                   </div>
                 </div>
                 <button type="submit" className="btn-studevo-primary">
-                  Зареєструвати академічну групу
+                  Зберегти групу
                 </button>
               </form>
             </div>
@@ -1126,7 +3495,8 @@ export default function App() {
                     <th>Факультет</th>
                     <th>Курс</th>
                     <th>Кількість студентів</th>
-                    <th>Дії деканату</th>
+                    <th>Закріплені дисципліни</th>
+                    <th>Дії</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1137,12 +3507,35 @@ export default function App() {
                       <td>{g.studyYear} курс</td>
                       <td>{g.studentsCount} студентів</td>
                       <td>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {(g.assignedCourseIds || []).map((cid) => {
+                            const cObj = courses.find((c) => c.id === cid);
+                            return cObj ? (
+                              <span
+                                key={cid}
+                                style={{
+                                  fontSize: '11px',
+                                  background: 'var(--studevo-red-light)',
+                                  color: 'var(--studevo-red-dark)',
+                                  border: '1px solid var(--studevo-accent-subtle)',
+                                  padding: '2px 7px',
+                                  borderRadius: '10px',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {cObj.title}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </td>
+                      <td>
                         <button
                           className="btn-studevo-outline"
-                          style={{ fontSize: '11.5px', padding: '4px 10px' }}
-                          onClick={() => showNotification(`Студентів групи «${g.name}» підписано на семестрові дисципліни.`)}
+                          style={{ fontSize: '11.5px', padding: '5px 10px' }}
+                          onClick={() => setManagingGroupId(g.id)}
                         >
-                          Призначити дисципліни
+                          Дисципліни та студенти
                         </button>
                       </td>
                     </tr>
@@ -1153,42 +3546,41 @@ export default function App() {
           </div>
         )}
 
-        {/* 6. ADMIN VIEW: SECURITY AUDIT LOGS */}
+        {/* 7. ADMIN: SYSTEM ACTIVITY LOGS */}
         {activeMenu === 'audit' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">
-                Журнал аудиту безпеки та доступу (audit_logs)
-              </h2>
+              <h2 className="section-title">Журнал подій системи</h2>
+              <input
+                type="text"
+                className="input-studevo-control"
+                style={{ width: '260px', padding: '6px 12px' }}
+                placeholder="Пошук за користувачем або дією..."
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+              />
             </div>
 
             <div className="studevo-card">
-              <p style={{ fontSize: '12.5px', color: 'var(--studevo-text-muted)', marginBottom: '14px' }}>
-                Фіксує 100% спроб несанкціонованого доступу до чужих оцінок або даних протягом 1 секунди (Вимога безпеки 4).
-              </p>
               <table className="studevo-table">
                 <thead>
                   <tr>
-                    <th>Час події</th>
-                    <th>IP-адреса</th>
-                    <th>Користувач ID</th>
-                    <th>Дія (Action)</th>
-                    <th>Цільовий ресурс</th>
-                    <th>Статус безпеки</th>
+                    <th>Час</th>
+                    <th>Користувач</th>
+                    <th>Дія</th>
+                    <th>Розділ / Курс</th>
+                    <th>Статус</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLogs.map((log) => (
+                  {filteredAuditLogs.map((log) => (
                     <tr key={log.id}>
                       <td>{log.time}</td>
-                      <td><code>{log.ip}</code></td>
-                      <td>{log.userId}</td>
-                      <td><strong>{log.action}</strong></td>
-                      <td style={{ color: '#495057' }}><code>{log.resource}</code></td>
+                      <td><strong>{log.userId}</strong></td>
+                      <td>{log.action}</td>
+                      <td style={{ color: '#495057' }}>{log.resource}</td>
                       <td>
-                        <span className={log.status === 'ALLOWED' ? 'badge-allowed' : 'badge-denied'}>
-                          {log.status === 'ALLOWED' ? 'ДОЗВОЛЕНО' : 'ЗАБЛОКОВАНО (403)'}
-                        </span>
+                        <span className="badge-allowed">Виконано</span>
                       </td>
                     </tr>
                   ))}
@@ -1203,7 +3595,6 @@ export default function App() {
           RIGHT COLUMN (340px) - ORGANIZER
           ======================================================== */}
       <aside className="studevo-organizer">
-        {/* 1. Academic Calendar */}
         <div className="organizer-widget">
           <div className="organizer-widget-header">
             <h3 className="organizer-widget-title">
@@ -1213,13 +3604,17 @@ export default function App() {
                 <line x1="8" x2="8" y1="2" y2="6"></line>
                 <line x1="3" x2="21" y1="10" y2="10"></line>
               </svg>
-              <span>Календар дедлайнів</span>
+              <span>Навчальний календар</span>
             </h3>
 
             <div className="calendar-month-nav">
-              <button className="calendar-nav-btn">&lt;</button>
-              <span>Жовтень 2026</span>
-              <button className="calendar-nav-btn">&gt;</button>
+              <button type="button" className="calendar-nav-btn" onClick={handlePrevMonth} title="Попередній місяць">
+                &lt;
+              </button>
+              <span>{UK_MONTHS[calMonth]} {calYear}</span>
+              <button type="button" className="calendar-nav-btn" onClick={handleNextMonth} title="Наступний місяць">
+                &gt;
+              </button>
             </div>
           </div>
 
@@ -1234,170 +3629,372 @@ export default function App() {
           </div>
 
           <div className="calendar-grid-cells">
-            {calendarDays.map((day, idx) => (
-              <div
-                key={idx}
-                className={`cal-cell ${!day ? 'empty' : ''} ${day && deadlineDays.includes(day) ? 'deadline-highlight' : ''} ${day === 14 ? 'today' : ''}`}
-                title={day && deadlineDays.includes(day) ? `Дедлайн здачі (${day} жовтня)` : ''}
-              >
-                {day || ''}
-              </div>
-            ))}
+            {calendarCells.map((day, idx) => {
+              const dayEvents = day ? monthDeadlineMap[day] : null;
+              const isToday = calYear === 2026 && calMonth === 9 && day === 16;
+              return (
+                <div
+                  key={idx}
+                  className={`cal-cell ${!day ? 'empty' : ''} ${dayEvents ? 'deadline-highlight' : ''} ${isToday ? 'today' : ''}`}
+                  title={dayEvents ? dayEvents.map((e) => e.title).join(', ') : ''}
+                  onClick={() => day && setSelectedCalDay(day === selectedCalDay ? null : day)}
+                >
+                  {day || ''}
+                </div>
+              );
+            })}
           </div>
+
+          {selectedCalDay && (
+            <div style={{ marginTop: '10px', padding: '8px 10px', background: 'var(--studevo-red-light)', borderRadius: '8px', fontSize: '11.5px', border: '1px solid var(--studevo-accent-subtle)' }}>
+              <strong>Події на {selectedCalDay} {UK_MONTHS[calMonth].toLowerCase()}:</strong>
+              {monthDeadlineMap[selectedCalDay] ? (
+                <ul style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
+                  {monthDeadlineMap[selectedCalDay].map((ev, i) => (
+                    <li key={i}>{ev.title} ({ev.course})</li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={{ color: '#6c757d', marginTop: '2px' }}>Подій на цей день немає.</div>
+              )}
+            </div>
+          )}
 
           <div className="calendar-legend">
             <span className="legend-dot"></span>
-            <span>Бордовим виділено дні здачі робіт</span>
+            <span>Виділено дні здачі робіт та занять</span>
           </div>
         </div>
 
-        {/* 2. Upcoming Deadlines */}
+        {userRole === 'student' && (
+          <div className="organizer-widget">
+            <div className="organizer-widget-header">
+              <h3 className="organizer-widget-title">
+                <span>Найближчі дедлайни ({assignments.length})</span>
+              </h3>
+            </div>
+
+            <div className="deadline-items-list">
+              {assignments.slice(0, 4).map((asg) => {
+                const isSubmitted = (asg.submissions || []).length > 0;
+                return (
+                  <div
+                    key={asg.id}
+                    className="deadline-card-item"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setActiveMenu('assignments')}
+                  >
+                    <div className="deadline-card-info">
+                      <div className="deadline-title">{asg.title}</div>
+                      <div className="deadline-course">{asg.courseTitle} • {asg.maxScore} балів</div>
+                      <span
+                        className="deadline-countdown-badge"
+                        style={{
+                          backgroundColor: isSubmitted ? '#ebfbee' : '#ffe3e3',
+                          color: isSubmitted ? '#2b8a3e' : 'var(--studevo-red-dark)',
+                        }}
+                      >
+                        {isSubmitted
+                          ? 'Роботу здано'
+                          : `до ${new Date(asg.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {userRole === 'teacher' && (
+          <div className="organizer-widget">
+            <div className="organizer-widget-header">
+              <h3 className="organizer-widget-title">
+                <span>Роботи на перевірку ({allSubmissionsList.length})</span>
+              </h3>
+            </div>
+
+            <div className="deadline-items-list">
+              {allSubmissionsList.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="deadline-card-item"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    handleSelectSubmissionForGrading(sub.id);
+                    setActiveMenu('grades');
+                  }}
+                >
+                  <div className="deadline-card-info">
+                    <div className="deadline-title">{sub.studentName} ({sub.group})</div>
+                    <div className="deadline-course">{sub.assignmentTitle}</div>
+                    <span
+                      className="deadline-countdown-badge"
+                      style={{
+                        backgroundColor: sub.status === 'GRADED' ? '#ebfbee' : '#e7f5ff',
+                        color: sub.status === 'GRADED' ? '#2b8a3e' : '#1864ab',
+                      }}
+                    >
+                      {sub.status === 'GRADED' ? `Оцінено (${sub.score} б.)` : 'Перейти до перевірки'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {userRole === 'admin' && (
+          <div className="organizer-widget">
+            <div className="organizer-widget-header">
+              <h3 className="organizer-widget-title">
+                <span>Зведення по групах</span>
+              </h3>
+            </div>
+
+            {academicGroups.map((g) => (
+              <div key={g.id} className="infra-status-row">
+                <span><strong>{g.name}</strong> ({g.studyYear} курс)</span>
+                <span style={{ color: '#495057' }}>{g.studentsCount} студ.</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="organizer-widget">
           <div className="organizer-widget-header">
             <h3 className="organizer-widget-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <span>Найближчі дедлайни</span>
-            </h3>
-          </div>
-
-          <div className="deadline-items-list">
-            <div className="deadline-card-item">
-              <div className="deadline-card-info">
-                <div className="deadline-title">Лабораторна 3: Контракти API та EDA</div>
-                <div className="deadline-course">Архітектура ПЗ • 100 балів</div>
-                <span className="deadline-countdown-badge">залишилось 4 дні</span>
-              </div>
-            </div>
-
-            <div className="deadline-card-item">
-              <div className="deadline-card-info">
-                <div className="deadline-title">Лабораторна 4: Патерни GoF</div>
-                <div className="deadline-course">Архітектура ПЗ • 100 балів</div>
-                <span className="deadline-countdown-badge">до 24 жовтня</span>
-              </div>
-            </div>
-
-            <div className="deadline-card-item">
-              <div className="deadline-card-info">
-                <div className="deadline-title">Практична: Прототип кабінету Studevo</div>
-                <div className="deadline-course">Основи вебдизайну • 50 балів</div>
-                <span className="deadline-countdown-badge">до 28 жовтня</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Recent Grades / Updates */}
-        <div className="organizer-widget">
-          <div className="organizer-widget-header">
-            <h3 className="organizer-widget-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-              </svg>
-              <span>Останні оцінки та події</span>
+              <span>Останні оновлення</span>
             </h3>
           </div>
 
           <div className="updates-list">
-            <div className="update-card-item">
-              <div className="update-icon-wrap grade">✓</div>
-              <div className="update-content">
-                <div className="update-header-text">Отримано 95 балів</div>
-                <div className="update-desc-text">З курсу «Архітектура ПЗ» за Лабораторну роботу №3.</div>
-                <div className="update-time">2 години тому</div>
+            {eventsFeed.slice(0, 4).map((ev) => (
+              <div key={ev.id} className="update-card-item">
+                <div className={`update-icon-wrap ${ev.type === 'grade' ? 'grade' : 'course'}`}>
+                  {ev.type === 'grade' ? '✓' : '★'}
+                </div>
+                <div className="update-content">
+                  <div className="update-header-text">{ev.title}</div>
+                  <div className="update-desc-text">{ev.desc}</div>
+                  <div className="update-time">{ev.time}</div>
+                </div>
               </div>
-            </div>
-
-            <div className="update-card-item">
-              <div className="update-icon-wrap course">★</div>
-              <div className="update-content">
-                <div className="update-header-text">Опубліковано новий курс</div>
-                <div className="update-desc-text">«Безпека програмних систем» додано до розкладу групи.</div>
-                <div className="update-time">Вчора о 16:30</div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </aside>
 
       {/* ========================================================
-          COURSE SYLLABUS & LESSONS MODAL
+          MODAL 1: COURSE DETAILS, LESSONS & BUILDER
           ======================================================== */}
       {selectedCourse && (
-        <div className="modal-overlay" onClick={() => setSelectedCourse(null)}>
-          <div className="modal-window" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setSelectedCourseId(null)}>
+          <div className="modal-window modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{selectedCourse.title}</h3>
               <button
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
-                onClick={() => setSelectedCourse(null)}
+                onClick={() => setSelectedCourseId(null)}
               >
                 ✕
               </button>
             </div>
 
             <div className="modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
                 <img
                   src={selectedCourse.cover}
                   alt={selectedCourse.title}
-                  style={{ width: '130px', height: '85px', objectFit: 'cover', borderRadius: '8px' }}
+                  style={{ width: '130px', height: '82px', objectFit: 'cover', borderRadius: '8px' }}
                 />
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
                     Викладач: {selectedCourse.instructor}
                   </div>
                   <div style={{ color: 'var(--studevo-text-muted)', fontSize: '12px', marginBottom: '6px' }}>
-                    {selectedCourse.modulesCount} змістові модулі • {selectedCourse.totalHours} годин
+                    Семестр {selectedCourse.semester} • {selectedCourse.modules?.length || 0} модулі • {selectedCourse.totalHours} годин
                   </div>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    backgroundColor: selectedCourse.isPublished ? '#ebfbee' : '#fff5f5',
-                    color: selectedCourse.isPublished ? '#2b8a3e' : '#c92a2a',
-                  }}>
-                    {selectedCourse.isPublished ? 'Опубліковано для студентів' : 'Чернетка'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        backgroundColor: selectedCourse.isPublished ? '#ebfbee' : '#fff5f5',
+                        color: selectedCourse.isPublished ? '#2b8a3e' : '#c92a2a',
+                      }}
+                    >
+                      {selectedCourse.isPublished ? 'Опубліковано' : 'Чернетка'}
+                    </span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--studevo-red-dark)' }}>
+                      Прогрес курсу: {selectedCourse.progress}%
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <h4 style={{ margin: '14px 0 8px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
-                Структура змістових модулів та уроків:
+              <p style={{ color: '#495057', margin: '0 0 16px 0', fontSize: '13px', lineHeight: 1.45 }}>
+                {selectedCourse.description}
+              </p>
+
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
+                Змістові модулі та навчальні матеріали:
               </h4>
 
               {selectedCourse.modules && selectedCourse.modules.length > 0 ? (
                 selectedCourse.modules.map((m) => (
-                  <div key={m.id} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '6px' }}>{m.title}</div>
-                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: '#495057' }}>
-                      {m.lessons.map((l) => (
-                        <li key={l.id} style={{ marginBottom: '4px' }}>
-                          <span style={{ fontWeight: 500 }}>{l.title}</span>
-                          <span style={{ marginLeft: '8px', fontSize: '10.5px', color: '#868e96', background: '#dee2e6', padding: '1px 6px', borderRadius: '4px' }}>
-                            {l.type}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                  <div
+                    key={m.id}
+                    style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', marginBottom: '12px', border: '1px solid #e9ecef' }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '8px' }}>
+                      {m.title}
+                    </div>
+                    {m.lessons && m.lessons.length > 0 ? (
+                      m.lessons.map((l) => {
+                        const isSelected = activeLessonId === l.id;
+                        return (
+                          <div key={l.id}>
+                            <div
+                              className={`lesson-item-row ${isSelected ? 'active-lesson' : ''}`}
+                              onClick={() => setActiveLessonId(isSelected ? null : l.id)}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: l.completed ? '#2b8a3e' : '#adb5bd', fontWeight: 700 }}>
+                                  {l.completed ? '✓' : '○'}
+                                </span>
+                                <span style={{ fontWeight: 600, fontSize: '12.5px' }}>{l.title}</span>
+                                <span
+                                  style={{
+                                    fontSize: '10px',
+                                    color: '#495057',
+                                    background: '#e9ecef',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {l.type}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                className={l.completed ? 'btn-studevo-secondary' : 'btn-studevo-outline'}
+                                style={{ padding: '3px 9px', fontSize: '11px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleLessonCompleted(selectedCourse.id, l.id);
+                                }}
+                              >
+                                {l.completed ? 'Пройдено' : 'Відмітити як пройдене'}
+                              </button>
+                            </div>
+
+                            {isSelected && (
+                              <div className="lesson-viewer-box">
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--studevo-red-dark)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                                  {l.type}:
+                                </div>
+                                <p style={{ margin: '0 0 10px 0', fontSize: '13px', lineHeight: 1.55, color: '#212529' }}>
+                                  {l.content || 'Конспект лекції та додаткові матеріали до теми модуля.'}
+                                </p>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="btn-studevo-primary"
+                                    style={{ padding: '4px 12px', fontSize: '11.5px' }}
+                                    onClick={() => handleToggleLessonCompleted(selectedCourse.id, l.id)}
+                                  >
+                                    {l.completed ? 'Скасувати відмітку' : 'Завершити урок'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#868e96' }}>У цьому модулі ще немає матеріалів.</div>
+                    )}
                   </div>
                 ))
               ) : (
                 <p style={{ color: '#6c757d', fontSize: '12.5px' }}>Модулі наповнюються викладачем.</p>
               )}
 
-              <h4 style={{ margin: '14px 0 6px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
-                Анотація дисципліни:
-              </h4>
-              <p style={{ color: '#495057', margin: 0, fontSize: '13px', lineHeight: 1.5 }}>
-                {selectedCourse.description}
-              </p>
+              {userRole === 'teacher' && (
+                <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '2px dashed #dee2e6', display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '16px' }}>
+                  <form onSubmit={handleAddModuleToCourse} style={{ background: 'var(--studevo-red-light)', padding: '12px', borderRadius: '8px', border: '1px solid var(--studevo-accent-subtle)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--studevo-red-dark)', marginBottom: '8px' }}>
+                      Додати змістовий модуль
+                    </div>
+                    <div className="form-group-field">
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        placeholder="Назва модуля..."
+                        value={newModuleTitle}
+                        onChange={(e) => setNewModuleTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-studevo-outline" style={{ width: '100%' }}>
+                      Додати модуль
+                    </button>
+                  </form>
+
+                  <form onSubmit={handleAddLessonToModule} style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '8px' }}>
+                      Додати матеріал у модуль
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                      <select
+                        className="input-studevo-control"
+                        value={newLessonForm.moduleId || selectedCourse.modules?.[0]?.id || ''}
+                        onChange={(e) => setNewLessonForm({ ...newLessonForm, moduleId: e.target.value })}
+                      >
+                        {(selectedCourse.modules || []).map((m) => (
+                          <option key={m.id} value={m.id}>{m.title}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="input-studevo-control"
+                        value={newLessonForm.type}
+                        onChange={(e) => setNewLessonForm({ ...newLessonForm, type: e.target.value })}
+                      >
+                        <option value="Лекція">Лекція</option>
+                        <option value="Відео">Відео</option>
+                        <option value="Методичка">Методичка</option>
+                        <option value="Презентація">Презентація</option>
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      style={{ marginBottom: '8px' }}
+                      placeholder="Назва уроку або методичних вказівок..."
+                      value={newLessonForm.title}
+                      onChange={(e) => setNewLessonForm({ ...newLessonForm, title: e.target.value })}
+                      required
+                    />
+                    <textarea
+                      rows="2"
+                      className="input-studevo-control"
+                      style={{ marginBottom: '8px' }}
+                      placeholder="Текст лекції або опис матеріалу..."
+                      value={newLessonForm.content}
+                      onChange={(e) => setNewLessonForm({ ...newLessonForm, content: e.target.value })}
+                    />
+                    <button type="submit" className="btn-studevo-primary" style={{ width: '100%' }}>
+                      Зберегти матеріал
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
 
             <div className="modal-footer">
@@ -1411,9 +4008,128 @@ export default function App() {
               )}
               <button
                 className="btn-studevo-secondary"
-                onClick={() => setSelectedCourse(null)}
+                onClick={() => setSelectedCourseId(null)}
               >
                 Закрити
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 2: ADMIN GROUP MANAGEMENT
+          ======================================================== */}
+      {managingGroup && (
+        <div className="modal-overlay" onClick={() => setManagingGroupId(null)}>
+          <div className="modal-window" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Група «{managingGroup.name}» — Дисципліни та студенти</h3>
+              <button
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
+                onClick={() => setManagingGroupId(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
+                1. Семестрові дисципліни групи:
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                {courses.map((c) => {
+                  const isAssigned = (managingGroup.assignedCourseIds || []).includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #dee2e6',
+                        background: isAssigned ? 'var(--studevo-red-light)' : '#ffffff',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '13px' }}>{c.title}</div>
+                        <div style={{ fontSize: '11.5px', color: '#6c757d' }}>{c.instructor} • Семестр {c.semester}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className={isAssigned ? 'btn-studevo-secondary' : 'btn-studevo-primary'}
+                        style={{ padding: '5px 12px', fontSize: '12px' }}
+                        onClick={() => handleToggleCourseForGroup(managingGroup.id, c.id)}
+                      >
+                        {isAssigned ? 'Відкріпити' : 'Призначити групі'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
+                2. Студенти групи ({managingGroup.studentsCount} осіб):
+              </h4>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                {(managingGroup.studentsList || []).map((st, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      background: '#f1f3f5',
+                      padding: '4px 10px',
+                      borderRadius: '14px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>{st}</span>
+                    {userRole === 'admin' && (
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#fa5252',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          padding: '0 2px',
+                          lineHeight: 1,
+                        }}
+                        title={`Вилучити ${st} зі списку групи`}
+                        onClick={() => handleRemoveStudentFromGroup(st)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddStudentToGroup} style={{ display: 'flex', gap: '10px' }}>
+                <input
+                  type="text"
+                  className="input-studevo-control"
+                  placeholder="ПІБ нового студента..."
+                  value={newStudentNameInGroup}
+                  onChange={(e) => setNewStudentNameInGroup(e.target.value)}
+                  required
+                />
+                <button type="submit" className="btn-studevo-primary" style={{ whiteSpace: 'nowrap' }}>
+                  + Додати студента
+                </button>
+              </form>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-studevo-secondary" onClick={() => setManagingGroupId(null)}>
+                Готово
               </button>
             </div>
           </div>
