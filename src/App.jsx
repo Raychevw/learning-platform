@@ -542,6 +542,35 @@ export default function App() {
     }
   }, [courses, assignments, grades, academicGroups, webinars, auditLogs, eventsFeed]);
 
+  // Load live data from PostgreSQL via API Gateway on startup and user switch
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchAllData = async () => {
+      try {
+        const userId = currentUser?.id || 'usr-student';
+        const [cRes, aRes, gRes, grpRes, wRes] = await Promise.all([
+          fetch(`${API_BASE}/api/catalog?userId=${userId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${API_BASE}/api/assignments-full`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${API_BASE}/api/grades`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${API_BASE}/api/groups`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${API_BASE}/api/webinars`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        if (isCancelled) return;
+        if (Array.isArray(cRes) && cRes.length > 0) setCourses(cRes);
+        if (Array.isArray(aRes) && aRes.length > 0) setAssignments(aRes);
+        if (Array.isArray(gRes) && gRes.length > 0) setGrades(gRes);
+        if (Array.isArray(grpRes) && grpRes.length > 0) setAcademicGroups(grpRes);
+        if (Array.isArray(wRes) && wRes.length > 0) setWebinars(wRes);
+      } catch (err) {
+        console.warn('Backend load failed, using local persisted cache:', err);
+      }
+    };
+    fetchAllData();
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser?.id]);
+
   // Real-time synchronization across multiple browser tabs/windows (e.g. Teacher in Tab 1, Student in Tab 2)
   useEffect(() => {
     let bc;
@@ -758,21 +787,26 @@ export default function App() {
     setEventsFeed((prev) => [ev, ...prev.slice(0, 7)]);
   };
 
-  const syncBackend = async (path, method = 'POST', body = {}, overrideRole = null) => {
+  const syncBackend = async (path, method = 'POST', body = null, overrideRole = null) => {
     try {
+      const fullPath = path.startsWith('/api') ? path : `/api${path}`;
       const roleHeader = (overrideRole || userRole || 'student').toUpperCase();
-      await fetch(`${API_BASE}${path}`, {
+      const res = await fetch(`${API_BASE}${fullPath}`, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'x-user-role': roleHeader,
           'x-user-id': currentUser?.id || 'usr-student',
         },
-        body: method === 'GET' ? undefined : JSON.stringify(body),
+        body: body && method !== 'GET' && method !== 'DELETE' ? JSON.stringify(body) : undefined,
       });
+      if (res.ok) {
+        return await res.json().catch(() => null);
+      }
     } catch {
       // Offline / local fallback
     }
+    return null;
   };
 
   // ========================================================
@@ -854,12 +888,17 @@ export default function App() {
       progress: 0,
     };
 
-    await syncBackend('/courses', 'POST', {
+    const res = await syncBackend('/catalog', 'POST', {
       title: created.title,
       description: created.description,
-      teacher_id: currentUser?.id || 'usr-teacher',
+      instructor: created.instructor,
       semester: created.semester,
+      totalHours: created.totalHours,
+      cover: created.cover,
     });
+    if (res && res.id) {
+      created.id = res.id;
+    }
 
     setCourses((prev) => [created, ...prev]);
     appendAuditLog('Створення нової дисципліни', created.title, 'ALLOWED');
@@ -882,7 +921,9 @@ export default function App() {
   };
 
   const handleToggleLessonCompleted = async (courseId, lessonId) => {
-    await syncBackend(`/courses/lessons/${lessonId}/complete/${currentUser?.id || 'usr-student'}`, 'POST');
+    await syncBackend(`/catalog/lessons/${lessonId}/toggle`, 'POST', {
+      userId: currentUser?.id || 'usr-student',
+    });
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id !== courseId) return c;
@@ -906,11 +947,10 @@ export default function App() {
   const handleAddModuleToCourse = async (e) => {
     e.preventDefault();
     if (!selectedCourse || !newModuleTitle.trim()) return;
-    const newModId = `m-${Date.now()}`;
-    await syncBackend(`/courses/${selectedCourse.id}/modules`, 'POST', {
+    const res = await syncBackend(`/catalog/${selectedCourse.id}/modules`, 'POST', {
       title: newModuleTitle.trim(),
-      order_index: (selectedCourse.modules?.length || 0) + 1,
     });
+    const newModId = res?.id || `m-${Date.now()}`;
 
     setCourses((prev) =>
       prev.map((c) => {
@@ -941,8 +981,14 @@ export default function App() {
       return;
     }
 
+    const res = await syncBackend(`/catalog/modules/${targetModId}/lessons`, 'POST', {
+      title: newLessonForm.title.trim(),
+      type: newLessonForm.type,
+      content: newLessonForm.content.trim(),
+    });
+
     const newLesson = {
-      id: `l-${Date.now()}`,
+      id: res?.id || `l-${Date.now()}`,
       title: newLessonForm.title.trim(),
       type: newLessonForm.type,
       completed: false,
@@ -1000,6 +1046,11 @@ export default function App() {
       submissions: [],
     };
 
+    const res = await syncBackend('/assignments-full', 'POST', createdAsg);
+    if (res && res.id) {
+      createdAsg.id = res.id;
+    }
+
     setAssignments((prev) => [createdAsg, ...prev]);
     setSubmissionForm((prev) => ({ ...prev, assignmentId: createdAsg.id }));
     appendAuditLog('Створення нового завдання', createdAsg.title, 'ALLOWED');
@@ -1036,6 +1087,11 @@ export default function App() {
       status: 'READY_FOR_GRADING',
       score: null,
     };
+
+    const res = await syncBackend(`/assignments/${targetAsg.id}/submit`, 'POST', newSub);
+    if (res && res.id) {
+      newSub.id = res.id;
+    }
 
     setAssignments((prev) =>
       prev.map((a) => {
@@ -1119,6 +1175,17 @@ export default function App() {
       ruleDesc,
       feedback: grading.feedback,
     };
+
+    const res = await syncBackend('/grading/grade', 'POST', {
+      submissionId: targetSub?.id || 'sub-1',
+      rule: grading.rule,
+      criteriaScores: grading.criteriaScores,
+      feedback: grading.feedback,
+    });
+    if (res && res.finalScore !== undefined) {
+      resultObj.finalScore = res.finalScore;
+      if (res.id) resultObj.id = res.id;
+    }
 
     setGradingResult(resultObj);
 
@@ -1372,6 +1439,17 @@ export default function App() {
       ],
     };
 
+    const res = await syncBackend('/webinars', 'POST', {
+      courseId: targetCourse.id,
+      title: createdWeb.title,
+      scheduledAt: createdWeb.scheduledAt,
+      instructor: createdWeb.instructor,
+      senderRole: userRole,
+    });
+    if (res && res.id) {
+      createdWeb.id = res.id;
+    }
+
     setWebinars((prev) => {
       const updated = [createdWeb, ...prev];
       try {
@@ -1387,13 +1465,14 @@ export default function App() {
     showNotification(`Онлайн-заняття «${createdWeb.title}» додано до розкладу.`);
   };
 
-  const handleChangeWebinarStatus = (webinarId, newStatus) => {
+  const handleChangeWebinarStatus = async (webinarId, newStatus) => {
     if (newStatus === 'FINISHED') {
       stopHardwareStream();
       setStreamSource('slides');
     } else if (newStatus === 'LIVE') {
       setStreamSeconds(0);
     }
+    await syncBackend(`/webinars/${webinarId}/status`, 'PATCH', { status: newStatus });
     setWebinars((prev) =>
       prev.map((w) => (w.id === webinarId ? { ...w, status: newStatus } : w))
     );
@@ -1405,7 +1484,7 @@ export default function App() {
     showNotification(newStatus === 'LIVE' ? 'Прямий ефір розпочато!' : 'Трансляцію завершено.');
   };
 
-  const handleSendWebinarChat = (e) => {
+  const handleSendWebinarChat = async (e) => {
     e.preventDefault();
     if (!chatInput.trim() || !activeWebinar) return;
     const msg = {
@@ -1415,6 +1494,8 @@ export default function App() {
       text: chatInput.trim(),
       time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
     };
+
+    await syncBackend(`/webinars/${activeWebinar.id}/chat`, 'POST', msg);
 
     setWebinars((prev) =>
       prev.map((w) => (w.id === activeWebinar.id ? { ...w, chat: [...(w.chat || []), msg] } : w))
@@ -1430,7 +1511,7 @@ export default function App() {
   // ========================================================
   // 5. ADMIN: ACADEMIC GROUPS & COURSES
   // ========================================================
-  const handleCreateGroup = (e) => {
+  const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     const group = {
@@ -1443,13 +1524,19 @@ export default function App() {
       studentsList: ['Олександр Петренко', 'Марія Бондаренко'],
     };
 
+    const res = await syncBackend('/groups', 'POST', group);
+    if (res && res.id) {
+      group.id = res.id;
+    }
+
     setAcademicGroups((prev) => [group, ...prev]);
     appendAuditLog('Створення академічної групи', group.name, 'ALLOWED');
     showNotification(`Академічну групу «${group.name}» зареєстровано.`);
     setNewGroupName('');
   };
 
-  const handleToggleCourseForGroup = (groupId, courseId) => {
+  const handleToggleCourseForGroup = async (groupId, courseId) => {
+    await syncBackend(`/groups/${groupId}/toggle-course`, 'POST', { courseId });
     setAcademicGroups((prev) =>
       prev.map((g) => {
         if (g.id !== groupId) return g;
@@ -1463,9 +1550,12 @@ export default function App() {
     showNotification('Навчальний план групи оновлено.');
   };
 
-  const handleAddStudentToGroup = (e) => {
+  const handleAddStudentToGroup = async (e) => {
     e.preventDefault();
     if (!managingGroup || !newStudentNameInGroup.trim()) return;
+    await syncBackend(`/groups/${managingGroup.id}/students`, 'POST', {
+      studentName: newStudentNameInGroup.trim(),
+    });
     setAcademicGroups((prev) =>
       prev.map((g) => {
         if (g.id !== managingGroup.id) return g;
@@ -1481,8 +1571,9 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
-  const handleRemoveStudentFromGroup = (studentName) => {
+  const handleRemoveStudentFromGroup = async (studentName) => {
     if (!managingGroup) return;
+    await syncBackend(`/groups/${managingGroup.id}/students/${encodeURIComponent(studentName)}`, 'DELETE');
     setAcademicGroups((prev) =>
       prev.map((g) => {
         if (g.id !== managingGroup.id) return g;

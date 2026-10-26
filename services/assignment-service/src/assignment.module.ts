@@ -3,6 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { StudentEntity } from './infrastructure/database/entities/StudentEntity.js';
 import { AssignmentEntity } from './infrastructure/database/entities/AssignmentEntity.js';
+import {
+  SubmissionEntity,
+  GradeEntity,
+  AcademicGroupEntity,
+} from './infrastructure/database/entities/CourseworkEntities.js';
 import { StudentRepositoryImpl } from './infrastructure/database/repositories/StudentRepositoryImpl.js';
 import { AssignmentRepositoryImpl } from './infrastructure/database/repositories/AssignmentRepositoryImpl.js';
 import { InMemoryStudentRepository } from './infrastructure/database/repositories/InMemoryStudentRepository.js';
@@ -18,8 +23,13 @@ import { CreateAssignmentUseCase, GetAssignmentUseCase, ListAssignmentsUseCase }
 import { StudentController } from './presentation/controllers/StudentController.js';
 import { AssignmentController } from './presentation/controllers/AssignmentController.js';
 import { GradeAssignmentUseCase } from './application/assignment/GradeAssignmentUseCase.js';
+import { CourseworkService } from './coursework/coursework.service.js';
+import { CourseworkController } from './coursework/coursework.controller.js';
+import { CourseworkSeeder } from './coursework/coursework.seeder.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
+
+const ALL_ENTITIES = [StudentEntity, AssignmentEntity, SubmissionEntity, GradeEntity, AcademicGroupEntity];
 
 const dynamicImports: any[] = [
   ConfigModule.forRoot({
@@ -37,21 +47,24 @@ if (usePostgres) {
         port: Number(configService.get<number>('DB_PORT', 5432)),
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('DB_NAME', 'assignment_db'),
-        entities: [StudentEntity, AssignmentEntity],
+        database: configService.get<string>('ASSIGNMENT_DB_NAME', 'assignment_db'),
+        entities: ALL_ENTITIES,
         synchronize: true,
         retryAttempts: 2,
         retryDelay: 1000,
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([StudentEntity, AssignmentEntity]),
+    TypeOrmModule.forFeature(ALL_ENTITIES),
   );
 }
 
+const courseworkControllers = usePostgres ? [CourseworkController] : [];
+const courseworkProviders = usePostgres ? [CourseworkService, CourseworkSeeder] : [];
+
 @Module({
   imports: dynamicImports,
-  controllers: [StudentController, AssignmentController],
+  controllers: [StudentController, AssignmentController, ...courseworkControllers],
   providers: [
     {
       provide: STUDENT_REPOSITORY_TOKEN,
@@ -77,6 +90,7 @@ if (usePostgres) {
     GetAssignmentUseCase,
     ListAssignmentsUseCase,
     GradeAssignmentUseCase,
+    ...courseworkProviders,
   ],
 })
 export class AssignmentModule {}

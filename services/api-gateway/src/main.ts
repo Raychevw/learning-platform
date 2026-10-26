@@ -3,6 +3,18 @@ import express, { Request, Response } from 'express';
 const app = express();
 app.use(express.json());
 
+// Enable CORS for frontend
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-role, x-user-id');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
 const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:3001';
 const ASSIGNMENT_SERVICE_URL = process.env.ASSIGNMENT_SERVICE_URL || 'http://localhost:3002';
 const PORT = process.env.PORT || 3000;
@@ -13,7 +25,6 @@ app.get('/health', async (req: Request, res: Response) => {
     try {
       const resp = await fetch(`${url}/courses`, { signal: AbortSignal.timeout(1500) }).catch(() => null);
       if (resp && resp.ok) return 'UP';
-      // Try base endpoint
       const baseResp = await fetch(url, { signal: AbortSignal.timeout(1500) }).catch(() => null);
       return baseResp ? 'UP' : 'DOWN';
     } catch {
@@ -52,25 +63,14 @@ app.get('/', (req: Request, res: Response) => {
     description: 'Single Entry Point for all microservices',
     endpoints: {
       health: 'GET /health',
-      courses: {
-        list: 'GET /api/courses',
-        create: 'POST /api/courses',
-        getById: 'GET /api/courses/:id',
-        publish: 'POST /api/courses/:id/publish',
-      },
-      assignments: {
-        list: 'GET /api/assignments',
-        create: 'POST /api/assignments',
-        getById: 'GET /api/assignments/:id',
-      },
-      students: {
-        register: 'POST /api/students',
-        getById: 'GET /api/students/:id',
-      },
-      documentation: {
-        courseServiceSwagger: `${COURSE_SERVICE_URL}/api/docs`,
-        assignmentServiceSwagger: `${ASSIGNMENT_SERVICE_URL}/api/docs`,
-      },
+      catalog: 'GET /api/catalog, POST /api/catalog',
+      courses: 'GET /api/courses, POST /api/courses, GET /api/courses/:id',
+      assignments: 'GET /api/assignments, GET /api/assignments-full, POST /api/assignments-full',
+      submissions: 'POST /api/assignments/:id/submit',
+      grading: 'POST /api/grading/grade, GET /api/grades',
+      groups: 'GET /api/groups, POST /api/groups',
+      webinars: 'GET /api/webinars, POST /api/webinars, PATCH /api/webinars/:id/status, POST /api/webinars/:id/chat',
+      students: 'POST /api/students, GET /api/students/:id',
     },
   });
 });
@@ -86,7 +86,7 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
       signal: AbortSignal.timeout(5000),
     };
 
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
       fetchOptions.body = JSON.stringify(req.body);
     }
 
@@ -114,26 +114,53 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
 // Route: Courses -> Course Service
 app.all('/api/courses*', (req: Request, res: Response) => {
   const targetPath = req.originalUrl.replace('/api/courses', '/courses');
-  const targetUrl = `${COURSE_SERVICE_URL}${targetPath}`;
-  proxyRequest(targetUrl, req, res);
+  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
 });
 
-// Route: Assignments -> Assignment Service
+// Route: Catalog (Courses + Modules + Lessons + Progress) -> Course Service
+app.all('/api/catalog*', (req: Request, res: Response) => {
+  const targetPath = req.originalUrl.replace('/api/catalog', '/catalog');
+  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
+});
+
+// Route: Webinars -> Course Service
+app.all('/api/webinars*', (req: Request, res: Response) => {
+  const targetPath = req.originalUrl.replace('/api/webinars', '/webinars');
+  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
+});
+
+// Route: Assignments & Submissions -> Assignment Service
 app.all('/api/assignments*', (req: Request, res: Response) => {
   const targetPath = req.originalUrl.replace('/api/assignments', '/assignments');
-  const targetUrl = `${ASSIGNMENT_SERVICE_URL}${targetPath}`;
-  proxyRequest(targetUrl, req, res);
+  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
+});
+
+// Route: Grading -> Assignment Service
+app.all('/api/grading*', (req: Request, res: Response) => {
+  const targetPath = req.originalUrl.replace('/api/grading', '/grading');
+  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
+});
+
+// Route: Grades -> Assignment Service
+app.all('/api/grades*', (req: Request, res: Response) => {
+  const targetPath = req.originalUrl.replace('/api/grades', '/grades');
+  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
+});
+
+// Route: Academic Groups -> Assignment Service
+app.all('/api/groups*', (req: Request, res: Response) => {
+  const targetPath = req.originalUrl.replace('/api/groups', '/groups');
+  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
 });
 
 // Route: Students -> Assignment Service
 app.all('/api/students*', (req: Request, res: Response) => {
   const targetPath = req.originalUrl.replace('/api/students', '/students');
-  const targetUrl = `${ASSIGNMENT_SERVICE_URL}${targetPath}`;
-  proxyRequest(targetUrl, req, res);
+  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
 });
 
 app.listen(PORT, () => {
   console.log(`[API GATEWAY] Running on http://localhost:${PORT}`);
-  console.log(`[API GATEWAY] Routing /api/courses -> ${COURSE_SERVICE_URL}`);
-  console.log(`[API GATEWAY] Routing /api/assignments & /api/students -> ${ASSIGNMENT_SERVICE_URL}`);
+  console.log(`[API GATEWAY] Routing /api/catalog, /api/courses, /api/webinars -> ${COURSE_SERVICE_URL}`);
+  console.log(`[API GATEWAY] Routing /api/assignments, /api/grading, /api/grades, /api/groups, /api/students -> ${ASSIGNMENT_SERVICE_URL}`);
 });

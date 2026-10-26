@@ -128,6 +128,191 @@
           "Courses"
         ]
       }
+    },
+    "/catalog": {
+      "get": {
+        "operationId": "CatalogController_list",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Full course catalog with modules, lessons and per-user progress",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a course (draft) with an introductory module and lecture",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/{courseId}/modules": {
+      "post": {
+        "operationId": "CatalogController_addModule",
+        "parameters": [
+          {
+            "name": "courseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Add a module to a course",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/modules/{moduleId}/lessons": {
+      "post": {
+        "operationId": "CatalogController_addLesson",
+        "parameters": [
+          {
+            "name": "moduleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Add a lesson / learning material to a module",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/lessons/{lessonId}/toggle": {
+      "post": {
+        "operationId": "CatalogController_toggle",
+        "parameters": [
+          {
+            "name": "lessonId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Toggle lesson completion for a user",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/webinars": {
+      "get": {
+        "operationId": "WebinarController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List webinars with chat history",
+        "tags": [
+          "Webinars"
+        ]
+      },
+      "post": {
+        "operationId": "WebinarController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Schedule a webinar",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
+    "/webinars/{id}/status": {
+      "patch": {
+        "operationId": "WebinarController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Change webinar status (SCHEDULED | LIVE | FINISHED)",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
+    "/webinars/{id}/chat": {
+      "post": {
+        "operationId": "WebinarController_chat",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Post a chat message to the webinar",
+        "tags": [
+          "Webinars"
+        ]
+      }
     }
   },
   "info": {

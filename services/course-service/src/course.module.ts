@@ -2,6 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
+import {
+  CourseModuleEntity,
+  LessonEntity,
+  LessonCompletionEntity,
+  WebinarEntity,
+} from './infrastructure/database/entities/CatalogEntities.js';
 import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
 import { InMemoryCourseRepository } from './infrastructure/database/repositories/InMemoryCourseRepository.js';
 import { COURSE_REPOSITORY_TOKEN } from './domain/course/CourseRepository.interface.js';
@@ -11,8 +17,13 @@ import { CreateCourseUseCase } from './application/course/CreateCourseUseCase.js
 import { PublishCourseUseCase } from './application/course/PublishCourseUseCase.js';
 import { GetCourseUseCase, ListCoursesUseCase } from './application/course/GetCourseUseCase.js';
 import { CourseController } from './presentation/controllers/CourseController.js';
+import { CatalogService } from './catalog/catalog.service.js';
+import { CatalogController, WebinarController } from './catalog/catalog.controller.js';
+import { CatalogSeeder } from './catalog/catalog.seeder.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
+
+const ALL_ENTITIES = [CourseEntity, CourseModuleEntity, LessonEntity, LessonCompletionEntity, WebinarEntity];
 
 const dynamicImports: any[] = [
   ConfigModule.forRoot({
@@ -30,21 +41,25 @@ if (usePostgres) {
         port: Number(configService.get<number>('DB_PORT', 5432)),
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('DB_NAME', 'course_db'),
-        entities: [CourseEntity],
+        database: configService.get<string>('COURSE_DB_NAME', 'course_db'),
+        entities: ALL_ENTITIES,
         synchronize: true,
         retryAttempts: 2,
         retryDelay: 1000,
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([CourseEntity]),
+    TypeOrmModule.forFeature(ALL_ENTITIES),
   );
 }
 
+// Catalog (modules, lessons, progress) and webinars require PostgreSQL
+const catalogControllers = usePostgres ? [CatalogController, WebinarController] : [];
+const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder] : [];
+
 @Module({
   imports: dynamicImports,
-  controllers: [CourseController],
+  controllers: [CourseController, ...catalogControllers],
   providers: [
     {
       provide: COURSE_REPOSITORY_TOKEN,
@@ -55,6 +70,7 @@ if (usePostgres) {
     PublishCourseUseCase,
     GetCourseUseCase,
     ListCoursesUseCase,
+    ...catalogProviders,
   ],
 })
 export class CourseModule {}

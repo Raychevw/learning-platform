@@ -1,0 +1,103 @@
+import { Entity, Column, PrimaryColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { CourseEntity } from './CourseEntity.js';
+
+@Entity('course_modules')
+export class CourseModuleEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 64 })
+  courseId!: string;
+
+  @ManyToOne(() => CourseEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'courseId' })
+  course?: CourseEntity;
+
+  @Column({ length: 255 })
+  title!: string;
+
+  @Column({ type: 'int', default: 0 })
+  orderIndex!: number;
+}
+
+@Entity('lessons')
+export class LessonEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 64 })
+  moduleId!: string;
+
+  @ManyToOne(() => CourseModuleEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'moduleId' })
+  module?: CourseModuleEntity;
+
+  @Column({ length: 255 })
+  title!: string;
+
+  /** Лекція | Методичка | Відео | Презентація */
+  @Column({ length: 64, default: 'Лекція' })
+  type!: string;
+
+  @Column({ type: 'text', default: '' })
+  content!: string;
+
+  @Column({ type: 'int', default: 0 })
+  orderIndex!: number;
+}
+
+@Entity('lesson_completions')
+export class LessonCompletionEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  lessonId!: string;
+
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  userId!: string;
+
+  @ManyToOne(() => LessonEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'lessonId' })
+  lesson?: LessonEntity;
+
+  @Column({ type: 'timestamp with time zone', default: () => 'now()' })
+  completedAt!: Date;
+}
+
+export interface WebinarChatMessage {
+  id: string;
+  senderName: string;
+  senderRole: string;
+  text: string;
+  time: string;
+}
+
+@Entity('webinars')
+export class WebinarEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 64 })
+  courseId!: string;
+
+  @ManyToOne(() => CourseEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'courseId' })
+  course?: CourseEntity;
+
+  @Column({ length: 255 })
+  title!: string;
+
+  @Column({ length: 255, default: '' })
+  instructor!: string;
+
+  @Column({ type: 'timestamp with time zone' })
+  scheduledAt!: Date;
+
+  /** SCHEDULED | LIVE | FINISHED */
+  @Column({ length: 32, default: 'SCHEDULED' })
+  status!: string;
+
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  chat!: WebinarChatMessage[];
+}

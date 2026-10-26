@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:all": "npm --prefix services/course-service run build && npm --prefix services/assignment-service run build && npm --prefix services/api-gateway run build && npm run build",
+    "start:all": "powershell -ExecutionPolicy Bypass -File ./start-all.ps1",
+    "stop:all": "powershell -ExecutionPolicy Bypass -File ./stop-all.ps1",
     "lint": "eslint .",
     "preview": "vite preview",
     "start:course": "npm --prefix services/course-service start",
