@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service.js';
 import type { CreateCatalogCourseDto } from './catalog.service.js';
@@ -73,5 +73,12 @@ export class WebinarController {
   @ApiOperation({ summary: 'Post a chat message to the webinar' })
   chat(@Param('id') id: string, @Body() dto: { id?: string; senderName?: string; senderRole?: string; text: string; time?: string }) {
     return this.catalog.addChatMessage(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete or cancel a scheduled webinar' })
+  delete(@Param('id') id: string) {
+    return this.catalog.deleteWebinar(id);
   }
 }

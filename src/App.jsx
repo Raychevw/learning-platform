@@ -708,43 +708,108 @@ export default function App() {
   });
   const [gradingResult, setGradingResult] = useState(null);
 
+  const getDefaultWebinarDate = () => {
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    d.setMinutes(0);
+    d.setSeconds(0);
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+  };
+
   // Webinars & Zoom Room State
   const [activeWebinarId, setActiveWebinarId] = useState('web-1');
   const [chatInput, setChatInput] = useState('');
   const [newWebinarForm, setNewWebinarForm] = useState({
     courseId: 'c-1',
     title: '',
-    scheduledAt: '2026-10-25T16:00',
+    scheduledAt: getDefaultWebinarDate(),
   });
   const [streamSource, setStreamSource] = useState('slides'); // 'slides' | 'camera' | 'screen'
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [streamSeconds, setStreamSeconds] = useState(845); // 14:05 initial live timer
-  const [liveViewersCount, setLiveViewersCount] = useState(24);
   const [zoomViewMode, setZoomViewMode] = useState('speaker'); // 'speaker' | 'gallery'
   const [zoomSideTab, setZoomSideTab] = useState('chat'); // 'chat' | 'participants' | 'none'
   const videoStreamRef = useRef(null);
   const mediaStreamObjRef = useRef(null);
 
-  const zoomAttendees = useMemo(() => [
-    { id: 'usr-teacher', name: 'Дмитро Коваленко (Викладач)', role: 'teacher', isHost: true, isSpeaking: true, mic: !isMicMuted, camera: streamSource === 'camera' },
-    { id: 'usr-student', name: 'Олександр Петренко (Ви)', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: isHandRaised },
-    { id: 'usr-m1', name: 'Марія Бондаренко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
-    { id: 'usr-v2', name: 'Владислав Шевченко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
-    { id: 'usr-a3', name: 'Анна Ткаченко', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
-    { id: 'usr-d4', name: 'Денис Мельник', role: 'student', isHost: false, isSpeaking: false, mic: false, camera: false, hand: false },
-  ], [isMicMuted, streamSource, isHandRaised]);
-
-  const selectedCourse = useMemo(
-    () => courses.find((c) => c.id === selectedCourseId) || null,
-    [courses, selectedCourseId]
-  );
-
   const activeWebinar = useMemo(
     () => webinars.find((w) => w.id === activeWebinarId) || webinars[0] || null,
     [webinars, activeWebinarId]
   );
+
+  const zoomAttendees = useMemo(() => {
+    const list = [];
+    const isTeacher = userRole === 'teacher';
+    const currentName = currentUser?.name || (isTeacher ? 'Дмитро Коваленко, доц.' : 'Олександр Петренко');
+
+    // 1. Instructor / Host (Real teacher)
+    const instructorName = activeWebinar?.instructor || (isTeacher ? currentName : 'Дмитро Коваленко, доц.');
+    list.push({
+      id: isTeacher ? (currentUser?.id || 'usr-teacher') : 'usr-host',
+      name: isTeacher ? `${instructorName} (Ви)` : `${instructorName} (Викладач)`,
+      role: 'teacher',
+      isHost: true,
+      isMe: isTeacher,
+      isSpeaking: activeWebinar?.status === 'LIVE',
+      mic: isTeacher ? !isMicMuted : true,
+      camera: isTeacher && streamSource === 'camera',
+      hand: false,
+    });
+
+    // 2. Current Student (Logged in user)
+    if (!isTeacher) {
+      list.push({
+        id: currentUser?.id || 'usr-student',
+        name: `${currentName} (Ви)`,
+        role: 'student',
+        isHost: false,
+        isMe: true,
+        isSpeaking: false,
+        mic: !isMicMuted,
+        camera: false,
+        hand: isHandRaised,
+      });
+    }
+
+    // 3. Real students from academic groups enrolled in this course (no fake placeholders)
+    if (activeWebinar?.courseId) {
+      const courseGroups = (academicGroups || []).filter(
+        (g) => Array.isArray(g.assignedCourseIds) && g.assignedCourseIds.includes(activeWebinar.courseId)
+      );
+
+      const seenStudents = new Set();
+      if (currentUser?.name) {
+        seenStudents.add(currentUser.name.trim().toLowerCase());
+      }
+      seenStudents.add(instructorName.trim().toLowerCase());
+
+      courseGroups.forEach((group) => {
+        (group.studentsList || []).forEach((st) => {
+          const stName = (typeof st === 'string' ? st : st?.name || '').trim();
+          const lower = stName.toLowerCase();
+          if (stName && !seenStudents.has(lower)) {
+            seenStudents.add(lower);
+            list.push({
+              id: `real-std-${group.id}-${stName}`,
+              name: stName,
+              group: group.name,
+              role: 'student',
+              isHost: false,
+              isMe: false,
+              isSpeaking: false,
+              mic: false,
+              camera: false,
+              hand: false,
+            });
+          }
+        });
+      });
+    }
+
+    return list;
+  }, [activeWebinar, userRole, currentUser, isMicMuted, streamSource, isHandRaised, academicGroups]);
 
   const managingGroup = useMemo(
     () => academicGroups.find((g) => g.id === managingGroupId) || null,
@@ -1460,9 +1525,31 @@ export default function App() {
       return updated;
     });
     setActiveWebinarId(createdWeb.id);
-    setNewWebinarForm((prev) => ({ ...prev, title: '' }));
+    setNewWebinarForm((prev) => ({ ...prev, title: '', scheduledAt: getDefaultWebinarDate() }));
     appendEvent('course', 'Заплановано онлайн-заняття', `«${createdWeb.title}» (${createdWeb.courseTitle})`);
     showNotification(`Онлайн-заняття «${createdWeb.title}» додано до розкладу.`);
+  };
+
+  const handleDeleteWebinar = async (webinarId) => {
+    if (!window.confirm('Видалити це онлайн-заняття з розкладу?')) return;
+    await syncBackend(`/webinars/${webinarId}`, 'DELETE');
+    setWebinars((prev) => {
+      const updated = prev.filter((w) => w.id !== webinarId);
+      try {
+        const bc = new BroadcastChannel('studevo_live_webinar_bus');
+        bc.postMessage({ type: 'WEBINAR_UPDATE', payload: updated });
+        bc.close();
+      } catch {}
+      return updated;
+    });
+    if (activeWebinarId === webinarId) {
+      setWebinars((current) => {
+        const remaining = current.filter((w) => w.id !== webinarId);
+        setActiveWebinarId(remaining[0]?.id || null);
+        return current;
+      });
+    }
+    showNotification('Онлайн-заняття видалено з розкладу.');
   };
 
   const handleChangeWebinarStatus = async (webinarId, newStatus) => {
@@ -3089,6 +3176,18 @@ export default function App() {
                       >
                         Завершити
                       </button>
+                      <button
+                        type="button"
+                        className="btn-studevo-secondary"
+                        style={{ padding: '4px 10px', fontSize: '11px', color: '#c92a2a', borderColor: '#ffc9c9' }}
+                        title="Видалити заняття"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteWebinar(w.id);
+                        }}
+                      >
+                        🗑️ Видалити
+                      </button>
                     </div>
                   )}
                 </div>
@@ -3156,11 +3255,20 @@ export default function App() {
                     {zoomViewMode === 'gallery' && (
                       <div className="zoom-gallery-grid">
                         {zoomAttendees.map((att) => {
-                          const isHostAndLive = att.id === 'usr-teacher' && activeWebinar.status === 'LIVE';
+                          const isHostAndLive = att.isHost && activeWebinar.status === 'LIVE';
+                          const initials = att.name
+                            .replace(/\(.*\)/g, '')
+                            .trim()
+                            .split(' ')
+                            .map((p) => p[0])
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase() || 'ST';
                           return (
                             <div
                               key={att.id}
-                              className={`zoom-participant-tile ${att.isSpeaking ? 'active-speaker' : ''} ${att.id === (currentUser?.id || 'usr-student') ? 'is-me' : ''}`}
+                              className={`zoom-participant-tile ${att.isSpeaking ? 'active-speaker' : ''} ${att.isMe ? 'is-me' : ''}`}
                             >
                               {/* If teacher has camera on and we're on camera stream, show video on their tile */}
                               {isHostAndLive && streamSource === 'camera' ? (
@@ -3175,7 +3283,7 @@ export default function App() {
                                 />
                               ) : (
                                 <div className="zoom-tile-avatar">
-                                  {att.name.slice(0, 2).toUpperCase()}
+                                  {initials}
                                 </div>
                               )}
 
@@ -3187,6 +3295,7 @@ export default function App() {
                               <div className="zoom-tile-name-tag">
                                 <span>{att.name}</span>
                                 {att.isHost && <span style={{ color: '#2d8cff', fontWeight: 700 }}>(Організатор)</span>}
+                                {att.group && <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '4px' }}>[{att.group}]</span>}
                               </div>
                             </div>
                           );
@@ -3199,44 +3308,56 @@ export default function App() {
                       <div className="zoom-speaker-view">
                         {/* Top Participants Ribbon */}
                         <div className="zoom-participants-ribbon">
-                          {zoomAttendees.map((att) => (
-                            <div key={att.id} className="zoom-ribbon-tile">
-                              <div
-                                style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '50%',
-                                  background: att.isHost ? '#2d8cff' : '#495057',
-                                  color: '#fff',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontWeight: 700,
-                                  fontSize: '13px',
-                                }}
-                              >
-                                {att.name.slice(0, 2).toUpperCase()}
+                          {zoomAttendees.map((att) => {
+                            const ribbonInitials = att.name
+                              .replace(/\(.*\)/g, '')
+                              .trim()
+                              .split(' ')
+                              .map((p) => p[0])
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase() || 'ST';
+                            const shortFirstName = att.name.replace(/\(.*\)/g, '').trim().split(' ')[0];
+                            return (
+                              <div key={att.id} className="zoom-ribbon-tile">
+                                <div
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '50%',
+                                    background: att.isHost ? '#2d8cff' : '#495057',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 700,
+                                    fontSize: '13px',
+                                  }}
+                                >
+                                  {ribbonInitials}
+                                </div>
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: '4px',
+                                    left: '6px',
+                                    right: '6px',
+                                    fontSize: '10px',
+                                    color: '#ffffff',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    background: 'rgba(0,0,0,0.6)',
+                                    padding: '1px 4px',
+                                    borderRadius: '3px',
+                                  }}
+                                >
+                                  {shortFirstName} {att.mic ? '🎙️' : '🔇'}
+                                </div>
                               </div>
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  bottom: '4px',
-                                  left: '6px',
-                                  right: '6px',
-                                  fontSize: '10px',
-                                  color: '#ffffff',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  background: 'rgba(0,0,0,0.6)',
-                                  padding: '1px 4px',
-                                  borderRadius: '3px',
-                                }}
-                              >
-                                {att.name.split(' ')[0]} {att.mic ? '🎙️' : '🔇'}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
 
                         {/* Main Spotlight Center (Active Presentation or Stream or Waiting Screen) */}
@@ -3347,6 +3468,16 @@ export default function App() {
                             <div key={att.id} className="zoom-participant-row">
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <strong>{att.name}</strong>
+                                {att.isHost && (
+                                  <span style={{ fontSize: '11px', color: '#2d8cff', fontWeight: 600 }}>
+                                    (Організатор)
+                                  </span>
+                                )}
+                                {att.group && (
+                                  <span style={{ fontSize: '11px', color: '#888', background: '#f1f3f5', padding: '1px 6px', borderRadius: '4px' }}>
+                                    {att.group}
+                                  </span>
+                                )}
                               </div>
                               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                 {att.hand && <span>✋</span>}

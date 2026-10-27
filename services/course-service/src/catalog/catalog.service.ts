@@ -227,4 +227,11 @@ export class CatalogService {
     await this.webinars.save(webinar);
     return message;
   }
+
+  async deleteWebinar(id: string) {
+    const webinar = await this.webinars.findOneBy({ id });
+    if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
+    await this.webinars.remove(webinar);
+    return { ok: true, id };
+  }
 }
