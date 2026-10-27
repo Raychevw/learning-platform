@@ -811,6 +811,11 @@ export default function App() {
     return list;
   }, [activeWebinar, userRole, currentUser, isMicMuted, streamSource, isHandRaised, academicGroups]);
 
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === selectedCourseId) || null,
+    [courses, selectedCourseId]
+  );
+
   const managingGroup = useMemo(
     () => academicGroups.find((g) => g.id === managingGroupId) || null,
     [academicGroups, managingGroupId]
