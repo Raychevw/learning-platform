@@ -98,10 +98,18 @@ export default function Dashboard({
   const upcoming = useMemo(() => {
     return assignments
       .filter((assignment) => assignment.deadline)
+      .filter((assignment) => {
+        const days = daysUntil(assignment.deadline);
+        if (days !== null && days < 0) return false;
+        if (isStudent && (assignment.submissions || []).some((submission) => submission.studentId === currentUser?.id)) {
+          return false;
+        }
+        return true;
+      })
       .map((assignment) => ({ ...assignment, days: daysUntil(assignment.deadline) }))
       .sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999))
       .slice(0, 5);
-  }, [assignments]);
+  }, [assignments, isStudent, currentUser?.id]);
 
   const pendingCount = useMemo(() => {
     if (!isStudent) return ungradedSubmissions.length;

@@ -162,7 +162,6 @@ const WEBINARS: Array<
   Omit<
     WebinarEntity,
     | 'course'
-    | 'meetingUrl'
     | 'recordingKey'
     | 'recordingName'
     | 'recordingSize'
@@ -177,6 +176,7 @@ const WEBINARS: Array<
     instructor: 'Дмитро Коваленко, доц.',
     scheduledAt: new Date(Date.now() - 15 * 60 * 1000),
     status: 'LIVE',
+    meetingUrl: 'https://meet.jit.si/studevo-architecture',
     chat: [],
   },
   {
@@ -186,6 +186,7 @@ const WEBINARS: Array<
     instructor: 'Олена Грищенко, ст. викл.',
     scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
     status: 'SCHEDULED',
+    meetingUrl: 'https://meet.jit.si/studevo-design-review',
     chat: [],
   },
 ];

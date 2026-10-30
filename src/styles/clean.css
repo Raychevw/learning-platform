@@ -695,6 +695,32 @@ body {
   box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.18);
 }
 
+.form-group-field label.file-dropzone-box,
+.file-dropzone-box {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.file-dropzone-box > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.file-dropzone-box > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.file-dropzone-box > div strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .assignment-hint {
   background: #f9fafb;
   border: 1px solid var(--clean-border);
@@ -726,6 +752,25 @@ body {
   border-radius: 6px;
   background: #eef2ff;
   color: #3538cd;
+}
+
+.login-quick-fill-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.login-quick-fill-bar > span {
+  white-space: nowrap;
+}
+
+.login-quick-fill-bar > div {
+  display: flex;
+  gap: 6px;
+}
+
+.login-quick-chip {
+  flex: 1 1 0;
 }
 
 .message-row {

@@ -9,6 +9,8 @@ import {
   EnrollmentEntity,
 } from '../infrastructure/database/entities/CourseworkEntities.js';
 
+const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
 const DEMO_ASSIGNMENTS = [
   {
     id: 'asg-1',
@@ -17,7 +19,7 @@ const DEMO_ASSIGNMENTS = [
     title: 'Лабораторна робота 3: Проектування REST API та взаємодії модулів',
     description: 'Спроектувати контракти взаємодії між модулями курсів та оцінювання.',
     type: 'Лабораторна',
-    dueDate: new Date('2026-10-18T23:59:00.000Z'),
+    dueDate: daysFromNow(5),
     maxScore: 100,
     rubricTitle: 'Чиста архітектура (3 критерії)',
     isCourseVerified: true,
@@ -34,7 +36,7 @@ const DEMO_ASSIGNMENTS = [
     title: 'Лабораторна робота 4: Патерни Decorator та Strategy',
     description: 'Реалізувати гнучкий розрахунок підсумкових балів та кешування даних.',
     type: 'Лабораторна',
-    dueDate: new Date('2026-10-24T23:59:00.000Z'),
+    dueDate: daysFromNow(12),
     maxScore: 100,
     rubricTitle: 'Шаблони проектування GoF',
     isCourseVerified: true,
@@ -51,7 +53,7 @@ const DEMO_ASSIGNMENTS = [
     title: 'Практична робота 2: Макет навчального кабінету',
     description: 'Розробити інтерактивний дизайн-прототип системи навчання.',
     type: 'Практична',
-    dueDate: new Date('2026-10-28T23:59:00.000Z'),
+    dueDate: daysFromNow(19),
     maxScore: 100,
     rubricTitle: 'Ергономіка та дизайн',
     isCourseVerified: true,

@@ -35,6 +35,14 @@ function getDefaultWebinarDate() {
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 }
 
+/** Дедлайн за замовчуванням — через 7 днів, 23:59. */
+function getDefaultDeadline(days = 7) {
+  const d = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  d.setHours(23, 59, 0, 0);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+}
+
 function calcCourseProgress(modules) {
   if (!modules || modules.length === 0) return 0;
   const allLessons = modules.flatMap((m) => m.lessons || []);
@@ -431,7 +439,7 @@ export default function App() {
     type: 'Лабораторна',
     maxScore: 100,
     openAt: '',
-    deadline: '2026-10-29T23:59',
+    deadline: getDefaultDeadline(),
     allowedFormats: 'pdf, docx',
     rubricTitle: 'Критерії оцінювання роботи',
     crit1Name: 'Архітектура та якість коду',
@@ -866,7 +874,7 @@ export default function App() {
     appendAuditLog('Створення нового завдання', createdAsg.title, 'ALLOWED');
     appendEvent('course', 'Нове завдання', `«${createdAsg.title}» (${createdAsg.courseTitle})`);
     showNotification(`Завдання «${createdAsg.title}» успішно опубліковано.`);
-    setNewAssignment((prev) => ({ ...prev, title: '', description: '' }));
+    setNewAssignment((prev) => ({ ...prev, title: '', description: '', deadline: getDefaultDeadline() }));
   };
 
   const formatBytes = (bytes) => {
@@ -1576,8 +1584,8 @@ export default function App() {
               <span className="logo-title">STUDEVO</span>
             </div>
             <h2>Вхід до особистого кабінету</h2>
-            <p style={{ color: '#64748b', fontSize: 12, margin: '6px 0 0' }}>
-              Університетський SSO · захищено JWT
+            <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, margin: '6px 0 0' }}>
+              Єдиний вхід для студентів, викладачів і деканату
             </p>
           </div>
 
@@ -1617,7 +1625,7 @@ export default function App() {
             </button>
 
             <div className="login-quick-fill-bar">
-              <span>Демо-доступ (пароль 123456):</span>
+              <span>Демо-доступ · пароль 123456</span>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   type="button"
@@ -1683,6 +1691,9 @@ export default function App() {
     if (submission) setSelectedSubmissionId(submission.id);
     setActiveMenu('grades');
   };
+
+  const visibleCourses =
+    userRole === 'student' ? courses.filter((course) => course.isPublished !== false) : courses;
 
   const submissionTarget =
     assignments.find((assignment) => assignment.id === submissionForm.assignmentId) || assignments[0] || null;
@@ -2014,7 +2025,7 @@ export default function App() {
             )}
 
             <div className="courses-grid-cards">
-              {courses.map((c) => (
+              {visibleCourses.map((c) => (
                 <div
                   key={c.id}
                   className="course-academic-card"
@@ -2268,7 +2279,9 @@ export default function App() {
                     </div>
 
                     <div className="form-group-field" style={{ marginBottom: 0 }}>
-                      <label>Файл звіту (PDF, DOCX, ZIP)</label>
+                      <label>
+                        Файл звіту ({allowedSubmissionFormats.map((format) => format.toUpperCase()).join(', ')})
+                      </label>
                       <label className="file-dropzone-box">
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <strong>{submissionForm.fileName || 'Файл не вибрано'}</strong>
