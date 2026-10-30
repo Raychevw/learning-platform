@@ -237,6 +237,9 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
   try {
     const incomingContentType = String(req.headers['content-type'] || '');
     const isMultipart = incomingContentType.startsWith('multipart/form-data');
+    const acceptsSse =
+      String(req.headers.accept || '').includes('text/event-stream') ||
+      req.originalUrl.includes('/stream');
 
     const headers: Record<string, string> = {
       'X-Request-Id': requestId,
@@ -260,7 +263,8 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
     const fetchOptions: RequestInit & { duplex?: 'half' } = {
       method: req.method,
       headers,
-      signal: AbortSignal.timeout(isMultipart ? 60_000 : 15_000),
+      // SSE-соединение живёт долго — таймаут для него не ставим.
+      ...(acceptsSse ? {} : { signal: AbortSignal.timeout(isMultipart ? 60_000 : 15_000) }),
     };
 
     if (isMultipart) {
@@ -274,6 +278,28 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
     const response = await fetch(targetUrl, fetchOptions);
     const contentType = response.headers.get('content-type') || '';
     res.status(response.status);
+
+    // SSE: не буферизуем, сразу отдаём поток клиенту.
+    if (contentType.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      if (!response.body) {
+        res.end();
+        return;
+      }
+
+      const upstream = Readable.fromWeb(response.body as unknown as import('node:stream/web').ReadableStream);
+      upstream.pipe(res);
+      req.on('close', () => {
+        upstream.destroy();
+        response.body?.cancel().catch(() => undefined);
+      });
+      return;
+    }
 
     if (contentType.includes('application/json')) {
       res.json(await response.json());

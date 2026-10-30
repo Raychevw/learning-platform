@@ -21,6 +21,7 @@ import { CourseController } from './presentation/controllers/CourseController.js
 import { CatalogService } from './catalog/catalog.service.js';
 import { CatalogController, WebinarController } from './catalog/catalog.controller.js';
 import { CatalogSeeder } from './catalog/catalog.seeder.js';
+import { WebinarEventsService } from './catalog/webinar-events.service.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { AuthGuard } from './auth/auth.guard.js';
 
@@ -58,7 +59,7 @@ if (usePostgres) {
 
 // Catalog (modules, lessons, progress) and webinars require PostgreSQL
 const catalogControllers = usePostgres ? [CatalogController, WebinarController] : [];
-const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder] : [];
+const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, WebinarEventsService] : [];
 
 @Module({
   imports: dynamicImports,

@@ -1,8 +1,25 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  Sse,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Observable, interval, map, merge } from 'rxjs';
+import type { MessageEvent } from '@nestjs/common';
 import { CatalogService } from './catalog.service.js';
 import type { CreateCatalogCourseDto } from './catalog.service.js';
 import { Roles, UserRole } from '../auth/auth.guard.js';
+import type { AuthUser } from '../auth/auth.guard.js';
+import { WebinarEventsService } from './webinar-events.service.js';
 
 @ApiTags('Catalog (courses, modules, lessons)')
 @Controller('catalog')
@@ -51,7 +68,10 @@ export class CatalogController {
 @ApiTags('Webinars')
 @Controller('webinars')
 export class WebinarController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly events: WebinarEventsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List webinars with chat history' })
@@ -59,12 +79,35 @@ export class WebinarController {
     return this.catalog.listWebinars();
   }
 
+  /**
+   * Server-Sent Events: чат, статус эфира и новые вебинары в реальном времени.
+   * Авторизация — обычный Bearer-токен (клиент читает поток через fetch).
+   */
+  @Sse('stream')
+  @ApiOperation({ summary: 'Realtime webinar stream (SSE): chat, status, new webinars' })
+  stream(): Observable<MessageEvent> {
+    const heartbeat = interval(20000).pipe(
+      map(() => ({ data: { type: 'ping', at: Date.now() } }) as MessageEvent),
+    );
+    const events = this.events
+      .asObservable()
+      .pipe(map((event) => ({ data: event }) as MessageEvent));
+    return merge(events, heartbeat);
+  }
+
   @Post()
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Schedule a webinar' })
-  create(@Body() dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string }) {
-    return this.catalog.createWebinar(dto);
+  create(
+    @Body() dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string },
+    @Req() req: { user?: AuthUser },
+  ) {
+    return this.catalog.createWebinar({
+      ...dto,
+      instructor: req.user?.name || dto.instructor,
+      senderRole: req.user?.role ? req.user.role.toLowerCase() : dto.senderRole,
+    });
   }
 
   @Patch(':id/status')
@@ -77,8 +120,17 @@ export class WebinarController {
   @Post(':id/chat')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Post a chat message to the webinar' })
-  chat(@Param('id') id: string, @Body() dto: { id?: string; senderName?: string; senderRole?: string; text: string; time?: string }) {
-    return this.catalog.addChatMessage(id, dto);
+  chat(
+    @Param('id') id: string,
+    @Body() dto: { id?: string; senderName?: string; senderRole?: string; text: string; time?: string },
+    @Req() req: { user?: AuthUser },
+  ) {
+    // Личность автора берём из токена, а не из тела запроса.
+    return this.catalog.addChatMessage(id, {
+      ...dto,
+      senderName: req.user?.name || dto.senderName,
+      senderRole: req.user?.role ? req.user.role.toLowerCase() : dto.senderRole,
+    });
   }
 
   @Delete(':id')

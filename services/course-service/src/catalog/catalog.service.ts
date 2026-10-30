@@ -9,6 +9,7 @@ import {
   WebinarEntity,
   WebinarChatMessage,
 } from '../infrastructure/database/entities/CatalogEntities.js';
+import { WebinarEventsService } from './webinar-events.service.js';
 
 export const newId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -35,6 +36,7 @@ export class CatalogService {
     @InjectRepository(LessonCompletionEntity) private readonly completions: Repository<LessonCompletionEntity>,
     @InjectRepository(WebinarEntity) private readonly webinars: Repository<WebinarEntity>,
     private readonly dataSource: DataSource,
+    private readonly events: WebinarEventsService,
   ) {}
 
   // ----------------------------------------------------------------- courses
@@ -204,7 +206,9 @@ export class CatalogService {
         ],
       }),
     );
-    return this.toWebinarDto(webinar, course.title);
+    const created = this.toWebinarDto(webinar, course.title);
+    this.events.emit({ type: 'webinar', webinarId: webinar.id, webinar: created });
+    return created;
   }
 
   async changeWebinarStatus(id: string, status: string) {
@@ -214,6 +218,7 @@ export class CatalogService {
     if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
     webinar.status = status;
     await this.webinars.save(webinar);
+    this.events.emit({ type: 'status', webinarId: id, status });
     return { id, status };
   }
 
@@ -230,6 +235,7 @@ export class CatalogService {
     };
     webinar.chat = [...(webinar.chat || []), message];
     await this.webinars.save(webinar);
+    this.events.emit({ type: 'chat', webinarId: id, message });
     return message;
   }
 
@@ -237,6 +243,7 @@ export class CatalogService {
     const webinar = await this.webinars.findOneBy({ id });
     if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
     await this.webinars.remove(webinar);
+    this.events.emit({ type: 'deleted', webinarId: id });
     return { ok: true, id };
   }
 }

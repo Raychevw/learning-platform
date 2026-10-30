@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
-import { api, requestBlob } from './api/client.js';
+import { api, getToken, requestBlob } from './api/client.js';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
 import {
@@ -106,6 +106,98 @@ export default function App() {
     load();
     return () => {
       isCancelled = true;
+    };
+  }, [currentUser]);
+
+  // Real-time webinar events across devices (SSE through the API Gateway).
+  // BroadcastChannel ниже остаётся как fallback для вкладок одного браузера.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+
+    const controller = new AbortController();
+    let stopped = false;
+
+    const applyEvent = (event) => {
+      if (!event || event.type === 'ping') return;
+
+      if (event.type === 'chat' && event.webinarId && event.message) {
+        setWebinars((prev) =>
+          prev.map((w) => {
+            if (w.id !== event.webinarId) return w;
+            const chat = w.chat || [];
+            // Оптимистично добавленное сообщение уже есть — не дублируем.
+            if (event.message.id && chat.some((m) => m.id === event.message.id)) return w;
+            return { ...w, chat: [...chat, event.message] };
+          })
+        );
+        return;
+      }
+
+      if (event.type === 'status' && event.webinarId) {
+        setWebinars((prev) => prev.map((w) => (w.id === event.webinarId ? { ...w, status: event.status } : w)));
+        return;
+      }
+
+      if (event.type === 'webinar' && event.webinar?.id) {
+        setWebinars((prev) =>
+          prev.some((w) => w.id === event.webinar.id)
+            ? prev.map((w) => (w.id === event.webinar.id ? { ...w, ...event.webinar } : w))
+            : [event.webinar, ...prev]
+        );
+        return;
+      }
+
+      if (event.type === 'deleted' && event.webinarId) {
+        setWebinars((prev) => prev.filter((w) => w.id !== event.webinarId));
+      }
+    };
+
+    const connect = async () => {
+      try {
+        const response = await fetch('/api/webinars/stream', {
+          headers: {
+            Accept: 'text/event-stream',
+            Authorization: `Bearer ${getToken() || ''}`,
+          },
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (!stopped) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() || '';
+
+          for (const chunk of chunks) {
+            const data = chunk
+              .split('\n')
+              .filter((line) => line.startsWith('data:'))
+              .map((line) => line.slice(5).trim())
+              .join('\n');
+            if (!data) continue;
+            try {
+              applyEvent(JSON.parse(data));
+            } catch {
+              /* игнорируем некорректный кадр */
+            }
+          }
+        }
+      } catch {
+        /* сервер недоступен или соединение закрыто — работаем без live-обновлений */
+      }
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      controller.abort();
     };
   }, [currentUser]);
 
@@ -1194,7 +1286,7 @@ export default function App() {
     e.preventDefault();
     if (!chatInput.trim() || !activeWebinar) return;
     const msg = {
-      id: `msg-${Date.now()}`,
+      id: newId('msg'),
       senderName: currentUser?.name || 'Користувач',
       senderRole: userRole,
       text: chatInput.trim(),

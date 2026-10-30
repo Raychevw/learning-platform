@@ -281,6 +281,21 @@
         ]
       }
     },
+    "/webinars/stream": {
+      "get": {
+        "operationId": "WebinarController_stream",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Realtime webinar stream (SSE): chat, status, new webinars",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
     "/webinars/{id}/status": {
       "patch": {
         "operationId": "WebinarController_status",
