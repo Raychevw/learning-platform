@@ -35,6 +35,16 @@ function getDefaultWebinarDate() {
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 }
 
+/** Українське відмінювання для кількості навчальних матеріалів. */
+function materialCountLabel(count) {
+  const n = Number(count) || 0;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} матеріал`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} матеріали`;
+  return `${n} матеріалів`;
+}
+
 /** Дедлайн за замовчуванням — через 7 днів, 23:59. */
 function getDefaultDeadline(days = 7) {
   const d = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -3661,10 +3671,16 @@ export default function App() {
       {selectedCourse && (
         <div className="modal-overlay" onClick={() => setSelectedCourseId(null)}>
           <div className="modal-window modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{selectedCourse.title}</h3>
+            <div className="modal-header course-view-header">
+              <div>
+                <h3>{selectedCourse.title}</h3>
+                <div className="course-view-header-sub">
+                  Навчальна дисципліна · Семестр {selectedCourse.semester}
+                </div>
+              </div>
               <button
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}
+                type="button"
+                className="modal-close-btn"
                 onClick={() => setSelectedCourseId(null)}
               >
                 ✕
@@ -3672,56 +3688,47 @@ export default function App() {
             </div>
 
             <div className="modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
-                <img
-                  src={selectedCourse.cover}
-                  alt={selectedCourse.title}
-                  style={{ width: '130px', height: '82px', objectFit: 'cover', borderRadius: '8px' }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
-                    Викладач: {selectedCourse.instructor}
+              <div className="course-view-hero">
+                <div className="course-view-cover">
+                  <img src={selectedCourse.cover} alt={selectedCourse.title} />
+                </div>
+                <div className="course-view-info">
+                  <div className="course-view-instructor">{selectedCourse.instructor}</div>
+                  <div className="course-view-meta">
+                    <span className="meta-chip">Семестр {selectedCourse.semester}</span>
+                    <span className="meta-chip">{selectedCourse.modules?.length || 0} модулі</span>
+                    <span className="meta-chip">{selectedCourse.totalHours} годин</span>
                   </div>
-                  <div style={{ color: 'var(--studevo-text-muted)', fontSize: '12px', marginBottom: '6px' }}>
-                    Семестр {selectedCourse.semester} • {selectedCourse.modules?.length || 0} модулі • {selectedCourse.totalHours} годин
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        backgroundColor: selectedCourse.isPublished ? '#ebfbee' : '#fff5f5',
-                        color: selectedCourse.isPublished ? '#2b8a3e' : '#c92a2a',
-                      }}
-                    >
+                  <div className="course-view-status-row">
+                    <span className={`dash-status ${selectedCourse.isPublished ? 'done' : 'pending'}`}>
                       {selectedCourse.isPublished ? 'Опубліковано' : 'Чернетка'}
                     </span>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--studevo-red-dark)' }}>
-                      Прогрес курсу: {selectedCourse.progress}%
-                    </span>
+                    <span className="course-progress-label">Прогрес {selectedCourse.progress}%</span>
+                  </div>
+                  <div className="course-progress-track">
+                    <span style={{ width: `${selectedCourse.progress}%` }} />
                   </div>
                 </div>
               </div>
 
-              <p style={{ color: '#495057', margin: '0 0 16px 0', fontSize: '13px', lineHeight: 1.45 }}>
-                {selectedCourse.description}
-              </p>
+              <p className="course-view-description">{selectedCourse.description}</p>
 
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
-                Змістові модулі та навчальні матеріали:
-              </h4>
+              <div className="course-view-section-head">
+                <h4>Змістові модулі та навчальні матеріали</h4>
+                <span className="dash-hint">
+                  {materialCountLabel(
+                    selectedCourse.modules?.reduce((sum, module) => sum + (module.lessons?.length || 0), 0) || 0
+                  )}
+                </span>
+              </div>
 
               {selectedCourse.modules && selectedCourse.modules.length > 0 ? (
-                selectedCourse.modules.map((m) => (
-                  <div
-                    key={m.id}
-                    style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', marginBottom: '12px', border: '1px solid #e9ecef' }}
-                  >
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '8px' }}>
-                      {m.title}
+                selectedCourse.modules.map((m, moduleIndex) => (
+                  <div key={m.id} className="course-module-card">
+                    <div className="course-module-head">
+                      <span className="course-module-index">{moduleIndex + 1}</span>
+                      <span className="course-module-title">{m.title}</span>
+                      <span className="course-module-count">{materialCountLabel(m.lessons?.length || 0)}</span>
                     </div>
                     {m.lessons && m.lessons.length > 0 ? (
                       m.lessons.map((l) => {
@@ -3732,31 +3739,20 @@ export default function App() {
                               className={`lesson-item-row ${isSelected ? 'active-lesson' : ''}`}
                               onClick={() => setActiveLessonId(isSelected ? null : l.id)}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ color: l.completed ? '#2b8a3e' : '#adb5bd', fontWeight: 700 }}>
-                                  {l.completed ? '✓' : '○'}
+                              <div className="lesson-main">
+                                <span className={`lesson-status-dot ${l.completed ? 'is-done' : ''}`}>
+                                  {l.completed ? '✓' : ''}
                                 </span>
-                                <span style={{ fontWeight: 600, fontSize: '12.5px' }}>{l.title}</span>
-                                <span
-                                  style={{
-                                    fontSize: '10px',
-                                    color: '#495057',
-                                    background: '#e9ecef',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {l.type}
-                                </span>
+                                <span className="lesson-title">{l.title}</span>
+                                <span className="lesson-type-badge">{l.type}</span>
                               </div>
 
-                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                              <div className="lesson-actions">
                                 {userRole === 'teacher' && (
                                   <button
                                     type="button"
                                     className="btn-studevo-outline"
-                                    style={{ padding: '3px 9px', fontSize: '11px' }}
+                                    style={{ padding: '4px 10px', fontSize: '11px' }}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingLesson({ ...l, file: null });
@@ -3768,13 +3764,13 @@ export default function App() {
                                 <button
                                   type="button"
                                   className={l.completed ? 'btn-studevo-secondary' : 'btn-studevo-outline'}
-                                  style={{ padding: '3px 9px', fontSize: '11px' }}
+                                  style={{ padding: '4px 10px', fontSize: '11px' }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleToggleLessonCompleted(selectedCourse.id, l.id);
                                   }}
                                 >
-                                  {l.completed ? 'Пройдено' : 'Відмітити як пройдене'}
+                                  {l.completed ? 'Пройдено' : 'Відмітити'}
                                 </button>
                               </div>
                             </div>
@@ -3910,9 +3906,9 @@ export default function App() {
               )}
 
               {userRole === 'teacher' && (
-                <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '2px dashed #dee2e6', display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '16px' }}>
-                  <form onSubmit={handleAddModuleToCourse} style={{ background: 'var(--studevo-red-light)', padding: '12px', borderRadius: '8px', border: '1px solid var(--studevo-accent-subtle)' }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--studevo-red-dark)', marginBottom: '8px' }}>
+                <div className="course-teacher-tools">
+                  <form onSubmit={handleAddModuleToCourse} className="course-add-panel">
+                    <div className="course-add-title">
                       Додати змістовий модуль
                     </div>
                     <div className="form-group-field">
@@ -3930,8 +3926,8 @@ export default function App() {
                     </button>
                   </form>
 
-                  <form onSubmit={handleAddLessonToModule} style={{ background: '#f8f9fa', padding: '12px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#343a40', marginBottom: '8px' }}>
+                  <form onSubmit={handleAddLessonToModule} className="course-add-panel muted">
+                    <div className="course-add-title muted">
                       Додати матеріал у модуль
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
