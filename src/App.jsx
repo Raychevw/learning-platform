@@ -85,6 +85,23 @@ export default function App() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [messageTab, setMessageTab] = useState('inbox');
   const [composeForm, setComposeForm] = useState({ recipientId: '', subject: '', body: '' });
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: '',
+    body: '',
+    audience: 'ALL',
+    groupId: '',
+  });
+  const [scheduleForm, setScheduleForm] = useState({
+    courseId: '',
+    groupId: '',
+    weekday: 1,
+    startTime: '09:00',
+    endTime: '10:30',
+    room: '',
+    lessonType: 'Лекція',
+    onlineUrl: '',
+  });
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
@@ -277,6 +294,29 @@ export default function App() {
       if (bc) bc.close();
     };
   }, []);
+
+  // Оголошення: підвантажуємо після входу та коли відома група студента.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    let cancelled = false;
+    const groupId = academicGroups.find((group) =>
+      (group.enrolledUserIds || []).includes(currentUser.id)
+    )?.id;
+    const query = groupId ? `?groupId=${encodeURIComponent(groupId)}` : '';
+
+    api
+      .get(`/api/announcements${query}`)
+      .then((list) => {
+        if (!cancelled && Array.isArray(list)) setAnnouncements(list);
+      })
+      .catch(() => {
+        /* сервис недоступен */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, academicGroups]);
 
   // Серверный журнал аудита и справочник пользователей (админские экраны)
   const [serverAuditLogs, setServerAuditLogs] = useState([]);
@@ -1705,6 +1745,59 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
+  const handleCreateAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!announcementForm.title.trim() || !announcementForm.body.trim()) return;
+
+    const res = await syncBackend('/announcements', 'POST', {
+      title: announcementForm.title.trim(),
+      body: announcementForm.body.trim(),
+      audience: announcementForm.audience,
+      groupId: announcementForm.audience === 'GROUP' ? announcementForm.groupId : undefined,
+    });
+    if (!res) return;
+
+    setAnnouncements((prev) => [res, ...prev]);
+    setAnnouncementForm({ title: '', body: '', audience: 'ALL', groupId: '' });
+    showNotification('Оголошення опубліковано.');
+  };
+
+  const handleDeleteAnnouncement = async (id) => {
+    const res = await syncBackend(`/announcements/${id}`, 'DELETE');
+    if (!res) return;
+    setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+    showNotification('Оголошення видалено.');
+  };
+
+  const handleCreateSchedule = async (e) => {
+    e.preventDefault();
+    if (!scheduleForm.courseId || !scheduleForm.groupId) {
+      showNotification('Оберіть дисципліну та групу.', true);
+      return;
+    }
+
+    const res = await syncBackend('/schedule', 'POST', {
+      ...scheduleForm,
+      weekday: Number(scheduleForm.weekday),
+    });
+    if (!res) return;
+
+    setSchedule((prev) =>
+      [...prev, res].sort(
+        (a, b) => Number(a.weekday) - Number(b.weekday) || a.startTime.localeCompare(b.startTime)
+      )
+    );
+    setScheduleForm((prev) => ({ ...prev, room: '', onlineUrl: '' }));
+    showNotification('Пару додано до розкладу.');
+  };
+
+  const handleDeleteSchedule = async (id) => {
+    const res = await syncBackend(`/schedule/${id}`, 'DELETE');
+    if (!res) return;
+    setSchedule((prev) => prev.filter((entry) => entry.id !== id));
+    showNotification('Пару видалено з розкладу.');
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const recipient = directory.find((user) => user.id === composeForm.recipientId);
@@ -2054,6 +2147,7 @@ export default function App() {
           { id: 'grades', label: 'Оцінки', icon: 'chart' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
+          { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
         ]
       : userRole === 'teacher'
       ? [
@@ -2061,14 +2155,18 @@ export default function App() {
           { id: 'courses', label: 'Мої курси', icon: 'book' },
           { id: 'assignments', label: 'Завдання', icon: 'check' },
           { id: 'grades', label: 'Оцінювання', icon: 'chart' },
+          { id: 'schedule', label: 'Розклад', icon: 'calendar' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
+          { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
         ]
       : [
           { id: 'dashboard', label: 'Панель', icon: 'grid' },
           { id: 'groups', label: 'Користувачі та групи', icon: 'users' },
           { id: 'grades', label: 'Відомості', icon: 'chart' },
+          { id: 'schedule', label: 'Розклад', icon: 'calendar' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
+          { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
           { id: 'audit', label: 'Журнал', icon: 'shield' },
         ];
 
@@ -2156,6 +2254,20 @@ export default function App() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect width="20" height="16" x="2" y="4" rx="2"></rect>
                       <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'calendar' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+                      <line x1="16" x2="16" y1="2" y2="6"></line>
+                      <line x1="8" x2="8" y1="2" y2="6"></line>
+                      <line x1="3" x2="21" y1="10" y2="10"></line>
+                    </svg>
+                  )}
+                  {item.icon === 'megaphone' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="m3 11 18-5v12L3 13v-2z"></path>
+                      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
                     </svg>
                   )}
                   <span>{item.label}</span>
@@ -2251,6 +2363,7 @@ export default function App() {
             schedule={schedule}
             allEnrollments={allEnrollments}
             analytics={analytics}
+            announcements={announcements}
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
@@ -2261,6 +2374,7 @@ export default function App() {
             onOpenGrades={() => setActiveMenu('grades')}
             onOpenWebinars={() => setActiveMenu('webinars')}
             onOpenGroups={() => setActiveMenu('groups')}
+            onOpenAnnouncements={() => setActiveMenu('announcements')}
           />
         )}
 
@@ -3833,7 +3947,301 @@ export default function App() {
           </div>
         )}
 
-        {/* 7. MESSAGES (student / teacher / dean) */}
+        {/* 7. SCHEDULE MANAGEMENT (teacher / dean) */}
+        {activeMenu === 'schedule' && (userRole === 'teacher' || userRole === 'admin') && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">Розклад занять</h2>
+            </div>
+
+            <div className="studevo-card" style={{ marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Додати пару
+              </h3>
+              <form onSubmit={handleCreateSchedule}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr', gap: '12px' }}>
+                  <div className="form-group-field">
+                    <label>Дисципліна</label>
+                    <select
+                      className="input-studevo-control"
+                      value={scheduleForm.courseId}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, courseId: e.target.value })}
+                      required
+                    >
+                      <option value="">— оберіть —</option>
+                      {courses
+                        .filter(
+                          (course) =>
+                            userRole === 'admin' || !course.ownerId || course.ownerId === currentUser?.id
+                        )
+                        .map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {course.title}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="form-group-field">
+                    <label>Група</label>
+                    <select
+                      className="input-studevo-control"
+                      value={scheduleForm.groupId}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, groupId: e.target.value })}
+                      required
+                    >
+                      <option value="">— оберіть —</option>
+                      {academicGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group-field">
+                    <label>День</label>
+                    <select
+                      className="input-studevo-control"
+                      value={scheduleForm.weekday}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, weekday: Number(e.target.value) })}
+                    >
+                      {['Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота', 'Неділя'].map(
+                        (day, index) => (
+                          <option key={day} value={index + 1}>
+                            {day}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 0.8fr 1fr 1fr 1.4fr', gap: '12px', marginTop: '12px' }}>
+                  <div className="form-group-field">
+                    <label>Початок</label>
+                    <input
+                      type="time"
+                      className="input-studevo-control"
+                      value={scheduleForm.startTime}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, startTime: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Кінець</label>
+                    <input
+                      type="time"
+                      className="input-studevo-control"
+                      value={scheduleForm.endTime}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Аудиторія</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={scheduleForm.room}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, room: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Тип</label>
+                    <select
+                      className="input-studevo-control"
+                      value={scheduleForm.lessonType}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, lessonType: e.target.value })}
+                    >
+                      <option value="Лекція">Лекція</option>
+                      <option value="Практика">Практика</option>
+                      <option value="Лабораторна">Лабораторна</option>
+                    </select>
+                  </div>
+                  <div className="form-group-field">
+                    <label>Посилання на онлайн</label>
+                    <input
+                      type="url"
+                      className="input-studevo-control"
+                      value={scheduleForm.onlineUrl}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, onlineUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="btn-studevo-primary" style={{ marginTop: '12px' }}>
+                  Додати пару
+                </button>
+              </form>
+            </div>
+
+            <div className="studevo-card">
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>День / час</th>
+                    <th>Дисципліна</th>
+                    <th>Група</th>
+                    <th>Аудиторія</th>
+                    <th>Тип</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {schedule.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
+                        Розклад порожній
+                      </td>
+                    </tr>
+                  ) : (
+                    schedule.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>
+                          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'][Number(entry.weekday) - 1]}{' '}
+                          {entry.startTime}–{entry.endTime}
+                        </td>
+                        <td>{entry.courseTitle}</td>
+                        <td>{academicGroups.find((g) => g.id === entry.groupId)?.name || entry.groupId}</td>
+                        <td>{entry.room || '—'}</td>
+                        <td>{entry.lessonType}</td>
+                        <td>
+                          <button
+                            className="btn-studevo-outline"
+                            style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                            onClick={() => handleDeleteSchedule(entry.id)}
+                          >
+                            Видалити
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 8. ANNOUNCEMENTS */}
+        {activeMenu === 'announcements' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">Оголошення</h2>
+            </div>
+
+            {(userRole === 'teacher' || userRole === 'admin') && (
+              <div className="studevo-card" style={{ marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                  Нове оголошення
+                </h3>
+                <form onSubmit={handleCreateAnnouncement}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: '12px' }}>
+                    <div className="form-group-field">
+                      <label>Заголовок</label>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        value={announcementForm.title}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group-field">
+                      <label>Аудиторія</label>
+                      <select
+                        className="input-studevo-control"
+                        value={announcementForm.audience}
+                        onChange={(e) => setAnnouncementForm({ ...announcementForm, audience: e.target.value })}
+                      >
+                        <option value="ALL">Усі</option>
+                        <option value="STUDENTS">Студенти</option>
+                        <option value="TEACHERS">Викладачі</option>
+                        <option value="GROUP">Група</option>
+                      </select>
+                    </div>
+                    {announcementForm.audience === 'GROUP' && (
+                      <div className="form-group-field">
+                        <label>Група</label>
+                        <select
+                          className="input-studevo-control"
+                          value={announcementForm.groupId}
+                          onChange={(e) => setAnnouncementForm({ ...announcementForm, groupId: e.target.value })}
+                          required
+                        >
+                          <option value="">— оберіть —</option>
+                          {academicGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div className="form-group-field">
+                    <label>Текст</label>
+                    <textarea
+                      rows="3"
+                      className="input-studevo-control"
+                      value={announcementForm.body}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, body: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn-studevo-primary">
+                    Опублікувати
+                  </button>
+                </form>
+              </div>
+            )}
+
+            <div className="studevo-card">
+              {announcements.length === 0 ? (
+                <p className="dash-empty">Оголошень немає.</p>
+              ) : (
+                announcements.map((item) => (
+                  <div key={item.id} className="message-row">
+                    <div className="message-head">
+                      <strong>{item.title}</strong>
+                      <span className="dash-hint">
+                        {new Date(item.createdAt).toLocaleString('uk-UA', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <div className="dash-hint" style={{ marginBottom: '6px' }}>
+                      {item.authorName} •{' '}
+                      {item.audience === 'ALL'
+                        ? 'усі'
+                        : item.audience === 'STUDENTS'
+                          ? 'студенти'
+                          : item.audience === 'TEACHERS'
+                            ? 'викладачі'
+                            : academicGroups.find((g) => g.id === item.groupId)?.name || 'група'}
+                    </div>
+                    <div className="message-body">{item.body}</div>
+                    {(userRole === 'admin' || item.authorId === currentUser?.id) && (
+                      <button
+                        type="button"
+                        className="btn-studevo-outline"
+                        style={{ marginTop: '8px', fontSize: '11.5px', padding: '4px 10px' }}
+                        onClick={() => handleDeleteAnnouncement(item.id)}
+                      >
+                        Видалити
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 9. MESSAGES (student / teacher / dean) */}
         {activeMenu === 'messages' && (
           <div>
             <div className="section-header-row">

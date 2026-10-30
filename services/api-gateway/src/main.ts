@@ -352,6 +352,7 @@ mountProxy('/api/submissions', ASSIGNMENT_SERVICE_URL, '/api/submissions', '/sub
 mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
 mountProxy('/api/audit', AUDIT_SERVICE_URL, '/api/audit', '/audit');
 mountProxy('/api/messages', COMMUNICATION_SERVICE_URL, '/api/messages', '/messages');
+mountProxy('/api/announcements', COMMUNICATION_SERVICE_URL, '/api/announcements', '/announcements');
 
 // ----------------------------------------------------------------- fallbacks
 app.use('/api', (req: Request, res: Response) => {

@@ -8,6 +8,10 @@ import { MessagesController } from './messages/messages.controller.js';
 import { AuthGuard } from './messages/message.guard.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
+import { Announcements1730000000001 } from './database/migrations/1730000000001-announcements.js';
+import { AnnouncementEntity } from './announcements/announcement.entity.js';
+import { AnnouncementsService } from './announcements/announcements.service.js';
+import { AnnouncementsController } from './announcements/announcements.controller.js';
 
 @Module({
   imports: [
@@ -21,8 +25,8 @@ import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'communication_db'),
-        entities: [MessageEntity],
-        migrations: [Init1730000000000],
+        entities: [MessageEntity, AnnouncementEntity],
+        migrations: [Init1730000000000, Announcements1730000000001],
         migrationsRun: true,
         synchronize: false,
         retryAttempts: 5,
@@ -30,9 +34,9 @@ import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([MessageEntity]),
+    TypeOrmModule.forFeature([MessageEntity, AnnouncementEntity]),
   ],
-  controllers: [HealthController, MessagesController],
-  providers: [MessagesService, { provide: APP_GUARD, useClass: AuthGuard }],
+  controllers: [HealthController, MessagesController, AnnouncementsController],
+  providers: [MessagesService, AnnouncementsService, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class CommunicationModule {}

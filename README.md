@@ -73,6 +73,10 @@
   відповідального викладача (`PATCH /api/catalog/:courseId/owner`).
 - **Повідомлення** — окремий `communication-service`: студент ↔ викладач ↔ деканат,
   вхідні/надіслані, непрочитані, довідник користувачів.
+- **Оголошення** — деканат/викладач публікує для всіх, студентів, викладачів або окремої
+  групи; показуються на панелі та окремій сторінці.
+- **Керування розкладом** — викладач/декан додає та видаляє пари (день, час, аудиторія,
+  тип, посилання на онлайн) з окремої сторінки.
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -222,6 +226,8 @@ POST /api/auth/login
 | GET/POST | `/api/messages/inbox`, `/api/messages` | вхідні та надсилання повідомлень |
 | GET | `/api/messages/sent`, `/api/messages/unread` | надіслані та кількість непрочитаних |
 | PATCH | `/api/messages/:id/read` | позначити прочитаним |
+| GET/POST | `/api/announcements` | оголошення (перегляд / публікація teacher, admin) |
+| DELETE | `/api/announcements/:id` | видалити оголошення (автор або admin) |
 | POST/DELETE | `/api/schedule`, `/api/schedule/:id` | керування розкладом (teacher/admin) |
 
 Полные спецификации: `contracts/*.json` (генерируются из Swagger) и `contracts/events-schema.json`.

@@ -134,6 +134,83 @@
           "Messages"
         ]
       }
+    },
+    "/announcements": {
+      "get": {
+        "operationId": "AnnouncementsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Announcements visible to the current user",
+        "tags": [
+          "Announcements"
+        ]
+      },
+      "post": {
+        "operationId": "AnnouncementsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnouncementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish an announcement (teacher/dean)",
+        "tags": [
+          "Announcements"
+        ]
+      }
+    },
+    "/announcements/{id}": {
+      "delete": {
+        "operationId": "AnnouncementsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an announcement (author or dean)",
+        "tags": [
+          "Announcements"
+        ]
+      }
     }
   },
   "info": {
@@ -159,6 +236,10 @@
     },
     "schemas": {
       "SendMessageDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateAnnouncementDto": {
         "type": "object",
         "properties": {}
       }

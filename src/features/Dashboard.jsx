@@ -52,6 +52,7 @@ export default function Dashboard({
   schedule = [],
   allEnrollments = [],
   analytics = null,
+  announcements = [],
   myGroup = null,
   semester = 1,
   ungradedSubmissions,
@@ -62,6 +63,7 @@ export default function Dashboard({
   onOpenGrades,
   onOpenWebinars,
   onOpenGroups,
+  onOpenAnnouncements,
 }) {
   const isStudent = userRole === 'student';
   const isTeacher = userRole === 'teacher';
@@ -218,6 +220,26 @@ export default function Dashboard({
           </div>
         ))}
       </div>
+
+      {announcements.length > 0 && (
+        <section className="dash-section">
+          <div className="dash-section-head">
+            <h2>Оголошення</h2>
+            <button type="button" className="link-btn" onClick={onOpenAnnouncements}>
+              Усі
+            </button>
+          </div>
+          {announcements.slice(0, 2).map((item) => (
+            <div key={item.id} className="dash-announcement">
+              <div className="dash-item-title">{item.title}</div>
+              <div className="dash-item-sub">
+                {item.authorName} • {formatDate(item.createdAt)}
+              </div>
+              <div className="dash-announcement-body">{item.body}</div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {schedule.length > 0 && (
         <section className="dash-section">

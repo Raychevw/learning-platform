@@ -391,6 +391,37 @@ async function main() {
         } catch (analyticsError) {
           fail('Аналитика деканата недоступна', analyticsError.message);
         }
+
+        // Оголошення: публикация деканом и видимость студенту
+        try {
+          const title = `verify-ann-${Date.now()}`;
+          const createRes = await fetch(`${gatewayUrl}/api/announcements`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body: 'Verification announcement', audience: 'ALL' }),
+            signal: AbortSignal.timeout(5000),
+          });
+          const created = await createRes.json().catch(() => null);
+          const listRes = await fetch(`${gatewayUrl}/api/announcements`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          const list = await listRes.json().catch(() => null);
+          if (createRes.status === 201 && Array.isArray(list) && list.some((item) => item.title === title)) {
+            ok('Оголошення: публікація та видимість студенту');
+          } else {
+            fail('Оголошення не опублікувалися', `create=${createRes.status}`);
+          }
+          if (created?.id) {
+            await fetch(`${gatewayUrl}/api/announcements/${created.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${adminToken}` },
+              signal: AbortSignal.timeout(5000),
+            });
+          }
+        } catch (announcementError) {
+          fail('Проверка оголошений не удалась', announcementError.message);
+        }
       }
     } catch (err) {
       fail('Проверка аудита не удалась', err.message);
