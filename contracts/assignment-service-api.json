@@ -539,6 +539,26 @@
         ]
       }
     },
+    "/analytics/overview": {
+      "get": {
+        "operationId": "CourseworkController_analytics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Faculty-wide performance analytics: debts, missing works, ungraded, groups",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
     "/enrollments": {
       "get": {
         "operationId": "CourseworkController_listEnrollments",

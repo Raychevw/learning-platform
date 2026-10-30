@@ -78,6 +78,7 @@ export default function App() {
   const [webinars, setWebinars] = useState(INITIAL_WEBINARS);
   const [schedule, setSchedule] = useState([]);
   const [allEnrollments, setAllEnrollments] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
@@ -88,7 +89,7 @@ export default function App() {
 
     const load = async () => {
       const userId = encodeURIComponent(currentUser.id);
-      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes, enrollmentsRes] =
+      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes, enrollmentsRes, analyticsRes] =
         await Promise.allSettled([
           api.get(`/api/catalog?userId=${userId}`),
           api.get('/api/assignments-full'),
@@ -96,7 +97,10 @@ export default function App() {
           api.get('/api/groups'),
           api.get('/api/webinars'),
           api.get('/api/schedule'),
-          currentUser.role === 'teacher' ? api.get('/api/enrollments') : Promise.resolve(null),
+          currentUser.role === 'teacher' || currentUser.role === 'admin'
+            ? api.get('/api/enrollments')
+            : Promise.resolve(null),
+          currentUser.role === 'admin' ? api.get('/api/analytics/overview') : Promise.resolve(null),
         ]);
       if (isCancelled) return;
 
@@ -110,6 +114,9 @@ export default function App() {
       apply(webinarsRes, setWebinars);
       apply(scheduleRes, setSchedule);
       apply(enrollmentsRes, setAllEnrollments);
+      if (analyticsRes.status === 'fulfilled' && analyticsRes.value) {
+        setAnalytics(analyticsRes.value);
+      }
     };
 
     load();
@@ -247,6 +254,13 @@ export default function App() {
   const [serverAuditLogs, setServerAuditLogs] = useState([]);
   const [auditStats, setAuditStats] = useState(null);
   const [systemUsers, setSystemUsers] = useState([]);
+  const [newUserForm, setNewUserForm] = useState({
+    fullName: '',
+    email: '',
+    username: '',
+    password: '123456',
+    role: 'STUDENT',
+  });
   const [enrollUserId, setEnrollUserId] = useState('');
   const [enrollName, setEnrollName] = useState('');
 
@@ -1663,6 +1677,49 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newUserForm.fullName.trim() || !newUserForm.email.trim()) return;
+
+    const res = await syncBackend('/auth/users', 'POST', {
+      fullName: newUserForm.fullName.trim(),
+      email: newUserForm.email.trim(),
+      username: newUserForm.username.trim() || undefined,
+      password: newUserForm.password,
+      role: newUserForm.role,
+    });
+    if (!res) return;
+
+    setSystemUsers((prev) => [...prev, res]);
+    setNewUserForm({ fullName: '', email: '', username: '', password: '123456', role: 'STUDENT' });
+    showNotification(`Користувача «${res.fullName}» створено.`);
+  };
+
+  const handleTransferUser = async (userId, groupId) => {
+    const current = allEnrollments.find((item) => item.userId === userId);
+
+    let res;
+    if (!groupId) {
+      if (!current) return;
+      res = await syncBackend(
+        `/groups/${current.groupId}/enroll/${encodeURIComponent(userId)}`,
+        'DELETE'
+      );
+    } else {
+      res = await syncBackend(`/groups/${groupId}/enroll`, 'POST', { userId });
+    }
+    if (!res) return;
+
+    try {
+      const [groups, enrollments] = await Promise.all([api.get('/api/groups'), api.get('/api/enrollments')]);
+      if (Array.isArray(groups)) setAcademicGroups(groups);
+      if (Array.isArray(enrollments)) setAllEnrollments(enrollments);
+    } catch {
+      /* данные обновятся при следующей загрузке */
+    }
+    showNotification('Дані зачислення оновлено.');
+  };
+
   const handleEnrollStudent = async (e) => {
     e.preventDefault();
     if (!managingGroup || !enrollUserId.trim()) return;
@@ -2098,6 +2155,7 @@ export default function App() {
             academicGroups={academicGroups}
             schedule={schedule}
             allEnrollments={allEnrollments}
+            analytics={analytics}
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
@@ -3510,6 +3568,127 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="studevo-card" style={{ marginTop: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Користувачі
+              </h3>
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>ПІБ</th>
+                    <th>Email</th>
+                    <th>Роль</th>
+                    <th>Група</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {systemUsers.map((user) => {
+                    const enrollment = allEnrollments.find((item) => item.userId === user.id);
+                    const roleLabel =
+                      user.role === 'STUDENT' ? 'Студент' : user.role === 'TEACHER' ? 'Викладач' : 'Деканат';
+                    return (
+                      <tr key={user.id}>
+                        <td>
+                          <strong>{user.fullName}</strong>
+                          {user.username ? (
+                            <span style={{ color: '#868e96', fontSize: '11.5px' }}> @{user.username}</span>
+                          ) : null}
+                        </td>
+                        <td>{user.email}</td>
+                        <td>{roleLabel}</td>
+                        <td>
+                          <select
+                            className="input-studevo-control"
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                            value={enrollment?.groupId || ''}
+                            onChange={(e) => handleTransferUser(user.id, e.target.value)}
+                          >
+                            <option value="">— не зараховано —</option>
+                            {academicGroups.map((group) => (
+                              <option key={group.id} value={group.id}>
+                                {group.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {systemUsers.length === 0 && (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', color: '#868e96' }}>
+                        Користувачів не знайдено
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="studevo-card" style={{ marginTop: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Створити користувача
+              </h3>
+              <form onSubmit={handleCreateUser}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1fr 1fr 1fr', gap: '10px' }}>
+                  <div className="form-group-field">
+                    <label>ПІБ</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={newUserForm.fullName}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      className="input-studevo-control"
+                      value={newUserForm.email}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Логін</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={newUserForm.username}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Пароль</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Роль</label>
+                    <select
+                      className="input-studevo-control"
+                      value={newUserForm.role}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                    >
+                      <option value="STUDENT">Студент</option>
+                      <option value="TEACHER">Викладач</option>
+                      <option value="ADMIN">Деканат</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="btn-studevo-primary" style={{ marginTop: '12px' }}>
+                  Створити
+                </button>
+              </form>
             </div>
           </div>
         )}

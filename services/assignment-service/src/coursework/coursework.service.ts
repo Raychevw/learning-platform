@@ -545,6 +545,142 @@ export class CourseworkService {
     return group?.name || fallback || '';
   }
 
+  // ---------------------------------------------------------------- analytics (dean)
+  async analyticsOverview() {
+    const [groups, enrollments, grades, submissions, assignments] = await Promise.all([
+      this.groups.find({ order: { createdAt: 'ASC' } }),
+      this.enrollments.find(),
+      this.grades.find(),
+      this.submissions.find(),
+      this.assignments.find(),
+    ]);
+
+    const round = (value: number) => Math.round(value * 10) / 10;
+    const numeric = (value: unknown) => Number(value) || 0;
+
+    const studentIds = new Set<string>();
+    enrollments.forEach((item) => studentIds.add(item.userId));
+    grades.forEach((item) => studentIds.add(item.studentId));
+
+    const debts = grades.filter((grade) => numeric(grade.finalScore) < 60);
+    const ungraded = submissions.filter((submission) => submission.status !== 'GRADED');
+
+    const studentNames = new Map<string, string>();
+    const studentGroups = new Map<string, string>();
+    enrollments.forEach((item) => {
+      studentNames.set(item.userId, item.studentName);
+      studentGroups.set(item.userId, item.groupId);
+    });
+    grades.forEach((item) => {
+      if (!studentNames.has(item.studentId)) studentNames.set(item.studentId, item.studentName);
+    });
+
+    // Пропущені роботи: дедлайн минув, а сдачі немає.
+    const now = Date.now();
+    const missingByStudent = new Map<string, number>();
+    const pastAssignments = assignments.filter((assignment) => {
+      const due = assignment.dueDate instanceof Date ? assignment.dueDate : new Date(assignment.dueDate);
+      return due.getTime() < now;
+    });
+    for (const assignment of pastAssignments) {
+      for (const enrollment of enrollments) {
+        const submitted = submissions.some(
+          (submission) =>
+            submission.assignmentId === assignment.id && submission.studentId === enrollment.userId,
+        );
+        if (!submitted) {
+          missingByStudent.set(enrollment.userId, (missingByStudent.get(enrollment.userId) || 0) + 1);
+        }
+      }
+    }
+
+    const groupStats = groups.map((group) => {
+      const userIds = new Set(
+        enrollments.filter((item) => item.groupId === group.id).map((item) => item.userId),
+      );
+      const groupGrades = grades.filter((grade) => userIds.has(grade.studentId));
+      const average = groupGrades.length
+        ? round(groupGrades.reduce((sum, grade) => sum + numeric(grade.finalScore), 0) / groupGrades.length)
+        : null;
+      return {
+        groupId: group.id,
+        name: group.name,
+        faculty: group.faculty,
+        specialty: group.specialty,
+        students: userIds.size,
+        avgScore: average,
+        debts: groupGrades.filter((grade) => numeric(grade.finalScore) < 60).length,
+        graded: groupGrades.length,
+      };
+    });
+
+    const courseAgg = new Map<string, { total: number; count: number; debts: number }>();
+    for (const grade of grades) {
+      const key = grade.courseTitle || 'Без дисципліни';
+      const current = courseAgg.get(key) || { total: 0, count: 0, debts: 0 };
+      current.total += numeric(grade.finalScore);
+      current.count += 1;
+      if (numeric(grade.finalScore) < 60) current.debts += 1;
+      courseAgg.set(key, current);
+    }
+
+    const courseStats = Array.from(courseAgg.entries()).map(([courseTitle, value]) => ({
+      courseTitle,
+      avgScore: value.count ? round(value.total / value.count) : null,
+      graded: value.count,
+      debts: value.debts,
+    }));
+
+    const pendingByCourse = new Map<string, number>();
+    for (const submission of ungraded) {
+      const assignment = assignments.find((item) => item.id === submission.assignmentId);
+      const key = assignment?.courseTitle || 'Без дисципліни';
+      pendingByCourse.set(key, (pendingByCourse.get(key) || 0) + 1);
+    }
+
+    const riskIds = new Set<string>([
+      ...debts.map((grade) => grade.studentId),
+      ...Array.from(missingByStudent.keys()),
+    ]);
+    const riskStudents = Array.from(riskIds)
+      .map((studentId) => {
+        const studentGrades = grades.filter((grade) => grade.studentId === studentId);
+        const average = studentGrades.length
+          ? round(studentGrades.reduce((sum, grade) => sum + numeric(grade.finalScore), 0) / studentGrades.length)
+          : null;
+        const groupId = studentGroups.get(studentId);
+        return {
+          studentId,
+          studentName: studentNames.get(studentId) || studentId,
+          group: groups.find((group) => group.id === groupId)?.name || '',
+          avgScore: average,
+          debts: studentGrades.filter((grade) => numeric(grade.finalScore) < 60).length,
+          missing: missingByStudent.get(studentId) || 0,
+        };
+      })
+      .sort((a, b) => b.debts + b.missing - (a.debts + a.missing))
+      .slice(0, 20);
+
+    return {
+      totals: {
+        students: studentIds.size,
+        groups: groups.length,
+        grades: grades.length,
+        debts: debts.length,
+        ungraded: ungraded.length,
+        assignments: assignments.length,
+      },
+      groupStats,
+      courseStats,
+      pendingByCourse: Array.from(pendingByCourse.entries()).map(([courseTitle, pending]) => ({
+        courseTitle,
+        pending,
+      })),
+      riskStudents,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   // ---------------------------------------------------------------- helpers
   private toSubmissionDto(s: SubmissionEntity) {
     return {

@@ -51,6 +51,7 @@ export default function Dashboard({
   academicGroups,
   schedule = [],
   allEnrollments = [],
+  analytics = null,
   myGroup = null,
   semester = 1,
   ungradedSubmissions,
@@ -113,6 +114,68 @@ export default function Dashboard({
   const recentGrades = grades.slice(0, 6);
   const debts = grades.filter((grade) => Number(grade.finalScore) < 60).length;
 
+  const totals = analytics?.totals || {};
+  const groupStats = analytics?.groupStats || [];
+  const riskStudents = analytics?.riskStudents || [];
+  const pendingByCourse = analytics?.pendingByCourse || [];
+
+  const statTiles = isAdmin
+    ? [
+        { label: 'Студенти', value: totals.students ?? totalStudents },
+        { label: 'Групи', value: totals.groups ?? academicGroups.length },
+        { label: 'Борги', value: totals.debts ?? 0 },
+        { label: 'Не перевірено', value: totals.ungraded ?? 0 },
+      ]
+    : [
+        {
+          label: isTeacher ? 'Мої курси' : 'Доступні курси',
+          value: visibleCourses.length,
+        },
+        {
+          label: isStudent ? 'До здачі' : 'На перевірку',
+          value: pendingCount,
+        },
+        {
+          label: isStudent ? 'Середній бал' : 'Студенти',
+          value: isStudent
+            ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
+            : teacherStudentCount,
+        },
+      ];
+
+  const exportAnalytics = () => {
+    if (!analytics) return;
+    const rows = [
+      ['Група', 'Студенти', 'Середній бал', 'Борги'],
+      ...groupStats.map((group) => [
+        group.name,
+        group.students,
+        group.avgScore ?? '',
+        group.debts,
+      ]),
+      [],
+      ['Студент', 'Група', 'Середній бал', 'Борги', 'Пропущені роботи'],
+      ...riskStudents.map((student) => [
+        student.studentName,
+        student.group,
+        student.avgScore ?? '',
+        student.debts,
+        student.missing,
+      ]),
+    ];
+    const csv =
+      '\uFEFF' + rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Звіт_успішність_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const roleLabel = isStudent ? 'Студент' : isTeacher ? 'Викладач' : 'Адміністратор';
 
   return (
@@ -144,25 +207,13 @@ export default function Dashboard({
         </button>
       )}
 
-      <div className="dash-stats">
-        <div className="dash-stat">
-          <span>{isAdmin ? 'Курси' : isTeacher ? 'Мої курси' : 'Доступні курси'}</span>
-          <b>{visibleCourses.length}</b>
-        </div>
-        <div className="dash-stat">
-          <span>{isAdmin ? 'Групи' : isStudent ? 'До здачі' : 'На перевірку'}</span>
-          <b>{isAdmin ? academicGroups.length : pendingCount}</b>
-        </div>
-        <div className="dash-stat">
-          <span>{isAdmin ? 'Студенти' : isStudent ? 'Середній бал' : 'Студенти'}</span>
-          <b>
-            {isAdmin
-              ? totalStudents
-              : isStudent
-                ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
-                : teacherStudentCount}
-          </b>
-        </div>
+      <div className={`dash-stats ${isAdmin ? 'dash-stats-4' : ''}`}>
+        {statTiles.map((tile) => (
+          <div key={tile.label} className="dash-stat">
+            <span>{tile.label}</span>
+            <b>{tile.value}</b>
+          </div>
+        ))}
       </div>
 
       {schedule.length > 0 && (
@@ -402,9 +453,13 @@ export default function Dashboard({
             </section>
             </>
           ) : (
+            <>
             <section className="dash-section">
               <div className="dash-section-head">
                 <h2>Адміністрування</h2>
+                <button type="button" className="link-btn" onClick={exportAnalytics}>
+                  Звіт CSV
+                </button>
               </div>
               <div className="quick-links">
                 <button type="button" className="quick-link" onClick={onOpenGroups}>
@@ -414,22 +469,75 @@ export default function Dashboard({
                   Відомості оцінок
                 </button>
               </div>
+            </section>
 
-              {academicGroups.length > 0 && (
-                <ul className="dash-list dash-list-spaced">
-                  {academicGroups.slice(0, 6).map((group) => (
-                    <li key={group.id} className="dash-item">
+            <section className="dash-section">
+              <div className="dash-section-head">
+                <h2>Успішність груп</h2>
+              </div>
+              {groupStats.length === 0 ? (
+                <p className="dash-empty">Даних ще немає.</p>
+              ) : (
+                <div className="dash-table">
+                  <div className="dash-table-row dash-table-head">
+                    <span>Група</span>
+                    <span>Студ.</span>
+                    <span>Сер.</span>
+                    <span>Борги</span>
+                  </div>
+                  {groupStats.map((group) => (
+                    <div key={group.groupId} className="dash-table-row">
+                      <span>{group.name}</span>
+                      <span>{group.students}</span>
+                      <span>{group.avgScore ?? '—'}</span>
+                      <span className={group.debts > 0 ? 'danger' : ''}>{group.debts}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="dash-section">
+              <div className="dash-section-head">
+                <h2>Борги та пропуски</h2>
+              </div>
+              {riskStudents.length === 0 ? (
+                <p className="dash-empty">Заборгованостей немає.</p>
+              ) : (
+                <ul className="dash-list">
+                  {riskStudents.slice(0, 6).map((student) => (
+                    <li key={student.studentId} className="dash-item">
                       <span className="dash-item-main">
-                        <span className="dash-item-title">{group.name}</span>
+                        <span className="dash-item-title">{student.studentName}</span>
                         <span className="dash-item-sub">
-                          {group.studentsCount || 0} студентів • {(group.assignedCourseIds || []).length} курсів
+                          {student.group || '—'} • борги: {student.debts} • пропущено: {student.missing}
                         </span>
                       </span>
+                      <span className="dash-status overdue">{student.avgScore ?? '—'}</span>
                     </li>
                   ))}
                 </ul>
               )}
             </section>
+
+            {pendingByCourse.length > 0 && (
+              <section className="dash-section">
+                <div className="dash-section-head">
+                  <h2>Не перевірено</h2>
+                </div>
+                <ul className="dash-list">
+                  {pendingByCourse.map((item) => (
+                    <li key={item.courseTitle} className="dash-item">
+                      <span className="dash-item-main">
+                        <span className="dash-item-title">{item.courseTitle}</span>
+                        <span className="dash-item-sub">{item.pending} робіт очікують перевірки</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            </>
           )}
 
           {showWebinars && (

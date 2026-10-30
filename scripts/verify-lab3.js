@@ -320,6 +320,25 @@ async function main() {
           }
         }
         if (!auditOk) fail('GET /api/audit/logs не вернул журнал', `status=${auditStatus}`);
+
+        // Деканатская аналитика успеваемости
+        try {
+          const analyticsRes = await fetch(`${gatewayUrl}/api/analytics/overview`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          const analytics = await analyticsRes.json().catch(() => null);
+          if (analyticsRes.ok && analytics?.totals) {
+            ok(
+              'GET /api/analytics/overview доступен админу',
+              `students=${analytics.totals.students}, debts=${analytics.totals.debts}`,
+            );
+          } else {
+            fail('Аналитика деканата недоступна', `status=${analyticsRes.status}`);
+          }
+        } catch (analyticsError) {
+          fail('Аналитика деканата недоступна', analyticsError.message);
+        }
       }
     } catch (err) {
       fail('Проверка аудита не удалась', err.message);

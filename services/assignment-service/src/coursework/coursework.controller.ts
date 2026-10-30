@@ -159,6 +159,14 @@ export class CourseworkController {
     return this.coursework.removeStudentFromGroup(id, decodeURIComponent(name));
   }
 
+  // ---------------- Analytics (dean / administration)
+  @Get('analytics/overview')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Faculty-wide performance analytics: debts, missing works, ungraded, groups' })
+  analytics() {
+    return this.coursework.analyticsOverview();
+  }
+
   // ---------------- Enrollments (user <-> group)
   @Get('enrollments')
   @ApiOperation({ summary: 'List enrollments (course roster for any authenticated user; full list for staff)' })

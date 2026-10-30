@@ -345,6 +345,7 @@ mountProxy('/api/grading', ASSIGNMENT_SERVICE_URL, '/api/grading', '/grading');
 mountProxy('/api/grades', ASSIGNMENT_SERVICE_URL, '/api/grades', '/grades');
 mountProxy('/api/groups', ASSIGNMENT_SERVICE_URL, '/api/groups', '/groups');
 mountProxy('/api/enrollments', ASSIGNMENT_SERVICE_URL, '/api/enrollments', '/enrollments');
+mountProxy('/api/analytics', ASSIGNMENT_SERVICE_URL, '/api/analytics', '/analytics');
 mountProxy('/api/submissions', ASSIGNMENT_SERVICE_URL, '/api/submissions', '/submissions');
 mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
 mountProxy('/api/audit', AUDIT_SERVICE_URL, '/api/audit', '/audit');
