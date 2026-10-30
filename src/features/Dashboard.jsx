@@ -49,6 +49,8 @@ export default function Dashboard({
 }) {
   const isStudent = userRole === 'student';
   const isTeacher = userRole === 'teacher';
+  const isAdmin = userRole === 'admin';
+  const totalStudents = academicGroups.reduce((sum, group) => sum + (Number(group.studentsCount) || 0), 0);
 
   const visibleCourses = useMemo(
     () => (isStudent ? courses.filter((course) => course.isPublished !== false) : courses),
@@ -105,23 +107,23 @@ export default function Dashboard({
 
       <div className="dash-stats">
         <div className="dash-stat">
-          <span>{isTeacher ? 'Мої курси' : 'Доступні курси'}</span>
+          <span>{isAdmin ? 'Курси' : isTeacher ? 'Мої курси' : 'Доступні курси'}</span>
           <b>{visibleCourses.length}</b>
         </div>
         <div className="dash-stat">
-          <span>{isStudent ? 'До здачі' : isTeacher ? 'На перевірку' : 'Завдання'}</span>
-          <b>{pendingCount}</b>
+          <span>{isAdmin ? 'Групи' : isStudent ? 'До здачі' : 'На перевірку'}</span>
+          <b>{isAdmin ? academicGroups.length : pendingCount}</b>
         </div>
         <div className="dash-stat">
-          <span>{isStudent ? 'Середній бал' : isTeacher ? 'Найближчий вебінар' : 'Групи'}</span>
+          <span>{isAdmin ? 'Студенти' : isStudent ? 'Середній бал' : 'Найближчий вебінар'}</span>
           <b>
-            {isStudent
-              ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
-              : isTeacher
-                ? nextWebinars[0]
+            {isAdmin
+              ? totalStudents
+              : isStudent
+                ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
+                : nextWebinars[0]
                   ? formatDate(nextWebinars[0].scheduledAt)
-                  : '—'
-                : academicGroups.length}
+                  : '—'}
           </b>
         </div>
       </div>
@@ -129,10 +131,12 @@ export default function Dashboard({
       <div className="dash-grid">
         <section className="dash-section">
           <div className="dash-section-head">
-            <h2>{isTeacher ? 'Мої курси' : 'Мої курси'}</h2>
-            <button type="button" className="link-btn" onClick={onOpenGrades}>
-              {isStudent ? 'Оцінки' : 'Оцінювання'}
-            </button>
+            <h2>{isAdmin ? 'Курси' : 'Мої курси'}</h2>
+            {!isAdmin && (
+              <button type="button" className="link-btn" onClick={onOpenGrades}>
+                {isStudent ? 'Оцінки' : 'Оцінювання'}
+              </button>
+            )}
           </div>
 
           {visibleCourses.length === 0 ? (
@@ -152,10 +156,18 @@ export default function Dashboard({
                     <div className="course-card-body">
                       <div className="course-card-title">{course.title}</div>
                       <div className="course-card-meta">{course.instructor || 'Викладач не вказаний'}</div>
-                      <div className="progress">
-                        <span style={{ width: `${progress}%` }} />
-                      </div>
-                      <div className="course-card-meta">{progress}% пройдено</div>
+                      {isAdmin ? (
+                        <div className="course-card-meta">
+                          {(course.modules || []).length} модулів • {course.totalHours || 0} год
+                        </div>
+                      ) : (
+                        <>
+                          <div className="progress">
+                            <span style={{ width: `${progress}%` }} />
+                          </div>
+                          <div className="course-card-meta">{progress}% пройдено</div>
+                        </>
+                      )}
                     </div>
                   </button>
                 );
@@ -165,6 +177,7 @@ export default function Dashboard({
         </section>
 
         <div className="dash-column">
+          {!isAdmin && (
           <section className="dash-section">
             <div className="dash-section-head">
               <h2>Найближчі дедлайни</h2>
@@ -199,6 +212,7 @@ export default function Dashboard({
               </ul>
             )}
           </section>
+          )}
 
           {isStudent ? (
             <section className="dash-section">
@@ -259,6 +273,21 @@ export default function Dashboard({
                   Відомості оцінок
                 </button>
               </div>
+
+              {academicGroups.length > 0 && (
+                <ul className="dash-list dash-list-spaced">
+                  {academicGroups.slice(0, 6).map((group) => (
+                    <li key={group.id} className="dash-item">
+                      <span className="dash-item-main">
+                        <span className="dash-item-title">{group.name}</span>
+                        <span className="dash-item-sub">
+                          {group.studentsCount || 0} студентів • {(group.assignedCourseIds || []).length} курсів
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 

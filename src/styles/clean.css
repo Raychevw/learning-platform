@@ -12,6 +12,87 @@
   --clean-radius: 12px;
 }
 
+/* One Studevo palette for every role (no per-role blue/teal themes). */
+.studevo-app-shell.role-theme-student,
+.studevo-app-shell.role-theme-teacher,
+.studevo-app-shell.role-theme-admin {
+  --studevo-red: #b42318;
+  --studevo-red-dark: #912018;
+  --studevo-red-light: #fef3f2;
+  --studevo-red-hover: #912018;
+  --studevo-accent: #b42318;
+  --studevo-accent-subtle: #fee4e2;
+}
+
+/* Sidebar is always light and readable. */
+.studevo-app-shell.role-theme-admin .studevo-sidebar-nav,
+.studevo-app-shell.role-theme-teacher .studevo-sidebar-nav {
+  background-color: #ffffff !important;
+  border-right: 1px solid var(--clean-border) !important;
+  color: var(--clean-text) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-block,
+.studevo-app-shell.role-theme-teacher .studevo-brand-block {
+  border-bottom-color: var(--clean-border) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-title,
+.studevo-app-shell.role-theme-teacher .studevo-brand-title {
+  color: var(--studevo-red-dark) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-subtitle,
+.studevo-app-shell.role-theme-teacher .studevo-brand-subtitle {
+  color: var(--clean-muted) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-brand-icon,
+.studevo-app-shell.role-theme-teacher .studevo-brand-icon {
+  background: var(--studevo-red-dark) !important;
+  box-shadow: none !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item,
+.studevo-app-shell.role-theme-teacher .studevo-menu-item {
+  color: #344054 !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item:hover,
+.studevo-app-shell.role-theme-teacher .studevo-menu-item:hover {
+  background: #f2f4f7 !important;
+  color: var(--clean-text) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-menu-item.active,
+.studevo-app-shell.role-theme-teacher .studevo-menu-item.active,
+.studevo-app-shell.role-theme-student .studevo-menu-item.active {
+  background: #fef3f2 !important;
+  color: var(--studevo-red-dark) !important;
+  box-shadow: inset 2px 0 0 var(--studevo-red) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-profile-footer,
+.studevo-app-shell.role-theme-teacher .studevo-profile-footer {
+  border-top-color: var(--clean-border) !important;
+}
+
+.studevo-app-shell.role-theme-admin .studevo-profile-card,
+.studevo-app-shell.role-theme-teacher .studevo-profile-card {
+  background: #f9fafb !important;
+  border-color: var(--clean-border) !important;
+}
+
+.studevo-app-shell.role-theme-admin .profile-name,
+.studevo-app-shell.role-theme-teacher .profile-name {
+  color: var(--clean-text) !important;
+}
+
+.studevo-app-shell.role-theme-admin .profile-dept,
+.studevo-app-shell.role-theme-teacher .profile-dept {
+  color: var(--clean-muted) !important;
+}
+
 body {
   background: var(--clean-bg);
 }
@@ -353,6 +434,12 @@ body {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.dash-list-spaced {
+  margin-top: 14px;
+  border-top: 1px solid #f2f4f7;
+  padding-top: 4px;
 }
 
 .dash-item {
