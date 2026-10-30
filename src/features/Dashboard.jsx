@@ -72,8 +72,10 @@ export default function Dashboard({
     }).length;
   }, [assignments, ungradedSubmissions.length, isStudent, currentUser?.id]);
 
-  const liveWebinars = webinars.filter((webinar) => webinar.status === 'LIVE');
-  const nextWebinars = webinars.filter((webinar) => webinar.status !== 'FINISHED').slice(0, 3);
+  // Деканат (admin) не працює з онлайн-заняттями — не показуємо цей блок.
+  const showWebinars = userRole !== 'admin';
+  const liveWebinars = showWebinars ? webinars.filter((webinar) => webinar.status === 'LIVE') : [];
+  const nextWebinars = showWebinars ? webinars.filter((webinar) => webinar.status !== 'FINISHED').slice(0, 3) : [];
   const recentGrades = grades.slice(0, 4);
 
   const roleLabel = isStudent ? 'Студент' : isTeacher ? 'Викладач' : 'Адміністратор';
@@ -256,39 +258,38 @@ export default function Dashboard({
                 <button type="button" className="quick-link" onClick={onOpenGrades}>
                   Відомості оцінок
                 </button>
-                <button type="button" className="quick-link" onClick={onOpenWebinars}>
-                  Онлайн-заняття
-                </button>
               </div>
             </section>
           )}
 
-          <section className="dash-section">
-            <div className="dash-section-head">
-              <h2>Онлайн-заняття</h2>
-              <button type="button" className="link-btn" onClick={onOpenWebinars}>
-                Розклад
-              </button>
-            </div>
-            {nextWebinars.length === 0 ? (
-              <p className="dash-empty">Занять не заплановано.</p>
-            ) : (
-              <ul className="dash-list">
-                {nextWebinars.map((webinar) => (
-                  <li key={webinar.id} className="dash-item">
-                    <span className="dash-item-date">{formatDate(webinar.scheduledAt)}</span>
-                    <span className="dash-item-main">
-                      <span className="dash-item-title">{webinar.title}</span>
-                      <span className="dash-item-sub">
-                        {webinar.courseTitle} •{' '}
-                        {webinar.status === 'LIVE' ? 'в ефірі' : 'заплановано'}
+          {showWebinars && (
+            <section className="dash-section">
+              <div className="dash-section-head">
+                <h2>Онлайн-заняття</h2>
+                <button type="button" className="link-btn" onClick={onOpenWebinars}>
+                  Розклад
+                </button>
+              </div>
+              {nextWebinars.length === 0 ? (
+                <p className="dash-empty">Занять не заплановано.</p>
+              ) : (
+                <ul className="dash-list">
+                  {nextWebinars.map((webinar) => (
+                    <li key={webinar.id} className="dash-item">
+                      <span className="dash-item-date">{formatDate(webinar.scheduledAt)}</span>
+                      <span className="dash-item-main">
+                        <span className="dash-item-title">{webinar.title}</span>
+                        <span className="dash-item-sub">
+                          {webinar.courseTitle} •{' '}
+                          {webinar.status === 'LIVE' ? 'в ефірі' : 'заплановано'}
+                        </span>
                       </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>
