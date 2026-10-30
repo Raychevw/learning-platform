@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CourseEntity } from '../infrastructure/database/entities/CourseEntity.js';
 import {
   CourseModuleEntity,
@@ -201,31 +201,62 @@ export class CatalogSeeder implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     if (process.env.SEED_DEMO_DATA === 'false') return;
     const courseRepo = this.dataSource.getRepository(CourseEntity);
-    if ((await courseRepo.count()) > 0) return;
 
-    await this.dataSource.transaction(async (em) => {
-      for (const [ci, c] of COURSES.entries()) {
-        const { modules, ...course } = c;
-        await em.save(CourseEntity, {
-          ...course,
-          ownerId: 'usr-teacher',
-          createdAt: new Date(Date.UTC(2026, 8, 1, 0, ci)),
-        });
-        for (const [mi, m] of modules.entries()) {
-          await em.save(CourseModuleEntity, { id: m.id, courseId: c.id, title: m.title, orderIndex: mi + 1 });
-          for (const [li, l] of m.lessons.entries()) {
-            await em.save(LessonEntity, { id: l.id, moduleId: m.id, title: l.title, type: l.type, content: l.content, orderIndex: li + 1 });
-            for (const userId of l.completedBy || []) {
-              await em.save(LessonCompletionEntity, { lessonId: l.id, userId });
+    if ((await courseRepo.count()) === 0) {
+      await this.dataSource.transaction(async (em) => {
+        for (const [ci, c] of COURSES.entries()) {
+          const { modules, ...course } = c;
+          await em.save(CourseEntity, {
+            ...course,
+            ownerId: this.demoOwnerFor(c.id),
+            createdAt: new Date(Date.UTC(2026, 8, 1, 0, ci)),
+          });
+          for (const [mi, m] of modules.entries()) {
+            await em.save(CourseModuleEntity, { id: m.id, courseId: c.id, title: m.title, orderIndex: mi + 1 });
+            for (const [li, l] of m.lessons.entries()) {
+              await em.save(LessonEntity, { id: l.id, moduleId: m.id, title: l.title, type: l.type, content: l.content, orderIndex: li + 1 });
+              for (const userId of l.completedBy || []) {
+                await em.save(LessonCompletionEntity, { lessonId: l.id, userId });
+              }
             }
           }
         }
-      }
-      for (const w of WEBINARS) {
-        await em.save(WebinarEntity, w);
-      }
-    });
-    this.logger.log(`Seeded course_db with ${COURSES.length} courses and ${WEBINARS.length} webinars`);
+        for (const w of WEBINARS) {
+          await em.save(WebinarEntity, w);
+        }
+      });
+      this.logger.log(`Seeded course_db with ${COURSES.length} courses and ${WEBINARS.length} webinars`);
+    }
+
+    await this.ensureDemoOwners(courseRepo);
+  }
+
+  /** Демо-курси розподілені між трьома викладачами, щоб кабінети були змістовними. */
+  private demoOwnerFor(courseId: string): string {
+    if (courseId === 'c-2') return 'usr-teacher-2';
+    if (courseId === 'c-3') return 'usr-teacher-3';
+    return 'usr-teacher';
+  }
+
+  /**
+   * Для вже існуючих БД: призначає власників лише там, де ще стоїть
+   * типове значення usr-teacher, і не перезаписує ручні призначення деканату.
+   */
+  private async ensureDemoOwners(courseRepo: Repository<CourseEntity>) {
+    let updated = 0;
+    for (const course of COURSES) {
+      const entity = await courseRepo.findOne({ where: { id: course.id } });
+      if (!entity) continue;
+      if (entity.instructor !== course.instructor) continue;
+      if (entity.ownerId && entity.ownerId !== 'usr-teacher') continue;
+
+      const ownerId = this.demoOwnerFor(course.id);
+      if (entity.ownerId === ownerId) continue;
+      entity.ownerId = ownerId;
+      await courseRepo.save(entity);
+      updated += 1;
+    }
+    if (updated > 0) this.logger.log(`Assigned demo course owners: ${updated}`);
   }
 }
 

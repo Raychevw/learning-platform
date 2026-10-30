@@ -513,6 +513,7 @@ export default function App() {
       (asg.submissions || []).map((sub) => ({
         ...sub,
         assignmentId: asg.id,
+        courseId: asg.courseId,
         assignmentTitle: asg.title,
         courseTitle: asg.courseTitle,
         maxScore: asg.maxScore,
@@ -525,10 +526,26 @@ export default function App() {
     );
   }, [assignments]);
 
+  // Викладач бачить лише свої дисципліни, їхні завдання та роботи.
+  const teacherCourseIds = useMemo(
+    () => new Set(courses.filter((course) => course.ownerId === currentUser?.id).map((course) => course.id)),
+    [courses, currentUser?.id]
+  );
+
+  const pageAssignments = useMemo(() => {
+    if (userRole !== 'teacher') return assignments;
+    return assignments.filter((assignment) => teacherCourseIds.has(assignment.courseId));
+  }, [assignments, teacherCourseIds, userRole]);
+
+  const teacherSubmissionsList = useMemo(() => {
+    if (userRole !== 'teacher') return allSubmissionsList;
+    return allSubmissionsList.filter((submission) => teacherCourseIds.has(submission.courseId));
+  }, [allSubmissionsList, teacherCourseIds, userRole]);
+
   const [selectedSubmissionId, setSelectedSubmissionId] = useState('sub-1');
   const currentGradingSub = useMemo(() => {
-    return allSubmissionsList.find((s) => s.id === selectedSubmissionId) || allSubmissionsList[0] || null;
-  }, [allSubmissionsList, selectedSubmissionId]);
+    return teacherSubmissionsList.find((s) => s.id === selectedSubmissionId) || teacherSubmissionsList[0] || null;
+  }, [teacherSubmissionsList, selectedSubmissionId]);
 
   const [grading, setGrading] = useState({
     rule: 'AUTO',
@@ -1041,7 +1058,7 @@ export default function App() {
   // ========================================================
   const handleSelectSubmissionForGrading = (subId) => {
     setSelectedSubmissionId(subId);
-    const found = allSubmissionsList.find((s) => s.id === subId);
+    const found = teacherSubmissionsList.find((s) => s.id === subId);
     if (found && found.criteria) {
       const nextScores = {};
       found.criteria.forEach((c) => {
@@ -1681,8 +1698,13 @@ export default function App() {
   }, [grades]);
 
   const ungradedSubmissions = useMemo(() => {
-    return allSubmissionsList.filter((s) => s.status !== 'GRADED');
-  }, [allSubmissionsList]);
+    return teacherSubmissionsList.filter((s) => s.status !== 'GRADED');
+  }, [teacherSubmissionsList]);
+
+  const studentUsers = useMemo(
+    () => systemUsers.filter((user) => user.role === 'STUDENT'),
+    [systemUsers]
+  );
 
   const filteredAuditLogs = useMemo(() => {
     const source = serverAuditLogs.length > 0 ? serverAuditLogs : auditLogs;
@@ -2180,7 +2202,7 @@ export default function App() {
             userRole={userRole}
             currentUser={currentUser}
             courses={courses}
-            assignments={assignments}
+            assignments={pageAssignments}
             grades={grades}
             webinars={webinars}
             academicGroups={academicGroups}
@@ -2530,7 +2552,7 @@ export default function App() {
                         value={submissionForm.assignmentId}
                         onChange={(e) => setSubmissionForm({ ...submissionForm, assignmentId: e.target.value })}
                       >
-                        {assignments.map((a) => (
+                        {pageAssignments.map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.title} ({a.courseTitle})
                           </option>
@@ -2595,7 +2617,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assignments.map((asg) => {
+                  {pageAssignments.map((asg) => {
                     const latestSub = asg.submissions?.[0];
                     return (
                       <tr key={asg.id}>
@@ -2717,7 +2739,7 @@ export default function App() {
                         value={currentGradingSub?.id || ''}
                         onChange={(e) => handleSelectSubmissionForGrading(e.target.value)}
                       >
-                        {allSubmissionsList.map((s) => (
+                        {teacherSubmissionsList.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.studentName} ({s.group}) — {s.assignmentTitle}
                           </option>
@@ -2928,7 +2950,65 @@ export default function App() {
         {activeMenu === 'groups' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">Академічні групи факультету</h2>
+              <h2 className="section-title">Користувачі та групи факультету</h2>
+            </div>
+
+            <div className="studevo-card dean-students-card">
+              <div className="dean-students-head">
+                <div>
+                  <h3 className="dean-students-title">Студенти факультету</h3>
+                  <p className="dean-students-sub">
+                    {studentsLabel(studentUsers.length)} · натисніть на картку, щоб редагувати
+                  </p>
+                </div>
+                <span className="dean-students-count">{studentUsers.length}</span>
+              </div>
+
+              {studentUsers.length === 0 ? (
+                <p className="dash-empty">Студентів ще немає. Створіть акаунт у розділі «Користувачі» нижче.</p>
+              ) : (
+                <div className="dean-student-grid">
+                  {studentUsers.map((student) => {
+                    const enrollment = allEnrollments.find((item) => item.userId === student.id);
+                    const group = academicGroups.find((item) => item.id === enrollment?.groupId);
+                    const initials = (student.fullName || '')
+                      .split(' ')
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join('')
+                      .toUpperCase();
+                    const status = student.status || 'ACTIVE';
+                    const statusLabel =
+                      status === 'EXPELLED'
+                        ? 'Відрахований'
+                        : status === 'ACADEMIC_LEAVE'
+                          ? 'Академвідпустка'
+                          : 'Навчається';
+
+                    return (
+                      <button
+                        key={student.id}
+                        type="button"
+                        className="dean-student-card"
+                        title={`${student.fullName} · ${student.email}`}
+                        onClick={() => handleStartEditUser(student)}
+                      >
+                        <span className="dean-student-avatar">{initials}</span>
+                        <span className="dean-student-main">
+                          <span className="dean-student-name">{student.fullName}</span>
+                          <span className="dean-student-meta">
+                            {group?.name || 'Без групи'} · {student.email}
+                          </span>
+                        </span>
+                        {status !== 'ACTIVE' && (
+                          <span className="dean-student-status is-inactive">{statusLabel}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="studevo-card" style={{ marginBottom: '20px' }}>
@@ -4051,12 +4131,12 @@ export default function App() {
           <div className="organizer-widget">
             <div className="organizer-widget-header">
               <h3 className="organizer-widget-title">
-                <span>Роботи на перевірку ({allSubmissionsList.length})</span>
+                <span>Роботи на перевірку ({teacherSubmissionsList.length})</span>
               </h3>
             </div>
 
             <div className="deadline-items-list">
-              {allSubmissionsList.map((sub) => (
+              {teacherSubmissionsList.map((sub) => (
                 <div
                   key={sub.id}
                   className="deadline-card-item"

@@ -164,13 +164,16 @@ docker compose up --build
 
 Аккаунты создаются `auth-service` при первом старте (пароли хранятся в bcrypt-хешах):
 
-| Роль | Логин | Email | Пароль |
+| Роль | Логины | Email (основной) | Пароль |
 |---|---|---|---|
-| Студент | `student` | o.petrenko@univ.edu.ua | `123456` |
-| Преподаватель | `teacher` | d.kovalenko@univ.edu.ua | `123456` |
-| Администратор | `admin` | dekanat.fiot@univ.edu.ua | `123456` |
+| Студенти | `student`, `student2` … `student8` | o.petrenko@univ.edu.ua | `123456` |
+| Викладачі | `teacher`, `teacher2`, `teacher3` | d.kovalenko@univ.edu.ua | `123456` |
+| Деканат | `admin` | dekanat.fiot@univ.edu.ua | `123456` |
 
-Пароль задаётся `DEMO_PASSWORD` в `.env`. В production `SEED_DEMO_DATA=false`.
+Демо-склад: 8 студентів у групах ІПЗ-412, ІПЗ-411, КН-301; 3 викладачі
+(Дмитро Коваленко, Олена Грищенко, Василь Мельник); 5 робіт на перевірку та
+5 перевірених робіт з оцінками. Пароль задаётся `DEMO_PASSWORD` в `.env`.
+В production `SEED_DEMO_DATA=false`.
 
 > Покроковий сценарій демонстрації на 5–7 хвилин — у [docs/DEMO.md](docs/DEMO.md).
 

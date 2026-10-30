@@ -3069,3 +3069,145 @@ button:disabled {
   gap: 10px;
 }
 
+/* ------------------------------------------------------------ Dean students */
+.dean-students-card {
+  margin-bottom: 20px;
+}
+
+.dean-students-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dean-students-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--studevo-red-dark);
+}
+
+.dean-students-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #667085;
+}
+
+.dean-students-count {
+  flex-shrink: 0;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fee4e2;
+  border-radius: 999px;
+  background: #fef3f2;
+  color: var(--studevo-red-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dean-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 10px;
+}
+
+.dean-student-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #eceef3;
+  border-radius: 12px;
+  background: #fcfcfe;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.dean-student-card:hover {
+  border-color: #efc2bd;
+  background: #fff8f7;
+  transform: translateY(-1px);
+}
+
+.dean-student-avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c22c20 0%, #9d1d13 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 14px -10px rgba(180, 35, 24, 0.8);
+}
+
+.dean-student-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dean-student-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  color: #202636;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dean-student-meta {
+  overflow: hidden;
+  font-size: 11px;
+  color: #737b8b;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dean-student-status {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dean-student-status.is-active {
+  border: 1px solid #d1fadf;
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.dean-student-status.is-inactive {
+  border: 1px solid #fee4e2;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+@media (max-width: 720px) {
+  .dean-student-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dean-student-status {
+    display: none;
+  }
+}
+
