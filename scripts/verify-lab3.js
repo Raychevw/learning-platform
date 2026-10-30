@@ -52,6 +52,7 @@ async function main() {
   const contracts = [
     { file: 'course-service-api.json', kind: 'OpenAPI' },
     { file: 'assignment-service-api.json', kind: 'OpenAPI' },
+    { file: 'audit-service-api.json', kind: 'OpenAPI' },
     { file: 'events-schema.json', kind: 'JSON Schema' },
   ];
 
@@ -83,11 +84,13 @@ async function main() {
       { token: 'course-db', label: 'БД course-db (database-per-service)' },
       { token: 'assignment-db', label: 'БД assignment-db (database-per-service)' },
       { token: 'auth-db', label: 'БД auth-db (database-per-service)' },
+      { token: 'audit-db', label: 'БД audit-db (database-per-service)' },
       { token: 'redis_broker', label: 'Redis-брокер событий' },
       { token: 'api-gateway', label: 'API Gateway (единая точка входа)' },
       { token: 'course-service', label: 'course-service' },
       { token: 'assignment-service', label: 'assignment-service' },
       { token: 'auth-service', label: 'auth-service' },
+      { token: 'audit-service', label: 'audit-service' },
     ];
     for (const r of required) {
       if (compose.includes(r.token)) ok(r.label);
@@ -102,6 +105,7 @@ async function main() {
     'services/course-service/dist/main.js',
     'services/assignment-service/dist/main.js',
     'services/auth-service/dist/main.js',
+    'services/audit-service/dist/main.js',
     'services/api-gateway/dist/main.js',
   ];
   let artifactsOk = true;
@@ -240,6 +244,41 @@ async function main() {
       const noAuth = await fetch(`${gatewayUrl}/api/catalog`, { signal: AbortSignal.timeout(5000) });
       if (noAuth.status === 401) ok('GET /api/catalog без токена отклонён (401)');
       else fail('Каталог доступен без авторизации', `status=${noAuth.status}`);
+    }
+
+    // Аудит: логин уже породил событие, читаем его админом (с небольшим retry).
+    try {
+      const adminLogin = await fetch(`${gatewayUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: 'admin', password: demoPassword }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const adminJson = await adminLogin.json().catch(() => null);
+      const adminToken = adminJson?.accessToken;
+      if (!adminToken) {
+        fail('Не удалось войти администратором для проверки аудита');
+      } else {
+        let auditOk = false;
+        let auditStatus = 0;
+        for (let attempt = 0; attempt < 5 && !auditOk; attempt++) {
+          const auditRes = await fetch(`${gatewayUrl}/api/audit/logs?limit=10`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          auditStatus = auditRes.status;
+          const auditJson = await auditRes.json().catch(() => null);
+          if (auditRes.ok && Array.isArray(auditJson?.items)) {
+            auditOk = true;
+            ok('GET /api/audit/logs доступен админу', `${auditJson.items.length} event(s)`);
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        }
+        if (!auditOk) fail('GET /api/audit/logs не вернул журнал', `status=${auditStatus}`);
+      }
+    } catch (err) {
+      fail('Проверка аудита не удалась', err.message);
     }
   }
 

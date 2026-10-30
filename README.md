@@ -53,6 +53,8 @@
 - **Реальные файлы** — сдачи сохраняются в S3/MinIO или на диск (`STORAGE_DRIVER`), скачивание только для владельца/преподавателя.
 - **Дедлайны и рубрики** — сервер фиксирует просрочку, автоматически применяет штраф 20%, проверяет каждый балл по критериям.
 - **Зачисления** — связь `user ↔ group` в БД определяет группу студента в сдаче (без хардкода).
+- **Серверный аудит** — отдельный `audit-service` пишет входы, изменения данных и отказы в доступе;
+  администратор видит реальный журнал и статистику.
 
 ---
 
@@ -72,6 +74,7 @@ docker compose up --build
 | Swagger (course) | http://localhost:3001/api/docs |
 | Swagger (assignment) | http://localhost:3002/api/docs |
 | Swagger (auth) | http://localhost:3003/api/docs |
+| Swagger (audit) | http://localhost:3004/api/docs |
 | MinIO console | http://localhost:9001 |
 
 Остановка: `docker compose down` (данные остаются в volumes), `docker compose down -v` — удалить данные.
@@ -160,6 +163,9 @@ POST /api/auth/login
 | POST | `/api/assignments/:id/submit-file` | сдать работу с файлом (`multipart/form-data`, поле `file`, до 25 МБ) |
 | GET | `/api/submissions/:id/file` | скачать файл сдачи (владелец, teacher, admin) |
 | GET/POST/DELETE | `/api/enrollments`, `/api/groups/:id/enroll`, `/api/groups/:id/enroll/:userId` | зачисления (admin) |
+| GET | `/api/audit/logs?search=&status=&limit=` | журнал безопасности (admin) |
+| GET | `/api/audit/stats` | агрегаты аудита (admin) |
+| POST | `/audit/events` (internal) | приём событий от gateway по `x-audit-secret` |
 | POST | `/api/grading/grade` | оценить (Strategy) |
 | GET | `/api/grades` | журнал (студент — только свои) |
 | GET/POST | `/api/groups` | группы |
@@ -199,6 +205,7 @@ services/
   auth-service/          логин, bcrypt, JWT, RBAC          :3003
   course-service/        каталог, уроки, вебинары, S3      :3001
   assignment-service/    задания, сдачи, оценки, группы   :3002
+  audit-service/         журнал безопасности и статистика  :3004
   api-gateway/           шлюз, JWT, CORS, rate-limit        :3000
 contracts/               OpenAPI + JSON-схемы событий
 scripts/verify-lab3.js   архитектурная верификация
@@ -227,6 +234,8 @@ archive/backend-monolith ранее существовавший модульн�
 | `STORAGE_DRIVER` | `local` (диск) или `s3` (MinIO) | `local` |
 | `STORAGE_LOCAL_DIR` | каталог локального хранилища | `./storage/uploads` |
 | `ALLOW_LATE_SUBMISSION` | принимать работы после дедлайна | `true` |
+| `AUDIT_INGEST_TOKEN` | внутренний токен gateway → audit-service | = `JWT_SECRET` |
+| `AUDIT_SERVICE_URL` | адрес audit-service | `http://localhost:3004` |
 | `S3_*` | MinIO / S3 | `localhost:9000`, bucket `lms-files` |
 
 `VITE_API_BASE` обычно пустой: фронт ходит на относительный `/api` (Vite proxy в dev, nginx в prod).
@@ -239,7 +248,6 @@ archive/backend-monolith ранее существовавший модульн�
   нужно перейти на TypeORM migrations и `synchronize: false`.
 - **Real-time**: чат вебинара и «поднятая рука» синхронизируются между вкладками через
   `BroadcastChannel`; между устройствами нужен WebSocket/SSE + Redis-адаптер и WebRTC-сигналинг.
-- **Аудит** ведётся в интерфейсе администратора локально; серверного audit-сервиса пока нет.
 - **Загрузка файлов** работает для сдач; материалы уроков пока без вложений.
 - **Фронтенд**: `App.jsx` остаётся крупным файлом (без роутера и feature-разбиения).
 

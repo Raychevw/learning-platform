@@ -137,6 +137,68 @@ export default function App() {
     };
   }, []);
 
+  // Серверный журнал аудита и справочник пользователей (админские экраны)
+  const [serverAuditLogs, setServerAuditLogs] = useState([]);
+  const [auditStats, setAuditStats] = useState(null);
+  const [systemUsers, setSystemUsers] = useState([]);
+  const [enrollUserId, setEnrollUserId] = useState('');
+  const [enrollName, setEnrollName] = useState('');
+
+  useEffect(() => {
+    if (!currentUser || userRole !== 'admin') return undefined;
+    let cancelled = false;
+
+    const load = async () => {
+      if (activeMenu === 'audit') {
+        try {
+          const [logs, stats] = await Promise.all([
+            api.get('/api/audit/logs?limit=200'),
+            api.get('/api/audit/stats'),
+          ]);
+          if (cancelled) return;
+          const items = Array.isArray(logs?.items) ? logs.items : [];
+          setServerAuditLogs(
+            items.map((item) => ({
+              id: item.id,
+              userId: item.userName
+                ? `${item.userName}${item.userRole ? ` (${item.userRole})` : ''}`
+                : item.userId,
+              ip: item.ip,
+              action: item.action,
+              resource: item.resource,
+              status: item.status,
+              statusCode: item.statusCode,
+              time: new Date(item.time).toLocaleString('uk-UA', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            })),
+          );
+          setAuditStats(stats || null);
+        } catch {
+          /* audit-service недоступен — остаётся локальный журнал */
+        }
+      }
+
+      if (activeMenu === 'audit' || activeMenu === 'groups') {
+        try {
+          const users = await api.get('/api/auth/users');
+          if (!cancelled && Array.isArray(users)) setSystemUsers(users);
+        } catch {
+          /* сервис аутентификации недоступен */
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, userRole, activeMenu]);
+
   // UI & Filter States
   const [notification, setNotification] = useState(null);
   const [courseSearch, setCourseSearch] = useState('');
@@ -1217,6 +1279,35 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
+  const handleEnrollStudent = async (e) => {
+    e.preventDefault();
+    if (!managingGroup || !enrollUserId.trim()) return;
+
+    const userId = enrollUserId.trim();
+    const res = await syncBackend(`/groups/${managingGroup.id}/enroll`, 'POST', {
+      userId,
+      studentName: enrollName.trim() || undefined,
+    });
+    if (!res) return;
+
+    const user = systemUsers.find((u) => u.id === userId);
+    const displayName = enrollName.trim() || user?.fullName || userId;
+
+    setAcademicGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== managingGroup.id) return g;
+        const studentsList = (g.studentsList || []).includes(displayName)
+          ? g.studentsList
+          : [...(g.studentsList || []), displayName];
+        const enrolledUserIds = Array.from(new Set([...(g.enrolledUserIds || []), userId]));
+        return { ...g, studentsList, studentsCount: studentsList.length, enrolledUserIds };
+      })
+    );
+    showNotification(`Користувача «${displayName}» зараховано до групи ${managingGroup.name}.`);
+    setEnrollUserId('');
+    setEnrollName('');
+  };
+
   const handleRemoveStudentFromGroup = async (studentName) => {
     if (!managingGroup) return;
     await syncBackend(`/groups/${managingGroup.id}/students/${encodeURIComponent(studentName)}`, 'DELETE');
@@ -1265,7 +1356,8 @@ export default function App() {
   }, [courses, courseSearch, courseFilter]);
 
   const filteredAuditLogs = useMemo(() => {
-    return auditLogs.filter((log) => {
+    const source = serverAuditLogs.length > 0 ? serverAuditLogs : auditLogs;
+    return source.filter((log) => {
       if (!auditSearch.trim()) return true;
       const q = auditSearch.toLowerCase();
       return (
@@ -1274,7 +1366,7 @@ export default function App() {
         log.resource.toLowerCase().includes(q)
       );
     });
-  }, [auditLogs, auditSearch]);
+  }, [auditLogs, auditSearch, serverAuditLogs]);
 
   const calYear = calendarDate.getFullYear();
   const calMonth = calendarDate.getMonth();
@@ -3403,6 +3495,22 @@ export default function App() {
               />
             </div>
 
+            {auditStats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                {[
+                  { label: 'Всього подій', value: auditStats.total, color: '#1864ab' },
+                  { label: 'За 24 години', value: auditStats.last24h, color: '#2b8a3e' },
+                  { label: 'Відмовлено', value: auditStats.denied, color: '#c92a2a' },
+                  { label: 'Помилки', value: auditStats.errors, color: '#d9480f' },
+                ].map((s) => (
+                  <div key={s.label} className="studevo-card" style={{ padding: '14px 16px' }}>
+                    <div style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>{s.label}</div>
+                    <div style={{ fontSize: '22px', fontWeight: 800, color: s.color }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="studevo-card">
               <table className="studevo-table">
                 <thead>
@@ -3422,10 +3530,27 @@ export default function App() {
                       <td>{log.action}</td>
                       <td style={{ color: '#495057' }}>{log.resource}</td>
                       <td>
-                        <span className="badge-allowed">Виконано</span>
+                        {log.status === 'DENIED' ? (
+                          <span className="badge-denied" style={{ background: '#ffe3e3', color: '#c92a2a', padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700 }}>
+                            Відмовлено {log.statusCode ? `(${log.statusCode})` : ''}
+                          </span>
+                        ) : log.status === 'ERROR' ? (
+                          <span style={{ background: '#fff4e6', color: '#d9480f', padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700 }}>
+                            Помилка {log.statusCode ? `(${log.statusCode})` : ''}
+                          </span>
+                        ) : (
+                          <span className="badge-allowed">Виконано</span>
+                        )}
                       </td>
                     </tr>
                   ))}
+                  {filteredAuditLogs.length === 0 && (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', color: '#868e96', padding: '24px' }}>
+                        Подій не знайдено
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -3971,6 +4096,46 @@ export default function App() {
                   + Додати студента
                 </button>
               </form>
+
+              <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px dashed #dee2e6' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: 'var(--studevo-red-dark)' }}>
+                  3. Зарахування користувача (user ↔ group)
+                </h4>
+                <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '10px' }}>
+                  Зараховано ID:{' '}
+                  <strong>{(managingGroup.enrolledUserIds || []).join(', ') || '—'}</strong>
+                </div>
+                <form onSubmit={handleEnrollStudent} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    list="studevo-users"
+                    className="input-studevo-control"
+                    style={{ flex: '1 1 180px' }}
+                    placeholder="ID користувача (напр. usr-student)"
+                    value={enrollUserId}
+                    onChange={(e) => setEnrollUserId(e.target.value)}
+                    required
+                  />
+                  <datalist id="studevo-users">
+                    {systemUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullName} — {u.role}
+                      </option>
+                    ))}
+                  </datalist>
+                  <input
+                    type="text"
+                    className="input-studevo-control"
+                    style={{ flex: '1 1 160px' }}
+                    placeholder="ПІБ (необов'язково)"
+                    value={enrollName}
+                    onChange={(e) => setEnrollName(e.target.value)}
+                  />
+                  <button type="submit" className="btn-studevo-primary" style={{ whiteSpace: 'nowrap' }}>
+                    Зарахувати
+                  </button>
+                </form>
+              </div>
             </div>
 
             <div className="modal-footer">

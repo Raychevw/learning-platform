@@ -1,0 +1,123 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness/readiness probe for the Audit Service",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/audit/events": {
+      "post": {
+        "operationId": "AuditController_ingest",
+        "parameters": [
+          {
+            "name": "x-audit-secret",
+            "in": "header",
+            "description": "Internal ingest token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestAuditDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Internal ingest endpoint used by the API Gateway",
+        "tags": [
+          "Audit & Security"
+        ]
+      }
+    },
+    "/audit/logs": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search audit logs (admin only)",
+        "tags": [
+          "Audit & Security"
+        ]
+      }
+    },
+    "/audit/stats": {
+      "get": {
+        "operationId": "AuditController_stats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Aggregated audit statistics (admin only)",
+        "tags": [
+          "Audit & Security"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Audit & Security Service API",
+    "description": "Неизменяемый журнал событий безопасности: вход, изменения данных, отказы в доступе",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Audit & Security",
+      "description": ""
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "IngestAuditDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

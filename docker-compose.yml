@@ -81,6 +81,24 @@ services:
       timeout: 5s
       retries: 10
 
+  audit-db:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: studevo_audit_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-lms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      POSTGRES_DB: ${AUDIT_DB_NAME:-audit_db}
+    ports:
+      - "${AUDIT_DB_PORT:-5436}:5432"
+    volumes:
+      - audit_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms} -d ${AUDIT_DB_NAME:-audit_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ---------------------------------------------------------------- infra
   redis_broker:
     <<: *service-defaults
@@ -244,6 +262,34 @@ services:
       retries: 10
       start_period: 20s
 
+  audit-service:
+    <<: [*service-defaults]
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: studevo_audit_service
+    environment:
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3004
+      DB_HOST: audit-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-lms}
+      DB_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      DB_NAME: ${AUDIT_DB_NAME:-audit_db}
+      AUDIT_INGEST_TOKEN: ${AUDIT_INGEST_TOKEN:-change_me_super_long_random_secret_at_least_32_chars}
+    ports:
+      - "${AUDIT_SERVICE_PORT:-3004}:3004"
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # ---------------------------------------------------------------- edge
   api-gateway:
     <<: [*service-defaults]
@@ -258,6 +304,8 @@ services:
       COURSE_SERVICE_URL: http://course-service:3001
       ASSIGNMENT_SERVICE_URL: http://assignment-service:3002
       AUTH_SERVICE_URL: http://auth-service:3003
+      AUDIT_SERVICE_URL: http://audit-service:3004
+      AUDIT_INGEST_TOKEN: ${AUDIT_INGEST_TOKEN:-change_me_super_long_random_secret_at_least_32_chars}
     ports:
       - "${GATEWAY_PORT:-3000}:3000"
     depends_on:
@@ -266,6 +314,8 @@ services:
       assignment-service:
         condition: service_healthy
       auth-service:
+        condition: service_healthy
+      audit-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
@@ -297,6 +347,7 @@ volumes:
   course_db_data:
   assignment_db_data:
   auth_db_data:
+  audit_db_data:
   redis_data:
   minio_data:
 

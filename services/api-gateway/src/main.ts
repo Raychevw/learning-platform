@@ -18,7 +18,9 @@ const PORT = Number(process.env.PORT || 3000);
 const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:3001';
 const ASSIGNMENT_SERVICE_URL = process.env.ASSIGNMENT_SERVICE_URL || 'http://localhost:3002';
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3003';
+const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:3004';
 const JWT_SECRET = process.env.JWT_SECRET || 'change_me_super_long_random_secret_at_least_32_chars';
+const AUDIT_INGEST_TOKEN = process.env.AUDIT_INGEST_TOKEN || JWT_SECRET;
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:8080')
   .split(',')
@@ -46,7 +48,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ----------------------------------------------------------------- request id + logging
+// ----------------------------------------------------------------- request id + logging + audit
 app.use((req: Request, res: Response, next: NextFunction) => {
   const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
   (req as any).requestId = requestId;
@@ -57,9 +59,56 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     const ms = Date.now() - startedAt;
     const who = (req as any).user?.role ? ` role=${(req as any).user.role}` : '';
     console.log(`[GATEWAY] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${ms}ms${who} rid=${requestId}`);
+    void sendAudit(req, res);
   });
   next();
 });
+
+/** Аудит пишется только для изменяющих запросов и отказов — без чтения и без паролей. */
+async function sendAudit(req: Request, res: Response): Promise<void> {
+  if (!AUDIT_SERVICE_URL || !req.originalUrl.startsWith('/api')) return;
+
+  const statusCode = res.statusCode;
+  const isMutation = req.method !== 'GET';
+  const isDenied = statusCode === 401 || statusCode === 403;
+  const isError = statusCode >= 500;
+  if (!isMutation && !isDenied && !isError) return;
+
+  const user = (req as any).user as { sub?: string; role?: string; name?: string } | undefined;
+  const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+  const login = typeof body.login === 'string' ? body.login : '';
+  const cleanPath = req.originalUrl.split('?')[0];
+  const resource = cleanPath.replace(/^\/api\/?/, '').split('/')[0] || 'api';
+
+  const payload = {
+    userId: user?.sub || 'anonymous',
+    userRole: user?.role || '',
+    userName: user?.name || login || '',
+    action: `${req.method} ${cleanPath}`.slice(0, 128),
+    resource,
+    method: req.method,
+    path: req.originalUrl.slice(0, 512),
+    statusCode,
+    status: statusCode < 400 ? 'ALLOWED' : isDenied ? 'DENIED' : 'ERROR',
+    ip: (req.ip || '').slice(0, 64),
+    requestId: String((req as any).requestId || '').slice(0, 64),
+  };
+
+  try {
+    const response = await fetch(`${AUDIT_SERVICE_URL}/audit/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-audit-secret': AUDIT_INGEST_TOKEN },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!response.ok) {
+      console.warn(`[AUDIT] ingest rejected with status ${response.status}`);
+    }
+  } catch (error) {
+    // Аудит не должен влиять на основной запрос.
+    console.warn(`[AUDIT] ingest failed: ${(error as Error).message}`);
+  }
+}
 
 // ----------------------------------------------------------------- auth
 const PUBLIC_API_PATHS = new Set(['/auth/login']);
@@ -141,12 +190,13 @@ async function checkDownstream(name: string, url: string) {
 }
 
 async function healthPayload() {
-  const [course, assignment, auth] = await Promise.all([
+  const [course, assignment, auth, audit] = await Promise.all([
     checkDownstream('courseService', COURSE_SERVICE_URL),
     checkDownstream('assignmentService', ASSIGNMENT_SERVICE_URL),
     checkDownstream('authService', AUTH_SERVICE_URL),
+    checkDownstream('auditService', AUDIT_SERVICE_URL),
   ]);
-  const services = [course, assignment, auth];
+  const services = [course, assignment, auth, audit];
   return {
     status: 'UP',
     gateway: { port: PORT, status: 'HEALTHY' },
@@ -270,6 +320,7 @@ mountProxy('/api/groups', ASSIGNMENT_SERVICE_URL, '/api/groups', '/groups');
 mountProxy('/api/enrollments', ASSIGNMENT_SERVICE_URL, '/api/enrollments', '/enrollments');
 mountProxy('/api/submissions', ASSIGNMENT_SERVICE_URL, '/api/submissions', '/submissions');
 mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
+mountProxy('/api/audit', AUDIT_SERVICE_URL, '/api/audit', '/audit');
 
 // ----------------------------------------------------------------- fallbacks
 app.use('/api', (req: Request, res: Response) => {
