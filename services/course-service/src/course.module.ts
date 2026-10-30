@@ -9,6 +9,7 @@ import {
   LessonCompletionEntity,
   WebinarEntity,
   ScheduleEntryEntity,
+  WebinarAttendanceEntity,
 } from './infrastructure/database/entities/CatalogEntities.js';
 import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
 import { InMemoryCourseRepository } from './infrastructure/database/repositories/InMemoryCourseRepository.js';
@@ -24,11 +25,13 @@ import { CatalogController, WebinarController, ScheduleController } from './cata
 import { CatalogSeeder, ScheduleSeeder } from './catalog/catalog.seeder.js';
 import { WebinarEventsService } from './catalog/webinar-events.service.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
+import { ConfigController } from './presentation/controllers/ConfigController.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
 import { Schedule1730000000001 } from './database/migrations/1730000000001-schedule.js';
 import { LessonMaterials1730000000002 } from './database/migrations/1730000000002-lesson-materials.js';
 import { CourseOwner1730000000003 } from './database/migrations/1730000000003-course-owner.js';
+import { Conferences1730000000004 } from './database/migrations/1730000000004-conferences.js';
 import { STORAGE_SERVICE_TOKEN, createStorageService } from './infrastructure/storage/storage.service.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
@@ -40,6 +43,7 @@ const ALL_ENTITIES = [
   LessonCompletionEntity,
   WebinarEntity,
   ScheduleEntryEntity,
+  WebinarAttendanceEntity,
 ];
 
 const dynamicImports: any[] = [
@@ -65,6 +69,7 @@ if (usePostgres) {
           Schedule1730000000001,
           LessonMaterials1730000000002,
           CourseOwner1730000000003,
+          Conferences1730000000004,
         ],
         migrationsRun: true,
         synchronize: false,
@@ -83,7 +88,7 @@ const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, ScheduleS
 
 @Module({
   imports: dynamicImports,
-  controllers: [HealthController, CourseController, ...catalogControllers],
+  controllers: [HealthController, ConfigController, CourseController, ...catalogControllers],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     {

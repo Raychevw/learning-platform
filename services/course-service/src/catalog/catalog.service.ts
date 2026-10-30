@@ -6,7 +6,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { IStorageService } from '../infrastructure/storage/storage.service.js';
@@ -20,6 +20,7 @@ import {
   WebinarEntity,
   WebinarChatMessage,
   ScheduleEntryEntity,
+  WebinarAttendanceEntity,
 } from '../infrastructure/database/entities/CatalogEntities.js';
 import { WebinarEventsService } from './webinar-events.service.js';
 
@@ -72,6 +73,8 @@ export class CatalogService {
     @InjectRepository(LessonCompletionEntity) private readonly completions: Repository<LessonCompletionEntity>,
     @InjectRepository(WebinarEntity) private readonly webinars: Repository<WebinarEntity>,
     @InjectRepository(ScheduleEntryEntity) private readonly schedule: Repository<ScheduleEntryEntity>,
+    @InjectRepository(WebinarAttendanceEntity)
+    private readonly attendance: Repository<WebinarAttendanceEntity>,
     private readonly dataSource: DataSource,
     private readonly events: WebinarEventsService,
     @Inject(STORAGE_SERVICE_TOKEN) private readonly storage: IStorageService,
@@ -301,6 +304,9 @@ export class CatalogService {
       scheduledAt: w.scheduledAt instanceof Date ? w.scheduledAt.toISOString() : w.scheduledAt,
       status: w.status,
       chat: w.chat || [],
+      recordingAvailable: Boolean(w.recordingKey),
+      recordingName: w.recordingName || '',
+      recordingUrl: w.recordingKey ? `/api/webinars/${w.id}/recording` : null,
     };
   }
 
@@ -469,6 +475,104 @@ export class CatalogService {
     return { ok: true, id };
   }
 
+  // ----------------------------------------------------------------- attendance
+  private async recordJoin(webinarId: string, user: { userId: string; role: string; name?: string }) {
+    const open = await this.attendance.findOneBy({
+      webinarId,
+      userId: user.userId,
+      leftAt: IsNull(),
+    });
+    if (open) return;
+    await this.attendance.save(
+      this.attendance.create({
+        id: newId('att'),
+        webinarId,
+        userId: user.userId,
+        userName: user.name || user.userId,
+        role: (user.role || '').toLowerCase(),
+        joinedAt: new Date(),
+      }),
+    );
+  }
+
+  private async recordLeave(webinarId: string, userId: string) {
+    const open = await this.attendance.findOneBy({ webinarId, userId, leftAt: IsNull() });
+    if (!open) return;
+    const leftAt = new Date();
+    open.leftAt = leftAt;
+    open.durationSeconds = Math.max(
+      0,
+      Math.round((leftAt.getTime() - new Date(open.joinedAt).getTime()) / 1000),
+    );
+    await this.attendance.save(open);
+  }
+
+  async listAttendance(webinarId: string, user: RequestUser) {
+    const webinar = await this.webinars.findOneBy({ id: webinarId });
+    if (!webinar) throw new NotFoundException(`Webinar ${webinarId} not found`);
+    await assertCourseOwner(this.courses, webinar.courseId, user);
+
+    const rows = await this.attendance.find({
+      where: { webinarId },
+      order: { joinedAt: 'DESC' },
+      take: 300,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      userName: row.userName,
+      role: row.role,
+      joinedAt: row.joinedAt,
+      leftAt: row.leftAt,
+      durationSeconds: row.durationSeconds,
+      online: !row.leftAt,
+    }));
+  }
+
+  // ----------------------------------------------------------------- recording
+  async saveRecording(
+    webinarId: string,
+    user: RequestUser,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ) {
+    const webinar = await this.webinars.findOneBy({ id: webinarId });
+    if (!webinar) throw new NotFoundException(`Webinar ${webinarId} not found`);
+    await assertCourseOwner(this.courses, webinar.courseId, user);
+    if (!file?.buffer?.length) throw new BadRequestException('Файл запису не отримано');
+
+    const key = `recordings/${webinarId}/${crypto.randomUUID()}-${safeFileName(file.originalname)}`;
+    await this.storage.put(key, file.buffer, file.mimetype);
+    if (webinar.recordingKey) await this.storage.delete(webinar.recordingKey).catch(() => undefined);
+
+    webinar.recordingKey = key;
+    webinar.recordingName = file.originalname;
+    webinar.recordingSize = formatFileSize(file.size);
+    webinar.recordingMime = file.mimetype;
+    webinar.recordingAt = new Date();
+    await this.webinars.save(webinar);
+
+    this.events.emit({ type: 'webinar', webinarId, webinar: this.toWebinarDto(webinar, '') });
+    return {
+      ok: true,
+      recordingAvailable: true,
+      recordingUrl: `/api/webinars/${webinarId}/recording`,
+      fileName: webinar.recordingName,
+      fileSize: webinar.recordingSize,
+    };
+  }
+
+  async getRecording(webinarId: string) {
+    const webinar = await this.webinars.findOneBy({ id: webinarId });
+    if (!webinar) throw new NotFoundException(`Webinar ${webinarId} not found`);
+    if (!webinar.recordingKey) throw new NotFoundException('Запис цього заняття відсутній');
+    const stream: Readable = await this.storage.getStream(webinar.recordingKey);
+    return {
+      stream,
+      fileName: webinar.recordingName || 'lecture.webm',
+      mimeType: webinar.recordingMime || 'video/webm',
+    };
+  }
+
   /** Релей WebRTC-сигналинга: сервер не хранит SDP, только пересылает участникам. */
   async relaySignal(
     webinarId: string,
@@ -489,9 +593,11 @@ export class CatalogService {
         role: (user.role || '').toLowerCase(),
       });
       this.events.emit({ type: 'presence', webinarId, presence });
+      await this.recordJoin(webinarId, user);
     } else if (dto.signalType === 'leave') {
       const presence = this.events.leave(webinarId, user.userId);
       this.events.emit({ type: 'presence', webinarId, presence });
+      await this.recordLeave(webinarId, user.userId);
     }
 
     this.events.emit({

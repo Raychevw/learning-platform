@@ -38,6 +38,22 @@ export const materialMulterOptions = {
   },
 };
 
+export const MAX_RECORDING_BYTES = 200 * 1024 * 1024;
+
+const RECORDING_MIME = new Set(['video/webm', 'video/mp4', 'video/quicktime']);
+
+export const recordingMulterOptions = {
+  storage: memoryStorage(),
+  limits: { fileSize: MAX_RECORDING_BYTES, files: 1 },
+  fileFilter: (_req: unknown, file: { mimetype: string }, callback: (error: Error | null, accept: boolean) => void) => {
+    if (!RECORDING_MIME.has(file.mimetype)) {
+      callback(new BadRequestException('Запис має бути у форматі WEBM або MP4'), false);
+      return;
+    }
+    callback(null, true);
+  },
+};
+
 export function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} МБ`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} КБ`;

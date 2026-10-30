@@ -158,7 +158,12 @@ const COURSES: SeedCourse[] = [
   },
 ];
 
-const WEBINARS: Array<Omit<WebinarEntity, 'course'>> = [
+const WEBINARS: Array<
+  Omit<
+    WebinarEntity,
+    'course' | 'recordingKey' | 'recordingName' | 'recordingSize' | 'recordingMime' | 'recordingAt'
+  >
+> = [
   {
     id: 'web-1',
     courseId: 'c-1',

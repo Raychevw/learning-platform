@@ -120,6 +120,51 @@ export class WebinarEntity {
 
   @Column({ type: 'jsonb', default: () => "'[]'" })
   chat!: WebinarChatMessage[];
+
+  /** Запис лекції (webm/mp4). */
+  @Column({ name: 'recording_key', type: 'varchar', length: 512, nullable: true })
+  recordingKey!: string | null;
+
+  @Column({ name: 'recording_name', type: 'varchar', length: 255, default: '' })
+  recordingName!: string;
+
+  @Column({ name: 'recording_size', type: 'varchar', length: 32, default: '' })
+  recordingSize!: string;
+
+  @Column({ name: 'recording_mime', type: 'varchar', length: 128, nullable: true })
+  recordingMime!: string | null;
+
+  @Column({ name: 'recording_at', type: 'timestamptz', nullable: true })
+  recordingAt!: Date | null;
+}
+
+/** Журнал входу/виходу учасників конференції. */
+@Entity('webinar_attendance')
+@Index(['webinarId', 'userId'])
+export class WebinarAttendanceEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Column({ name: 'webinar_id', type: 'varchar', length: 64 })
+  webinarId!: string;
+
+  @Column({ name: 'user_id', type: 'varchar', length: 64 })
+  userId!: string;
+
+  @Column({ name: 'user_name', type: 'varchar', length: 255, default: '' })
+  userName!: string;
+
+  @Column({ type: 'varchar', length: 16, default: '' })
+  role!: string;
+
+  @Column({ name: 'joined_at', type: 'timestamptz', default: () => 'now()' })
+  joinedAt!: Date;
+
+  @Column({ name: 'left_at', type: 'timestamptz', nullable: true })
+  leftAt!: Date | null;
+
+  @Column({ name: 'duration_seconds', type: 'int', default: 0 })
+  durationSeconds!: number;
 }
 
 /** Розклад занять: одна пара (лекція/практика/лабораторна) для групи. */

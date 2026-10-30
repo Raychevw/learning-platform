@@ -20,7 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { materialMulterOptions } from './upload.config.js';
+import { materialMulterOptions, recordingMulterOptions } from './upload.config.js';
 import { Observable, interval, map, merge } from 'rxjs';
 import type { MessageEvent } from '@nestjs/common';
 import { CatalogService } from './catalog.service.js';
@@ -230,6 +230,48 @@ export class WebinarController {
       senderName: req.user?.name || dto.senderName,
       senderRole: req.user?.role ? req.user.role.toLowerCase() : dto.senderRole,
     });
+  }
+
+  @Get(':id/attendance')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Attendance log for a webinar (teacher/dean)' })
+  attendance(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+    return this.catalog.listAttendance(id, req.user);
+  }
+
+  @Post(':id/recording')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('file', recordingMulterOptions))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a lecture recording (WEBM/MP4)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  uploadRecording(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: { user: AuthUser },
+  ) {
+    if (!file) throw new BadRequestException('Оберіть файл запису');
+    return this.catalog.saveRecording(id, req.user, file);
+  }
+
+  @Get(':id/recording')
+  @ApiOperation({ summary: 'Download a lecture recording' })
+  async downloadRecording(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, fileName, mimeType } = await this.catalog.getRecording(id);
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      'Cache-Control': 'private, no-store',
+    });
+    return new StreamableFile(stream);
   }
 
   @Post(':id/signal')

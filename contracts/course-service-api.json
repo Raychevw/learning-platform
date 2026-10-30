@@ -16,6 +16,26 @@
         ]
       }
     },
+    "/config/ice": {
+      "get": {
+        "operationId": "ConfigController_ice",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ICE servers (STUN/TURN) for WebRTC clients",
+        "tags": [
+          "Config"
+        ]
+      }
+    },
     "/courses": {
       "post": {
         "description": "Creates a draft course in Course Bounded Context",
@@ -488,6 +508,92 @@
           }
         },
         "summary": "Post a chat message to the webinar",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
+    "/webinars/{id}/attendance": {
+      "get": {
+        "operationId": "WebinarController_attendance",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Attendance log for a webinar (teacher/dean)",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
+    "/webinars/{id}/recording": {
+      "post": {
+        "operationId": "WebinarController_uploadRecording",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Upload a lecture recording (WEBM/MP4)",
+        "tags": [
+          "Webinars"
+        ]
+      },
+      "get": {
+        "operationId": "WebinarController_downloadRecording",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Download a lecture recording",
         "tags": [
           "Webinars"
         ]

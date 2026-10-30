@@ -524,6 +524,11 @@ export default function App() {
   const [remoteMediaKind, setRemoteMediaKind] = useState(null);
   const [rtcStatus, setRtcStatus] = useState('idle'); // idle | connecting | live
   const [remoteHands, setRemoteHands] = useState({});
+  const [iceServers, setIceServers] = useState([{ urls: 'stun:stun.l.google.com:19302' }]);
+  const [attendance, setAttendance] = useState([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const recorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
   const remoteVideoRef = useRef(null);
   const peersRef = useRef(new Map());
   const pendingIceRef = useRef(new Map());
@@ -624,6 +629,47 @@ export default function App() {
   ]);
 
   const onlineAttendeesCount = zoomAttendees.filter((attendee) => attendee.online).length;
+
+  // ICE-сервери (STUN/TURN) з конфігурації сервера.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    let cancelled = false;
+    api
+      .get('/api/config/ice')
+      .then((config) => {
+        if (!cancelled && Array.isArray(config?.iceServers) && config.iceServers.length > 0) {
+          setIceServers(config.iceServers);
+        }
+      })
+      .catch(() => {
+        /* залишаємо STUN за замовчуванням */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  // Відвідуваність конференції для викладача/декана.
+  useEffect(() => {
+    if (!currentUser || !activeWebinar?.id || (userRole !== 'teacher' && userRole !== 'admin')) {
+      return undefined;
+    }
+    let cancelled = false;
+    const load = () => {
+      api
+        .get(`/api/webinars/${activeWebinar.id}/attendance`)
+        .then((list) => {
+          if (!cancelled && Array.isArray(list)) setAttendance(list);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [currentUser, activeWebinar?.id, userRole]);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedCourseId) || null,
@@ -1251,7 +1297,18 @@ export default function App() {
   // ========================================================
   // 4. WEBINARS, LIVE BROADCAST (WebRTC) & LIVE CHAT
   // ========================================================
+  const stopRecordingIfActive = () => {
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      try {
+        recorderRef.current.stop();
+      } catch {
+        /* уже зупинено */
+      }
+    }
+  };
+
   const stopHardwareStream = () => {
+    stopRecordingIfActive();
     if (mediaStreamObjRef.current) {
       mediaStreamObjRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamObjRef.current = null;
@@ -1321,9 +1378,7 @@ export default function App() {
 
   const createPeer = (peerId, isOfferer, stream) => {
     closePeer(peerId);
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
+    const pc = new RTCPeerConnection({ iceServers });
     peersRef.current.set(peerId, pc);
 
     if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -1364,6 +1419,79 @@ export default function App() {
   const stopBroadcast = async () => {
     closeAllPeers();
     await sendSignal(null, 'media-stop', {});
+  };
+
+  const handleToggleRecording = () => {
+    if (userRole !== 'teacher' || !activeWebinar) return;
+
+    if (isRecording) {
+      stopRecordingIfActive();
+      return;
+    }
+
+    const stream = mediaStreamObjRef.current;
+    if (!stream) {
+      showNotification('Спочатку увімкніть камеру або демонстрацію екрана.', true);
+      return;
+    }
+
+    try {
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        setIsRecording(false);
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        recordedChunksRef.current = [];
+        if (blob.size === 0) return;
+
+        const file = new File([blob], `lecture-${Date.now()}.webm`, { type: 'video/webm' });
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await syncBackend(`/webinars/${activeWebinar.id}/recording`, 'POST', formData);
+        if (res) {
+          setWebinars((prev) =>
+            prev.map((webinar) =>
+              webinar.id === activeWebinar.id
+                ? { ...webinar, recordingAvailable: true, recordingUrl: res.recordingUrl }
+                : webinar
+            )
+          );
+          showNotification('Запис лекції збережено.');
+        }
+      };
+
+      recorder.start(2000);
+      recorderRef.current = recorder;
+      setIsRecording(true);
+      showNotification('Запис лекції розпочато.');
+    } catch {
+      showNotification('Не вдалося запустити запис лекції.', true);
+    }
+  };
+
+  const handleDownloadRecording = async () => {
+    if (!activeWebinar?.recordingAvailable) return;
+    try {
+      const blob = await requestBlob(`/api/webinars/${activeWebinar.id}/recording`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `lecture-${activeWebinar.id}.webm`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showNotification(err.message || 'Не вдалося завантажити запис.', true);
+    }
   };
 
   const handleRtcSignal = (event) => {
@@ -3332,6 +3460,16 @@ export default function App() {
                         >
                           Галерея (Сітка)
                         </button>
+                        {activeWebinar.recordingAvailable && (
+                          <button
+                            type="button"
+                            className="zoom-view-btn"
+                            onClick={handleDownloadRecording}
+                            title="Завантажити запис лекції"
+                          >
+                            Запис лекції
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="zoom-view-btn"
@@ -3701,6 +3839,16 @@ export default function App() {
 
                         <button
                           type="button"
+                          className={`zoom-tool-btn ${isRecording ? 'is-active' : ''}`}
+                          onClick={handleToggleRecording}
+                          title={isRecording ? 'Зупинити запис' : 'Записати лекцію'}
+                        >
+                          <span style={{ fontSize: '16px', color: isRecording ? '#ff4d4f' : undefined }}>●</span>
+                          <span>{isRecording ? 'Зупинити запис' : 'Запис'}</span>
+                        </button>
+
+                        <button
+                          type="button"
                           className={`zoom-tool-btn ${streamSource === 'slides' ? 'is-active' : ''}`}
                           onClick={handleSwitchToSlides}
                         >
@@ -3766,6 +3914,63 @@ export default function App() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {(userRole === 'teacher' || userRole === 'admin') && (
+              <div className="studevo-card" style={{ marginTop: '16px' }}>
+                <div className="dash-section-head">
+                  <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                    Відвідуваність заняття
+                  </h3>
+                  <span className="dash-hint">
+                    {attendance.filter((row) => row.online).length} онлайн • {attendance.length} записів
+                  </span>
+                </div>
+                <table className="studevo-table">
+                  <thead>
+                    <tr>
+                      <th>Учасник</th>
+                      <th>Роль</th>
+                      <th>Вхід</th>
+                      <th>Вихід</th>
+                      <th>Тривалість</th>
+                      <th>Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendance.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
+                          Ще немає записів
+                        </td>
+                      </tr>
+                    ) : (
+                      attendance.map((row) => {
+                        const minutes = Math.floor((row.durationSeconds || 0) / 60);
+                        const seconds = (row.durationSeconds || 0) % 60;
+                        return (
+                          <tr key={row.id}>
+                            <td>{row.userName}</td>
+                            <td>{row.role === 'teacher' ? 'Викладач' : 'Студент'}</td>
+                            <td>{new Date(row.joinedAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td>
+                              {row.leftAt
+                                ? new Date(row.leftAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+                                : '—'}
+                            </td>
+                            <td>{`${minutes} хв ${String(seconds).padStart(2, '0')} с`}</td>
+                            <td>
+                              <span className={`dash-status ${row.online ? 'done' : 'pending'}`}>
+                                {row.online ? 'Онлайн' : 'Вийшов'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
