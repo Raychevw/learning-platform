@@ -1911,7 +1911,11 @@ export default function App() {
   };
 
   const visibleCourses =
-    userRole === 'student' ? courses.filter((course) => course.isPublished !== false) : courses;
+    userRole === 'student'
+      ? courses.filter((course) => course.isPublished !== false)
+      : userRole === 'teacher'
+        ? courses.filter((course) => !course.ownerId || course.ownerId === currentUser?.id)
+        : courses;
 
   const submissionTarget =
     assignments.find((assignment) => assignment.id === submissionForm.assignmentId) || assignments[0] || null;
