@@ -77,6 +77,8 @@
   групи; показуються на панелі та окремій сторінці.
 - **Керування розкладом** — викладач/декан додає та видаляє пари (день, час, аудиторія,
   тип, посилання на онлайн) з окремої сторінки.
+- **Куратори та статус навчання** — декан призначає куратора групи та змінює статус
+  студента (навчається / відрахований / академвідпустка); неактивні акаунти не можуть увійти.
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -208,6 +210,8 @@ POST /api/auth/login
 | POST | `/api/assignments/:id/submit-file` | сдать работу с файлом (`multipart/form-data`, поле `file`, до 25 МБ) |
 | GET | `/api/submissions/:id/file` | скачать файл сдачи (владелец, teacher, admin) |
 | GET/POST/DELETE | `/api/enrollments`, `/api/groups/:id/enroll`, `/api/groups/:id/enroll/:userId` | зачисления (admin) |
+| PATCH | `/api/groups/:id/curator` | призначити куратора групи (admin) |
+| PATCH | `/api/auth/users/:id/status` | статус навчання (admin) |
 | GET | `/api/audit/logs?search=&status=&limit=` | журнал безопасности (admin) |
 | GET | `/api/audit/stats` | агрегаты аудита (admin) |
 | POST | `/audit/events` (internal) | приём событий от gateway по `x-audit-secret` |

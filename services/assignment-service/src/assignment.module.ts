@@ -33,6 +33,7 @@ import { HealthController } from './presentation/controllers/HealthController.js
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
 import { Specialty1730000000001 } from './database/migrations/1730000000001-specialty.js';
 import { AssignmentOpening1730000000002 } from './database/migrations/1730000000002-assignment-opening.js';
+import { GroupCurator1730000000003 } from './database/migrations/1730000000003-group-curator.js';
 import { AuthGuard } from './auth/auth.guard.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
@@ -64,7 +65,12 @@ if (usePostgres) {
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'assignment_db'),
         entities: ALL_ENTITIES,
-        migrations: [Init1730000000000, Specialty1730000000001, AssignmentOpening1730000000002],
+        migrations: [
+          Init1730000000000,
+          Specialty1730000000001,
+          AssignmentOpening1730000000002,
+          GroupCurator1730000000003,
+        ],
         migrationsRun: true,
         synchronize: false,
         retryAttempts: 2,

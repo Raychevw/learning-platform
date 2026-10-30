@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { Public, Roles, AuthUser } from './auth.guard.js';
@@ -22,6 +22,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Профіль поточного користувача (з JWT)' })
   async me(@Req() req: { user: AuthUser }) {
     return this.authService.findById(req.user.userId);
+  }
+
+  @Patch('users/:id/status')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Змінити статус навчання (лише адміністратор)' })
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: { status: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE' },
+  ) {
+    return this.authService.updateStatus(id, dto.status);
   }
 
   @Get('directory')

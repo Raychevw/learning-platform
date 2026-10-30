@@ -51,6 +51,35 @@
         ]
       }
     },
+    "/auth/users/{id}/status": {
+      "patch": {
+        "operationId": "AuthController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Змінити статус навчання (лише адміністратор)",
+        "tags": [
+          "Auth & Identity"
+        ]
+      }
+    },
     "/auth/directory": {
       "get": {
         "operationId": "AuthController_directory",

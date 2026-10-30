@@ -9,6 +9,7 @@ import { AuthController } from './auth/auth.controller.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
+import { UserStatus1730000000001 } from './database/migrations/1730000000001-user-status.js';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'auth_db'),
         entities: [UserEntity],
-        migrations: [Init1730000000000],
+        migrations: [Init1730000000000, UserStatus1730000000001],
         migrationsRun: true,
         synchronize: false,
         retryAttempts: 5,

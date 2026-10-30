@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -133,6 +134,13 @@ export class CourseworkController {
   @ApiOperation({ summary: 'Create academic group' })
   createGroup(@Body() dto: CreateGroupBodyDto) {
     return this.coursework.createGroup(dto);
+  }
+
+  @Patch('groups/:id/curator')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Assign a curator (teacher) to a group' })
+  assignCurator(@Param('id') id: string, @Body() dto: { curatorId?: string | null }) {
+    return this.coursework.assignCurator(id, dto?.curatorId ?? null);
   }
 
   @Post('groups/:id/toggle-course')

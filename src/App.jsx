@@ -1829,6 +1829,26 @@ export default function App() {
     setUnreadMessages((prev) => Math.max(0, prev - 1));
   };
 
+  const handleAssignCurator = async (groupId, curatorId) => {
+    const res = await syncBackend(`/groups/${groupId}/curator`, 'PATCH', {
+      curatorId: curatorId || null,
+    });
+    if (!res) return;
+    setAcademicGroups((prev) =>
+      prev.map((group) => (group.id === groupId ? { ...group, curatorId: res.curatorId } : group))
+    );
+    showNotification('Куратора групи оновлено.');
+  };
+
+  const handleUserStatus = async (userId, status) => {
+    const res = await syncBackend(`/auth/users/${userId}/status`, 'PATCH', { status });
+    if (!res) return;
+    setSystemUsers((prev) =>
+      prev.map((user) => (user.id === userId ? { ...user, status: res.status } : user))
+    );
+    showNotification('Статус навчання оновлено.');
+  };
+
   const handleAssignTeacher = async (courseId, ownerId) => {
     const res = await syncBackend(`/catalog/${courseId}/owner`, 'PATCH', {
       ownerId: ownerId || null,
@@ -3731,6 +3751,7 @@ export default function App() {
                     <th>Курс</th>
                     <th>Кількість студентів</th>
                     <th>Закріплені дисципліни</th>
+                    <th>Куратор</th>
                     <th>Дії</th>
                   </tr>
                 </thead>
@@ -3763,6 +3784,23 @@ export default function App() {
                             ) : null;
                           })}
                         </div>
+                      </td>
+                      <td>
+                        <select
+                          className="input-studevo-control"
+                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                          value={g.curatorId || ''}
+                          onChange={(e) => handleAssignCurator(g.id, e.target.value)}
+                        >
+                          <option value="">— не призначено —</option>
+                          {systemUsers
+                            .filter((user) => user.role === 'TEACHER' || user.role === 'ADMIN')
+                            .map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.fullName}
+                              </option>
+                            ))}
+                        </select>
                       </td>
                       <td>
                         <button
@@ -3834,6 +3872,7 @@ export default function App() {
                     <th>ПІБ</th>
                     <th>Email</th>
                     <th>Роль</th>
+                    <th>Статус</th>
                     <th>Група</th>
                   </tr>
                 </thead>
@@ -3856,6 +3895,18 @@ export default function App() {
                           <select
                             className="input-studevo-control"
                             style={{ padding: '4px 8px', fontSize: '12px' }}
+                            value={user.status || 'ACTIVE'}
+                            onChange={(e) => handleUserStatus(user.id, e.target.value)}
+                          >
+                            <option value="ACTIVE">Навчається</option>
+                            <option value="EXPELLED">Відрахований</option>
+                            <option value="ACADEMIC_LEAVE">Академвідпустка</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            className="input-studevo-control"
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
                             value={enrollment?.groupId || ''}
                             onChange={(e) => handleTransferUser(user.id, e.target.value)}
                           >
@@ -3872,7 +3923,7 @@ export default function App() {
                   })}
                   {systemUsers.length === 0 && (
                     <tr>
-                      <td colSpan="4" style={{ textAlign: 'center', color: '#868e96' }}>
+                      <td colSpan="5" style={{ textAlign: 'center', color: '#868e96' }}>
                         Користувачів не знайдено
                       </td>
                     </tr>

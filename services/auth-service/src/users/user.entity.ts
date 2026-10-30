@@ -33,6 +33,10 @@ export class UserEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  /** ACTIVE | EXPELLED | ACADEMIC_LEAVE */
+  @Column({ type: 'varchar', length: 24, default: 'ACTIVE' })
+  status: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE';
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -47,6 +51,7 @@ export interface PublicUser {
   fullName: string;
   role: UserRole;
   department: string | null;
+  status: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE';
 }
 
 export function toPublicUser(user: UserEntity): PublicUser {
@@ -57,5 +62,6 @@ export function toPublicUser(user: UserEntity): PublicUser {
     fullName: user.fullName,
     role: user.role,
     department: user.department,
+    status: user.status || 'ACTIVE',
   };
 }

@@ -420,6 +420,14 @@ export class CourseworkService {
     return group;
   }
 
+  async assignCurator(groupId: string, curatorId: string | null) {
+    const group = await this.groups.findOneBy({ id: groupId });
+    if (!group) throw new NotFoundException(`Group ${groupId} not found`);
+    group.curatorId = curatorId || null;
+    await this.groups.save(group);
+    return { id: group.id, curatorId: group.curatorId };
+  }
+
   async toggleCourseForGroup(groupId: string, courseId: string) {
     const group = await this.groups.findOneBy({ id: groupId });
     if (!group) throw new NotFoundException(`Group ${groupId} not found`);

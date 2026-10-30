@@ -121,6 +121,10 @@ export class AcademicGroupEntity {
   @Column({ length: 255, default: '' })
   specialty!: string;
 
+  /** Куратор групи (id викладача з auth-service). */
+  @Column({ name: 'curator_id', type: 'varchar', length: 64, nullable: true })
+  curatorId!: string | null;
+
   @Column({ type: 'int', default: 1 })
   studyYear!: number;
 

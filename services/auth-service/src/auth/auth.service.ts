@@ -39,6 +39,10 @@ export class AuthService {
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Невірний логін або пароль');
     }
+    if (user.status && user.status !== 'ACTIVE') {
+      const reason = user.status === 'EXPELLED' ? 'відраховано' : 'академічна відпустка';
+      throw new UnauthorizedException(`Обліковий запис неактивний: ${reason}`);
+    }
 
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatches) {
@@ -110,9 +114,18 @@ export class AuthService {
       role: input.role || UserRole.STUDENT,
       department: input.department?.trim() || null,
       isActive: true,
+      status: 'ACTIVE',
     });
     const saved = await this.users.save(user);
     this.logger.log(`Created user ${saved.email} with role ${saved.role}`);
+    return toPublicUser(saved);
+  }
+
+  async updateStatus(userId: string, status: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE') {
+    const user = await this.users.findOneBy({ id: userId });
+    if (!user) throw new BadRequestException('Користувача не знайдено');
+    user.status = status;
+    const saved = await this.users.save(user);
     return toPublicUser(saved);
   }
 

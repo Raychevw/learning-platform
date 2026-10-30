@@ -444,6 +444,35 @@
         ]
       }
     },
+    "/groups/{id}/curator": {
+      "patch": {
+        "operationId": "CourseworkController_assignCurator",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Assign a curator (teacher) to a group",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
     "/groups/{id}/toggle-course": {
       "post": {
         "operationId": "CourseworkController_toggleCourse",
