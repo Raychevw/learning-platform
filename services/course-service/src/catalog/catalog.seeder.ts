@@ -163,48 +163,18 @@ const WEBINARS: Array<Omit<WebinarEntity, 'course'>> = [
     courseId: 'c-1',
     title: 'Онлайн-лекція: Чиста архітектура та інверсія залежностей',
     instructor: 'Дмитро Коваленко, доц.',
-    scheduledAt: new Date('2026-10-24T15:00:00.000Z'),
+    scheduledAt: new Date(Date.now() - 15 * 60 * 1000),
     status: 'LIVE',
-    chat: [
-      {
-        id: 'msg-1',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Вітаю групу ІПЗ-412! Сьогодні розбираємо побудову чистої архітектури та підготовку до Лабораторної №4.',
-        time: '18:02',
-      },
-      {
-        id: 'msg-2',
-        senderName: 'Олександр Петренко',
-        senderRole: 'student',
-        text: 'Добрий вечір! Підкажіть, чи можна здати звіт у форматі PDF разом із посиланням на GitHub?',
-        time: '18:05',
-      },
-      {
-        id: 'msg-3',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Так, звісно. Прикріплюйте PDF-файл у розділі «Завдання» та додавайте посилання в коментарі.',
-        time: '18:06',
-      },
-    ],
+    chat: [],
   },
   {
     id: 'web-2',
     courseId: 'c-2',
     title: 'Практичний семінар: Розбір макетів студентських робіт',
     instructor: 'Олена Грищенко, ст. викл.',
-    scheduledAt: new Date('2026-10-28T12:30:00.000Z'),
+    scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
     status: 'SCHEDULED',
-    chat: [
-      {
-        id: 'msg-4',
-        senderName: 'Олена Грищенко, ст. викл.',
-        senderRole: 'teacher',
-        text: 'Підготуйте ваші прототипи для спільного обговорення на занятті.',
-        time: '14:00',
-      },
-    ],
+    chat: [],
   },
 ];
 

@@ -2,11 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 
 export interface WebinarRealtimeEvent {
-  type: 'webinar' | 'status' | 'chat' | 'deleted';
+  type: 'webinar' | 'status' | 'chat' | 'deleted' | 'signal';
   webinarId?: string;
   status?: string;
   message?: unknown;
   webinar?: unknown;
+  /** WebRTC signaling metadata */
+  from?: string;
+  fromRole?: string;
+  fromName?: string;
+  to?: string | null;
+  signalType?: string;
+  payload?: unknown;
 }
 
 /**

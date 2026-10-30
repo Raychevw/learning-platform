@@ -239,6 +239,32 @@ export class CatalogService {
     return message;
   }
 
+  /** Релей WebRTC-сигналинга: сервер не хранит SDP, только пересылает участникам. */
+  async relaySignal(
+    webinarId: string,
+    dto: { to?: string | null; signalType: string; payload?: unknown },
+    user: { userId: string; role: string; name?: string },
+  ) {
+    const allowed = ['offer', 'answer', 'ice', 'join', 'leave', 'media-start', 'media-stop', 'hand'];
+    if (!allowed.includes(dto.signalType)) {
+      throw new BadRequestException(`Unsupported signal type: ${dto.signalType}`);
+    }
+    const webinar = await this.webinars.findOneBy({ id: webinarId });
+    if (!webinar) throw new NotFoundException(`Webinar ${webinarId} not found`);
+
+    this.events.emit({
+      type: 'signal',
+      webinarId,
+      from: user.userId,
+      fromRole: (user.role || '').toLowerCase(),
+      fromName: user.name,
+      to: dto.to || null,
+      signalType: dto.signalType,
+      payload: dto.payload ?? null,
+    });
+    return { ok: true };
+  }
+
   async deleteWebinar(id: string) {
     const webinar = await this.webinars.findOneBy({ id });
     if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);

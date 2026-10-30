@@ -244,6 +244,35 @@ async function main() {
       const noAuth = await fetch(`${gatewayUrl}/api/catalog`, { signal: AbortSignal.timeout(5000) });
       if (noAuth.status === 401) ok('GET /api/catalog без токена отклонён (401)');
       else fail('Каталог доступен без авторизации', `status=${noAuth.status}`);
+
+      // Реальный ростер курса и WebRTC signaling
+      try {
+        const rosterRes = await fetch(`${gatewayUrl}/api/enrollments?courseId=c-1`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        const roster = await rosterRes.json().catch(() => null);
+        if (rosterRes.ok && Array.isArray(roster)) {
+          ok('GET /api/enrollments?courseId= возвращает ростер', `${roster.length} enrolled`);
+        } else {
+          fail('Ростер курса недоступен', `status=${rosterRes.status}`);
+        }
+      } catch (err) {
+        fail('Ростер курса недоступен', err.message);
+      }
+
+      try {
+        const signalRes = await fetch(`${gatewayUrl}/api/webinars/web-1/signal`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: null, signalType: 'join', payload: {} }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (signalRes.status === 202) ok('POST /api/webinars/:id/signal принимает signaling');
+        else fail('WebRTC signaling недоступен', `status=${signalRes.status}`);
+      } catch (err) {
+        fail('WebRTC signaling недоступен', err.message);
+      }
     }
 
     // Аудит: логин уже породил событие, читаем его админом (с небольшим retry).

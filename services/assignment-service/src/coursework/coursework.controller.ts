@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   Res,
   StreamableFile,
@@ -159,9 +161,12 @@ export class CourseworkController {
 
   // ---------------- Enrollments (user <-> group)
   @Get('enrollments')
-  @Roles(UserRole.TEACHER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'List student enrollments' })
-  listEnrollments() {
+  @ApiOperation({ summary: 'List enrollments (course roster for any authenticated user; full list for staff)' })
+  listEnrollments(@Query('courseId') courseId: string, @Req() req: AuthRequest) {
+    if (courseId) return this.coursework.listEnrollmentsForCourse(courseId);
+    if (req.user.role === UserRole.STUDENT) {
+      throw new ForbiddenException('Повний список зачислень доступний лише викладачам та адміністраторам');
+    }
     return this.coursework.listEnrollments();
   }
 

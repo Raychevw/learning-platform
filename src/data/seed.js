@@ -293,27 +293,27 @@ export const INITIAL_GROUPS = [
     name: 'ІПЗ-412',
     faculty: 'ФІОТ',
     studyYear: 4,
-    studentsCount: 28,
+    studentsCount: 0,
     assignedCourseIds: ['c-1', 'c-2', 'c-3'],
-    studentsList: ['Олександр Петренко', 'Марія Бондаренко', 'Ігор Ткаченко', 'Софія Кравчук'],
+    studentsList: [],
   },
   {
     id: 'g-2',
     name: 'ІПЗ-411',
     faculty: 'ФІОТ',
     studyYear: 4,
-    studentsCount: 26,
+    studentsCount: 0,
     assignedCourseIds: ['c-1', 'c-2'],
-    studentsList: ['Андрій Шевченко', 'Дарина Лисенко', 'Максим Поліщук'],
+    studentsList: [],
   },
   {
     id: 'g-3',
     name: 'КН-301',
     faculty: 'ФІОТ',
     studyYear: 3,
-    studentsCount: 30,
+    studentsCount: 0,
     assignedCourseIds: ['c-2', 'c-3'],
-    studentsList: ['Богдан Савченко', 'Вікторія Романюк'],
+    studentsList: [],
   },
 ];
 
@@ -326,29 +326,7 @@ export const INITIAL_WEBINARS = [
     instructor: 'Дмитро Коваленко, доц.',
     scheduledAt: '2026-10-16T18:00:00.000Z',
     status: 'LIVE',
-    chat: [
-      {
-        id: 'msg-1',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Вітаю групу ІПЗ-412! Сьогодні розбираємо побудову чистої архітектури та підготовку до Лабораторної №4.',
-        time: '18:02',
-      },
-      {
-        id: 'msg-2',
-        senderName: 'Олександр Петренко',
-        senderRole: 'student',
-        text: 'Добрий вечір! Підкажіть, чи можна здати звіт у форматі PDF разом із посиланням на GitHub?',
-        time: '18:05',
-      },
-      {
-        id: 'msg-3',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Так, звісно. Прикріплюйте PDF-файл у розділі «Завдання» та додавайте посилання в коментарі.',
-        time: '18:06',
-      },
-    ],
+    chat: [],
   },
   {
     id: 'web-2',
@@ -358,15 +336,7 @@ export const INITIAL_WEBINARS = [
     instructor: 'Олена Грищенко, ст. викл.',
     scheduledAt: '2026-10-21T14:30:00.000Z',
     status: 'SCHEDULED',
-    chat: [
-      {
-        id: 'msg-4',
-        senderName: 'Олена Грищенко, ст. викл.',
-        senderRole: 'teacher',
-        text: 'Підготуйте ваші прототипи для спільного обговорення на занятті.',
-        time: '14:00',
-      },
-    ],
+    chat: [],
   },
 ];
 

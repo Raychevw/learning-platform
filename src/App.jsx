@@ -33,6 +33,18 @@ function getDefaultWebinarDate() {
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 }
 
+/** Ближайший незавершённый урок курса (null, если всё пройдено). */
+function findNextLesson(courses) {
+  for (const course of courses) {
+    for (const mod of course.modules || []) {
+      for (const lesson of mod.lessons || []) {
+        if (!lesson.completed) return { course, module: mod, lesson };
+      }
+    }
+  }
+  return null;
+}
+
 function calcCourseProgress(modules) {
   if (!modules || modules.length === 0) return 0;
   const allLessons = modules.flatMap((m) => m.lessons || []);
@@ -119,6 +131,11 @@ export default function App() {
 
     const applyEvent = (event) => {
       if (!event || event.type === 'ping') return;
+
+      if (event.type === 'signal') {
+        rtcSignalRef.current?.(event);
+        return;
+      }
 
       if (event.type === 'chat' && event.webinarId && event.message) {
         setWebinars((prev) =>
@@ -403,10 +420,21 @@ export default function App() {
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [streamSeconds, setStreamSeconds] = useState(845); // 14:05 initial live timer
-  const [liveViewersCount, setLiveViewersCount] = useState(24); // демонстрационный счётчик зрителей
   const [zoomViewMode, setZoomViewMode] = useState('speaker'); // 'speaker' | 'gallery'
   const [zoomSideTab, setZoomSideTab] = useState('chat'); // 'chat' | 'participants' | 'none'
   const videoStreamRef = useRef(null);
+
+  // WebRTC broadcast: teacher -> enrolled students (real participants only)
+  const [courseEnrollments, setCourseEnrollments] = useState([]);
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteMediaKind, setRemoteMediaKind] = useState(null);
+  const [rtcStatus, setRtcStatus] = useState('idle'); // idle | connecting | live
+  const [remoteHands, setRemoteHands] = useState({});
+  const remoteVideoRef = useRef(null);
+  const peersRef = useRef(new Map());
+  const pendingIceRef = useRef(new Map());
+  const rtcSignalRef = useRef(null);
+
   const mediaStreamObjRef = useRef(null);
 
   const activeWebinar = useMemo(
@@ -416,29 +444,43 @@ export default function App() {
 
   const zoomAttendees = useMemo(() => {
     const list = [];
+    if (!activeWebinar) return list;
+
     const isTeacher = userRole === 'teacher';
-    const currentName = currentUser?.name || (isTeacher ? 'Дмитро Коваленко, доц.' : 'Олександр Петренко');
 
-    // 1. Instructor / Host (Real teacher)
-    const instructorName = activeWebinar?.instructor || (isTeacher ? currentName : 'Дмитро Коваленко, доц.');
-    list.push({
-      id: isTeacher ? (currentUser?.id || 'usr-teacher') : 'usr-host',
-      name: isTeacher ? `${instructorName} (Ви)` : `${instructorName} (Викладач)`,
-      role: 'teacher',
-      isHost: true,
-      isMe: isTeacher,
-      isSpeaking: activeWebinar?.status === 'LIVE',
-      mic: isTeacher ? !isMicMuted : true,
-      camera: isTeacher && streamSource === 'camera',
-      hand: false,
-    });
-
-    // 2. Current Student (Logged in user)
-    if (!isTeacher) {
+    // 1. Преподаватель: текущий пользователь, если он ведёт занятие; иначе — из вебинара.
+    if (isTeacher && currentUser) {
       list.push({
-        id: currentUser?.id || 'usr-student',
-        name: `${currentName} (Ви)`,
-        role: 'student',
+        id: currentUser.id,
+        name: `${currentUser.name} (Ви)`,
+        role: 'teacher',
+        isHost: true,
+        isMe: true,
+        isSpeaking: activeWebinar.status === 'LIVE',
+        mic: !isMicMuted,
+        camera: streamSource === 'camera',
+        hand: false,
+      });
+    } else {
+      list.push({
+        id: `instructor:${activeWebinar.id}`,
+        name: activeWebinar.instructor || 'Викладач',
+        role: 'teacher',
+        isHost: true,
+        isMe: false,
+        isSpeaking: activeWebinar.status === 'LIVE',
+        mic: true,
+        camera: false,
+        hand: false,
+      });
+    }
+
+    // 2. Текущий студент/админ.
+    if (!isTeacher && currentUser) {
+      list.push({
+        id: currentUser.id,
+        name: `${currentUser.name} (Ви)`,
+        role: userRole,
         isHost: false,
         isMe: true,
         isSpeaking: false,
@@ -448,43 +490,37 @@ export default function App() {
       });
     }
 
-    // 3. Real students from academic groups enrolled in this course (no fake placeholders)
-    if (activeWebinar?.courseId) {
-      const courseGroups = (academicGroups || []).filter(
-        (g) => Array.isArray(g.assignedCourseIds) && g.assignedCourseIds.includes(activeWebinar.courseId)
-      );
-
-      const seenStudents = new Set();
-      if (currentUser?.name) {
-        seenStudents.add(currentUser.name.trim().toLowerCase());
-      }
-      seenStudents.add(instructorName.trim().toLowerCase());
-
-      courseGroups.forEach((group) => {
-        (group.studentsList || []).forEach((st) => {
-          const stName = (typeof st === 'string' ? st : st?.name || '').trim();
-          const lower = stName.toLowerCase();
-          if (stName && !seenStudents.has(lower)) {
-            seenStudents.add(lower);
-            list.push({
-              id: `real-std-${group.id}-${stName}`,
-              name: stName,
-              group: group.name,
-              role: 'student',
-              isHost: false,
-              isMe: false,
-              isSpeaking: false,
-              mic: false,
-              camera: false,
-              hand: false,
-            });
-          }
-        });
+    // 3. Только реальные зачисления на курс (user ↔ group).
+    const seen = new Set(list.map((a) => a.id));
+    courseEnrollments.forEach((enrollment) => {
+      if (!enrollment?.userId || seen.has(enrollment.userId)) return;
+      if (enrollment.userId === currentUser?.id) return;
+      seen.add(enrollment.userId);
+      list.push({
+        id: enrollment.userId,
+        name: enrollment.studentName || enrollment.userId,
+        group: enrollment.groupName || '',
+        role: 'student',
+        isHost: false,
+        isMe: false,
+        isSpeaking: false,
+        mic: false,
+        camera: false,
+        hand: Boolean(remoteHands[enrollment.userId]),
       });
-    }
+    });
 
     return list;
-  }, [activeWebinar, userRole, currentUser, isMicMuted, streamSource, isHandRaised, academicGroups]);
+  }, [
+    activeWebinar,
+    userRole,
+    currentUser,
+    isMicMuted,
+    streamSource,
+    isHandRaised,
+    courseEnrollments,
+    remoteHands,
+  ]);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedCourseId) || null,
@@ -589,7 +625,7 @@ export default function App() {
     const created = {
       id: courseId,
       title: newCourse.title.trim(),
-      instructor: currentUser?.name || 'Дмитро Коваленко, доц.',
+      instructor: currentUser?.name || 'Викладач',
       description: newCourse.description.trim(),
       semester: Number(newCourse.semester) || 7,
       modulesCount: 1,
@@ -647,8 +683,9 @@ export default function App() {
   };
 
   const handleToggleLessonCompleted = async (courseId, lessonId) => {
+    if (!currentUser?.id) return;
     await syncBackend(`/catalog/lessons/${lessonId}/toggle`, 'POST', {
-      userId: currentUser?.id || 'usr-student',
+      userId: currentUser.id,
     });
     setCourses((prev) =>
       prev.map((c) => {
@@ -913,10 +950,14 @@ export default function App() {
   const handleGradeWithStrategy = async (e) => {
     e.preventDefault();
     const targetSub = currentGradingSub;
-    const studentName = targetSub ? targetSub.studentName : 'Олександр Петренко';
-    const courseTitle = targetSub ? targetSub.courseTitle : 'Архітектура програмного забезпечення';
-    const assignmentTitle = targetSub ? targetSub.assignmentTitle : 'Лабораторна робота 3';
-    const maxScore = targetSub ? targetSub.maxScore : 100;
+    if (!targetSub) {
+      showNotification('Оберіть роботу для оцінювання.', true);
+      return;
+    }
+    const studentName = targetSub.studentName;
+    const courseTitle = targetSub.courseTitle;
+    const assignmentTitle = targetSub.assignmentTitle;
+    const maxScore = targetSub.maxScore;
 
     let ruleDesc = 'Стандартний розрахунок';
     if (effectiveRule === 'LATE_PENALTY') {
@@ -927,11 +968,11 @@ export default function App() {
 
     const resultObj = {
       id: newId('grd'),
-      assignmentId: targetSub?.assignmentId || 'asg-1',
-      submissionId: targetSub?.id || 'sub-1',
-      studentId: targetSub?.studentId || 'usr-student',
+      assignmentId: targetSub.assignmentId,
+      submissionId: targetSub.id,
+      studentId: targetSub.studentId,
       studentName,
-      group: targetSub?.group || 'ІПЗ-412',
+      group: targetSub.group,
       courseTitle,
       assignmentTitle,
       submittedAt: new Date().toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -1034,13 +1075,224 @@ export default function App() {
     if (activeWebinar?.status !== 'LIVE') return;
     const interval = setInterval(() => {
       setStreamSeconds((prev) => prev + 1);
-      setLiveViewersCount((prev) => {
-        const delta = Math.random() > 0.7 ? (Math.random() > 0.5 ? 1 : -1) : 0;
-        return Math.max(18, Math.min(32, prev + delta));
-      });
     }, 1000);
     return () => clearInterval(interval);
   }, [activeWebinar?.status]);
+
+  // Реальный ростер курса: только зачисленные пользователи.
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser || !activeWebinar?.courseId) return undefined;
+
+    api
+      .get(`/api/enrollments?courseId=${encodeURIComponent(activeWebinar.courseId)}`)
+      .then((list) => {
+        if (!cancelled) setCourseEnrollments(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCourseEnrollments([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, activeWebinar?.courseId]);
+
+  // ---------------- WebRTC (teacher broadcast -> enrolled students)
+  const sendSignal = (to, signalType, payload) => {
+    if (!activeWebinar) return Promise.resolve(null);
+    return api
+      .post(`/api/webinars/${activeWebinar.id}/signal`, { to: to || null, signalType, payload })
+      .catch(() => null);
+  };
+
+  const closePeer = (peerId) => {
+    const pc = peersRef.current.get(peerId);
+    if (pc) {
+      try {
+        pc.close();
+      } catch {
+        /* уже закрыт */
+      }
+      peersRef.current.delete(peerId);
+    }
+    pendingIceRef.current.delete(peerId);
+  };
+
+  const closeAllPeers = () => {
+    for (const peerId of Array.from(peersRef.current.keys())) closePeer(peerId);
+  };
+
+  const createPeer = (peerId, isOfferer, stream) => {
+    closePeer(peerId);
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+    peersRef.current.set(peerId, pc);
+
+    if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) void sendSignal(peerId, 'ice', event.candidate.toJSON());
+    };
+
+    pc.ontrack = (event) => {
+      const [incoming] = event.streams;
+      if (incoming) {
+        setRemoteStream(incoming);
+        setRtcStatus('live');
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+        closePeer(peerId);
+      }
+    };
+
+    if (isOfferer) {
+      void (async () => {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendSignal(peerId, 'offer', { sdp: pc.localDescription });
+      })();
+    }
+    return pc;
+  };
+
+  const startBroadcast = async (stream, kind) => {
+    // Студенты получают media-start и сами присылают join — так подключаются и опоздавшие.
+    await sendSignal(null, 'media-start', { kind });
+  };
+
+  const stopBroadcast = async () => {
+    closeAllPeers();
+    await sendSignal(null, 'media-stop', {});
+  };
+
+  const handleRtcSignal = (event) => {
+    if (!activeWebinar || event.webinarId !== activeWebinar.id) return;
+    if (event.from === currentUser?.id) return;
+
+    const isTeacher = userRole === 'teacher';
+    const myId = currentUser?.id;
+
+    if (isTeacher) {
+      if (event.signalType === 'join' && mediaStreamObjRef.current) {
+        createPeer(event.from, true, mediaStreamObjRef.current);
+        return;
+      }
+      if (event.signalType === 'answer' && event.to === myId) {
+        const pc = peersRef.current.get(event.from);
+        if (pc) {
+          pc.setRemoteDescription(new RTCSessionDescription(event.payload.sdp)).catch(() => undefined);
+        }
+        return;
+      }
+      if (event.signalType === 'ice' && event.to === myId) {
+        const pc = peersRef.current.get(event.from);
+        if (pc) pc.addIceCandidate(new RTCIceCandidate(event.payload)).catch(() => undefined);
+        return;
+      }
+      if (event.signalType === 'hand') {
+        setRemoteHands((prev) => ({ ...prev, [event.from]: Boolean(event.payload?.raised) }));
+      }
+      return;
+    }
+
+    // Студент принимает поток преподавателя.
+    if (event.to && event.to !== myId) return;
+
+    if (event.signalType === 'media-start') {
+      setRemoteMediaKind(event.payload?.kind || 'camera');
+      setRtcStatus('connecting');
+      void sendSignal(null, 'join', {});
+      return;
+    }
+
+    if (event.signalType === 'media-stop') {
+      closeAllPeers();
+      setRemoteStream(null);
+      setRemoteMediaKind(null);
+      setRtcStatus('idle');
+      return;
+    }
+
+    if (event.signalType === 'offer') {
+      const pc = createPeer(event.from, false, null);
+      pc.setRemoteDescription(new RTCSessionDescription(event.payload.sdp))
+        .then(async () => {
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal(event.from, 'answer', { sdp: pc.localDescription });
+          const queued = pendingIceRef.current.get(event.from) || [];
+          queued.forEach((candidate) => {
+            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => undefined);
+          });
+          pendingIceRef.current.delete(event.from);
+          setRtcStatus('connecting');
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    if (event.signalType === 'ice') {
+      const pc = peersRef.current.get(event.from);
+      if (pc?.remoteDescription) {
+        pc.addIceCandidate(new RTCIceCandidate(event.payload)).catch(() => undefined);
+      } else {
+        const queued = pendingIceRef.current.get(event.from) || [];
+        queued.push(event.payload);
+        pendingIceRef.current.set(event.from, queued);
+      }
+      return;
+    }
+
+    if (event.signalType === 'hand') {
+      setRemoteHands((prev) => ({ ...prev, [event.from]: Boolean(event.payload?.raised) }));
+    }
+  };
+
+  useEffect(() => {
+    // Ссылка нужна, чтобы SSE-поток не переподключался на каждый рендер.
+    // eslint-disable-next-line react-hooks/immutability
+    rtcSignalRef.current = handleRtcSignal;
+  }, [handleRtcSignal]);
+
+  // Students ask the teacher for a stream when they open a live webinar.
+  const activeWebinarIdForJoin = activeWebinar?.id;
+  useEffect(() => {
+    if (!currentUser || !activeWebinarIdForJoin || userRole === 'teacher') return undefined;
+    const timer = setTimeout(() => {
+      api
+        .post(`/api/webinars/${activeWebinarIdForJoin}/signal`, { to: null, signalType: 'join', payload: {} })
+        .catch(() => null);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [currentUser, activeWebinarIdForJoin, userRole]);
+
+  // Отключаем peer-соединения при смене вебинара/выходе.
+  useEffect(() => {
+    const peers = peersRef.current;
+    const pendingIce = pendingIceRef.current;
+    return () => {
+      for (const pc of peers.values()) {
+        try {
+          pc.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      peers.clear();
+      pendingIce.clear();
+    };
+  }, [activeWebinar?.id]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   useEffect(() => {
     if (videoStreamRef.current && mediaStreamObjRef.current && (streamSource === 'camera' || streamSource === 'screen')) {
@@ -1062,6 +1314,7 @@ export default function App() {
 
     // If camera is currently active, turn it off and return to slides
     if (streamSource === 'camera') {
+      await stopBroadcast();
       stopHardwareStream();
       setStreamSource('slides');
       showNotification('Камеру вимкнено. Перемкнено на слайди лекції.');
@@ -1086,7 +1339,8 @@ export default function App() {
       if (videoStreamRef.current) {
         videoStreamRef.current.srcObject = stream;
       }
-      showNotification('Камеру успішно увімкнено.');
+      await startBroadcast(stream, 'camera');
+      showNotification('Камеру увімкнено. Потік доступний студентам курсу.');
     } catch (err) {
       console.warn('Camera error:', err);
       setStreamSource('slides');
@@ -1102,6 +1356,7 @@ export default function App() {
 
     // If screen share is active, stop it and return to slides
     if (streamSource === 'screen') {
+      await stopBroadcast();
       stopHardwareStream();
       setStreamSource('slides');
       showNotification('Демонстрацію екрана вимкнено.');
@@ -1115,6 +1370,7 @@ export default function App() {
         audio: false,
       });
       stream.getVideoTracks()[0].onended = () => {
+        void stopBroadcast();
         stopHardwareStream();
         setStreamSource('slides');
         showNotification('Демонстрацію екрана завершено.');
@@ -1127,7 +1383,8 @@ export default function App() {
       if (videoStreamRef.current) {
         videoStreamRef.current.srcObject = stream;
       }
-      showNotification('Демонстрацію екрана запущено в прямому ефірі.');
+      await startBroadcast(stream, 'screen');
+      showNotification('Демонстрацію екрана запущено для студентів курсу.');
     } catch {
       setStreamSource('slides');
       showNotification('Демонстрацію екрана скасовано.', true);
@@ -1146,6 +1403,7 @@ export default function App() {
   };
 
   const handleSwitchToSlides = () => {
+    void stopBroadcast();
     stopHardwareStream();
     setStreamSource('slides');
     showNotification('Увімкнено режим демонстрації слайдів лекції.');
@@ -1164,26 +1422,10 @@ export default function App() {
   const handleToggleRaiseHand = () => {
     const nextState = !isHandRaised;
     setIsHandRaised(nextState);
-    if (nextState && activeWebinar) {
-      const msg = {
-        id: `msg-${Date.now()}`,
-        senderName: currentUser?.name || 'Олександр Петренко',
-        senderRole: userRole,
-        text: '✋ Підняв(-ла) руку для запитання до лектора.',
-        time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
-      };
-      setWebinars((prev) =>
-        prev.map((w) => (w.id === activeWebinar.id ? { ...w, chat: [...(w.chat || []), msg] } : w))
-      );
-      try {
-        const bc = new BroadcastChannel('studevo_live_webinar_bus');
-        bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
-        bc.close();
-      } catch {
-        /* BroadcastChannel недоступен в этом окружении */
-      }
-      showNotification('Ви підняли руку. Викладач отримав сповіщення.');
+    if (activeWebinar) {
+      void sendSignal(null, 'hand', { raised: nextState });
     }
+    showNotification(nextState ? 'Руку піднято. Викладач отримав сигнал.' : 'Руку опущено.');
   };
 
   const handleScheduleWebinar = async (e) => {
@@ -1195,7 +1437,7 @@ export default function App() {
       courseId: targetCourse.id,
       courseTitle: targetCourse.title,
       title: newWebinarForm.title.trim(),
-      instructor: currentUser?.name || 'Дмитро Коваленко, доц.',
+      instructor: currentUser?.name || 'Викладач',
       scheduledAt: new Date(newWebinarForm.scheduledAt).toISOString(),
       status: 'SCHEDULED',
       chat: [
@@ -1319,9 +1561,9 @@ export default function App() {
       name: newGroupName.trim(),
       faculty: newGroupFaculty.trim(),
       studyYear: Number(newGroupYear),
-      studentsCount: 25,
-      assignedCourseIds: ['c-1'],
-      studentsList: ['Олександр Петренко', 'Марія Бондаренко'],
+      studentsCount: 0,
+      assignedCourseIds: [],
+      studentsList: [],
     };
 
     const res = await syncBackend('/groups', 'POST', group);
@@ -1425,6 +1667,9 @@ export default function App() {
     const sum = grades.reduce((acc, g) => acc + Number(g.finalScore || 0), 0);
     return (sum / grades.length).toFixed(1);
   }, [grades]);
+
+  // Ближайший незавершённый урок — вместо захардкоженного «поточного уроку».
+  const nextLesson = findNextLesson(courses);
 
   const ungradedSubmissions = useMemo(() => {
     return allSubmissionsList.filter((s) => s.status !== 'GRADED');
@@ -1793,9 +2038,9 @@ export default function App() {
           <>
             <section className="studevo-welcome-banner">
               <div className="welcome-text">
-                <h1>Вітаємо, Олександре!</h1>
+                <h1>Вітаємо, {currentUser?.name?.split(' ')[0] || 'студенте'}!</h1>
                 <p>
-                  Група ІПЗ-412 • У цьому семестрі ви вивчаєте {courses.filter((c) => c.isPublished).length} дисципліни. Ваш середній бал успішності: {averageStudentGrade} ({getEctsLetter(averageStudentGrade)}).
+                  {currentUser?.dept || 'Ваша група'} • У цьому семестрі ви вивчаєте {courses.filter((c) => c.isPublished).length} дисципліни. Ваш середній бал успішності: {averageStudentGrade} ({getEctsLetter(averageStudentGrade)}).
                 </p>
               </div>
 
@@ -1821,18 +2066,24 @@ export default function App() {
                   Поточний урок
                 </div>
                 <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '2px' }}>
-                  Архітектура ПЗ — Модуль 2: Відео-лекція «Застосування патерна Strategy»
+                  {nextLesson
+                    ? `${nextLesson.course.title} — ${nextLesson.lesson.title}`
+                    : 'Усі матеріали курсу опрацьовано'}
                 </div>
                 <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '2px' }}>
-                  Викладач: Дмитро Коваленко, доц. • Прогрес курсу: {courses[0]?.progress || 50}%
+                  {nextLesson
+                    ? `Викладач: ${nextLesson.course.instructor || '—'} • Прогрес курсу: ${nextLesson.course.progress || 0}%`
+                    : 'Нових уроків немає'}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                 <button
                   className="btn-studevo-primary"
+                  disabled={!nextLesson}
                   onClick={() => {
-                    setSelectedCourseId('c-1');
-                    setActiveLessonId('l-3');
+                    if (!nextLesson) return;
+                    setSelectedCourseId(nextLesson.course.id);
+                    setActiveLessonId(nextLesson.lesson.id);
                   }}
                 >
                   Продовжити навчання
@@ -1925,9 +2176,9 @@ export default function App() {
           <>
             <section className="studevo-welcome-banner">
               <div className="welcome-text">
-                <h1>Кабінет викладача: Дмитро Коваленко, доц.</h1>
+                <h1>Кабінет викладача: {currentUser?.name || ''}</h1>
                 <p>
-                  Кафедра інженерії програмного забезпечення • Управління навчальними матеріалами, перевірка студентських робіт та виставлення оцінок.
+                  {currentUser?.dept || 'Викладацький кабінет'} • Управління навчальними матеріалами, перевірка студентських робіт та виставлення оцінок.
                 </p>
               </div>
 
@@ -2767,7 +3018,7 @@ export default function App() {
                       <div>
                         <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Студент</span>
                         <div style={{ fontSize: '15px', fontWeight: 700 }}>
-                          {(gradingResult || currentGradingSub)?.studentName || 'Олександр Петренко'}
+                          {(gradingResult || currentGradingSub)?.studentName || '—'}
                         </div>
                         <div style={{ fontSize: '12px', color: '#6c757d' }}>
                           {(gradingResult || currentGradingSub)?.assignmentTitle}
@@ -3014,8 +3265,18 @@ export default function App() {
                           </span>
                         )}
                         <span style={{ color: '#cbd5e1', marginLeft: '8px', fontSize: '11px', fontWeight: 500 }}>
-                          {liveViewersCount} глядачів
+                          {zoomAttendees.length} учасників
                         </span>
+                        {userRole !== 'teacher' && remoteStream && (
+                          <span style={{ color: '#38bdf8', marginLeft: '8px', fontSize: '11px', fontWeight: 600 }}>
+                            {remoteMediaKind === 'screen' ? 'Демонстрація екрана' : 'Відео викладача'}
+                          </span>
+                        )}
+                        {userRole !== 'teacher' && !remoteStream && rtcStatus === 'connecting' && (
+                          <span style={{ color: '#fbbf24', marginLeft: '8px', fontSize: '11px', fontWeight: 600 }}>
+                            Підключення до трансляції…
+                          </span>
+                        )}
                       </div>
 
                       <div className="zoom-view-switch-btns">
@@ -3052,6 +3313,16 @@ export default function App() {
                         autoPlay
                         playsInline
                         muted
+                      />
+                    )}
+
+                    {/* Удалённый поток преподавателя (WebRTC) для студентов */}
+                    {userRole !== 'teacher' && remoteStream && activeWebinar.status === 'LIVE' && (
+                      <video
+                        ref={remoteVideoRef}
+                        className="stream-video-element"
+                        autoPlay
+                        playsInline
                       />
                     )}
 
@@ -4203,7 +4474,7 @@ export default function App() {
                     list="studevo-users"
                     className="input-studevo-control"
                     style={{ flex: '1 1 180px' }}
-                    placeholder="ID користувача (напр. usr-student)"
+                    placeholder="ID користувача"
                     value={enrollUserId}
                     onChange={(e) => setEnrollUserId(e.target.value)}
                     required

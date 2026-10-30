@@ -344,6 +344,30 @@
         ]
       }
     },
+    "/webinars/{id}/signal": {
+      "post": {
+        "operationId": "WebinarController_signal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Relay WebRTC signaling (offer/answer/ice/join/hand) to the room",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
     "/webinars/{id}": {
       "delete": {
         "operationId": "WebinarController_delete",

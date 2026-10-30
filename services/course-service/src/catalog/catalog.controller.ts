@@ -133,6 +133,17 @@ export class WebinarController {
     });
   }
 
+  @Post(':id/signal')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Relay WebRTC signaling (offer/answer/ice/join/hand) to the room' })
+  signal(
+    @Param('id') id: string,
+    @Body() dto: { to?: string | null; signalType: string; payload?: unknown },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.catalog.relaySignal(id, dto, req.user);
+  }
+
   @Delete(':id')
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)

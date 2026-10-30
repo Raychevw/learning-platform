@@ -542,7 +542,16 @@
     "/enrollments": {
       "get": {
         "operationId": "CourseworkController_listEnrollments",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "courseId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -553,7 +562,7 @@
             "bearer": []
           }
         ],
-        "summary": "List student enrollments",
+        "summary": "List enrollments (course roster for any authenticated user; full list for staff)",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]

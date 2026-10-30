@@ -430,6 +430,36 @@ export class CourseworkService {
     }));
   }
 
+  /** Реальный ростер курса: только зачисленные пользователи (без выдуманных имён). */
+  async listEnrollmentsForCourse(courseId: string) {
+    if (!courseId) throw new BadRequestException('courseId is required');
+
+    const groups = await this.groups.find();
+    const courseGroupIds = groups
+      .filter((g) => Array.isArray(g.assignedCourseIds) && g.assignedCourseIds.includes(courseId))
+      .map((g) => g.id);
+    if (courseGroupIds.length === 0) return [];
+
+    const enrollments = await this.enrollments.find({
+      where: { groupId: In(courseGroupIds) },
+      order: { createdAt: 'ASC' },
+    });
+
+    const seen = new Set<string>();
+    return enrollments
+      .filter((e) => {
+        if (seen.has(e.userId)) return false;
+        seen.add(e.userId);
+        return true;
+      })
+      .map((e) => ({
+        userId: e.userId,
+        studentName: e.studentName,
+        groupId: e.groupId,
+        groupName: groups.find((g) => g.id === e.groupId)?.name || '',
+      }));
+  }
+
   async enrollStudent(groupId: string, dto: { userId: string; studentName?: string }) {
     if (!dto.userId?.trim()) throw new BadRequestException('userId is required');
     const group = await this.groups.findOneBy({ id: groupId });
