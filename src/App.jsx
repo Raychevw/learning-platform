@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
+import './styles/clean.css';
 import { api, getToken, requestBlob } from './api/client.js';
+import Dashboard from './features/Dashboard.jsx';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
 import {
@@ -31,18 +33,6 @@ function getDefaultWebinarDate() {
   d.setSeconds(0);
   const offset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
-}
-
-/** Ближайший незавершённый урок курса (null, если всё пройдено). */
-function findNextLesson(courses) {
-  for (const course of courses) {
-    for (const mod of course.modules || []) {
-      for (const lesson of mod.lessons || []) {
-        if (!lesson.completed) return { course, module: mod, lesson };
-      }
-    }
-  }
-  return null;
 }
 
 function calcCourseProgress(modules) {
@@ -310,8 +300,6 @@ export default function App() {
 
   // UI & Filter States
   const [notification, setNotification] = useState(null);
-  const [courseSearch, setCourseSearch] = useState('');
-  const [courseFilter, setCourseFilter] = useState('ALL');
   const [auditSearch, setAuditSearch] = useState('');
 
   // Course Modal & Lesson Viewer/Editor States
@@ -1668,29 +1656,9 @@ export default function App() {
     return (sum / grades.length).toFixed(1);
   }, [grades]);
 
-  // Ближайший незавершённый урок — вместо захардкоженного «поточного уроку».
-  const nextLesson = findNextLesson(courses);
-
   const ungradedSubmissions = useMemo(() => {
     return allSubmissionsList.filter((s) => s.status !== 'GRADED');
   }, [allSubmissionsList]);
-
-  const totalFacultyStudents = useMemo(() => {
-    return academicGroups.reduce((acc, g) => acc + (Number(g.studentsCount) || 0), 0);
-  }, [academicGroups]);
-
-  const filteredCourses = useMemo(() => {
-    return courses.filter((c) => {
-      const matchesSearch =
-        c.title.toLowerCase().includes(courseSearch.toLowerCase()) ||
-        c.instructor.toLowerCase().includes(courseSearch.toLowerCase());
-      if (!matchesSearch) return false;
-      if (courseFilter === 'PUBLISHED') return c.isPublished;
-      if (courseFilter === 'DRAFT') return !c.isPublished;
-      if (courseFilter === 'IN_PROGRESS') return c.progress > 0 && c.progress < 100;
-      return true;
-    });
-  }, [courses, courseSearch, courseFilter]);
 
   const filteredAuditLogs = useMemo(() => {
     const source = serverAuditLogs.length > 0 ? serverAuditLogs : auditLogs;
@@ -1863,29 +1831,44 @@ export default function App() {
     );
   }
 
+  const handleOpenAssignment = (assignmentId) => {
+    if (!assignmentId) {
+      setActiveMenu(userRole === 'student' ? 'assignments' : 'grades');
+      return;
+    }
+    if (userRole === 'student') {
+      setSubmissionForm((prev) => ({ ...prev, assignmentId }));
+      setActiveMenu('assignments');
+      return;
+    }
+    const submission = allSubmissionsList.find((sub) => sub.assignmentId === assignmentId);
+    if (submission) setSelectedSubmissionId(submission.id);
+    setActiveMenu('grades');
+  };
+
   // Role-specific navigation menu
   const roleMenus =
     userRole === 'student'
       ? [
-          { id: 'dashboard', label: 'Головна', icon: 'grid' },
+          { id: 'dashboard', label: 'Панель', icon: 'grid' },
           { id: 'courses', label: 'Мої курси', icon: 'book' },
           { id: 'assignments', label: 'Завдання', icon: 'check' },
-          { id: 'grades', label: 'Щоденник оцінок', icon: 'chart' },
+          { id: 'grades', label: 'Оцінки', icon: 'chart' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
         ]
       : userRole === 'teacher'
       ? [
-          { id: 'dashboard', label: 'Головна панель', icon: 'grid' },
+          { id: 'dashboard', label: 'Панель', icon: 'grid' },
           { id: 'courses', label: 'Мої курси', icon: 'book' },
           { id: 'assignments', label: 'Завдання', icon: 'check' },
-          { id: 'grades', label: 'Журнал та оцінки', icon: 'chart' },
+          { id: 'grades', label: 'Оцінювання', icon: 'chart' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
         ]
       : [
-          { id: 'dashboard', label: 'Огляд факультету', icon: 'grid' },
-          { id: 'groups', label: 'Студенти та групи', icon: 'users' },
-          { id: 'grades', label: 'Відомості оцінок', icon: 'chart' },
-          { id: 'audit', label: 'Журнал подій', icon: 'shield' },
+          { id: 'dashboard', label: 'Панель', icon: 'grid' },
+          { id: 'groups', label: 'Користувачі та групи', icon: 'users' },
+          { id: 'grades', label: 'Відомості', icon: 'chart' },
+          { id: 'audit', label: 'Журнал', icon: 'shield' },
         ];
 
   return (
@@ -2034,432 +2017,24 @@ export default function App() {
         {/* ========================================================
             1A. STUDENT DASHBOARD
             ======================================================== */}
-        {activeMenu === 'dashboard' && userRole === 'student' && (
-          <>
-            <section className="studevo-welcome-banner">
-              <div className="welcome-text">
-                <h1>Вітаємо, {currentUser?.name?.split(' ')[0] || 'студенте'}!</h1>
-                <p>
-                  {currentUser?.dept || 'Ваша група'} • У цьому семестрі ви вивчаєте {courses.filter((c) => c.isPublished).length} дисципліни. Ваш середній бал успішності: {averageStudentGrade} ({getEctsLetter(averageStudentGrade)}).
-                </p>
-              </div>
-
-              <div className="banner-stats">
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{courses.filter((c) => c.isPublished).length}</div>
-                  <div className="stat-pill-label">Мої курси</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{assignments.length}</div>
-                  <div className="stat-pill-label">Завдання</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{averageStudentGrade}</div>
-                  <div className="stat-pill-label">Середній бал</div>
-                </div>
-              </div>
-            </section>
-
-            <div className="studevo-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', background: '#fff9f9', border: '1px solid #ffc9c9' }}>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--studevo-red-dark)', textTransform: 'uppercase' }}>
-                  Поточний урок
-                </div>
-                <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '2px' }}>
-                  {nextLesson
-                    ? `${nextLesson.course.title} — ${nextLesson.lesson.title}`
-                    : 'Усі матеріали курсу опрацьовано'}
-                </div>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '2px' }}>
-                  {nextLesson
-                    ? `Викладач: ${nextLesson.course.instructor || '—'} • Прогрес курсу: ${nextLesson.course.progress || 0}%`
-                    : 'Нових уроків немає'}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                <button
-                  className="btn-studevo-primary"
-                  disabled={!nextLesson}
-                  onClick={() => {
-                    if (!nextLesson) return;
-                    setSelectedCourseId(nextLesson.course.id);
-                    setActiveLessonId(nextLesson.lesson.id);
-                  }}
-                >
-                  Продовжити навчання
-                </button>
-                <button className="btn-studevo-outline" onClick={() => setActiveMenu('assignments')}>
-                  Здати роботу
-                </button>
-              </div>
-            </div>
-
-            <div className="toolbar-filter-row">
-              <div className="filter-pills-group">
-                <button
-                  className={`filter-pill-btn ${courseFilter === 'ALL' ? 'active' : ''}`}
-                  onClick={() => setCourseFilter('ALL')}
-                >
-                  Усі дисципліни ({courses.length})
-                </button>
-                <button
-                  className={`filter-pill-btn ${courseFilter === 'IN_PROGRESS' ? 'active' : ''}`}
-                  onClick={() => setCourseFilter('IN_PROGRESS')}
-                >
-                  У процесі вивчення
-                </button>
-              </div>
-
-              <input
-                type="text"
-                className="input-studevo-control"
-                style={{ width: '240px', padding: '6px 12px' }}
-                placeholder="Пошук курсу або викладача..."
-                value={courseSearch}
-                onChange={(e) => setCourseSearch(e.target.value)}
-              />
-            </div>
-
-            <section>
-              <div className="section-header-row">
-                <h2 className="section-title">Мої дисципліни семестру</h2>
-                <button className="btn-studevo-outline" onClick={() => setActiveMenu('grades')}>
-                  Переглянути оцінки &rarr;
-                </button>
-              </div>
-
-              <div className="courses-grid-cards">
-                {filteredCourses.map((c) => (
-                  <div
-                    key={c.id}
-                    className="course-academic-card"
-                    onClick={() => {
-                      setSelectedCourseId(c.id);
-                      setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
-                    }}
-                  >
-                    <div className="course-card-top-cover">
-                      <img src={c.cover} alt={c.title} />
-                      <span className="course-card-badge">Семестр {c.semester}</span>
-                    </div>
-
-                    <div className="course-card-content">
-                      <div>
-                        <h3 className="course-card-title">{c.title}</h3>
-                        <div className="course-card-instructor">{c.instructor}</div>
-                        <div className="course-card-syllabus-meta">
-                          <span>{c.modules?.length || c.modulesCount} модулі • {c.totalHours} год.</span>
-                        </div>
-                      </div>
-
-                      <div className="course-card-progress-block">
-                        <div className="progress-header">
-                          <span>Прогрес</span>
-                          <span>{c.progress}%</span>
-                        </div>
-                        <div className="progress-track">
-                          <div className="progress-bar-fill" style={{ width: `${c.progress}%` }}></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* ========================================================
-            1B. TEACHER DASHBOARD
-            ======================================================== */}
-        {activeMenu === 'dashboard' && userRole === 'teacher' && (
-          <>
-            <section className="studevo-welcome-banner">
-              <div className="welcome-text">
-                <h1>Кабінет викладача: {currentUser?.name || ''}</h1>
-                <p>
-                  {currentUser?.dept || 'Викладацький кабінет'} • Управління навчальними матеріалами, перевірка студентських робіт та виставлення оцінок.
-                </p>
-              </div>
-
-              <div className="banner-stats">
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{ungradedSubmissions.length}</div>
-                  <div className="stat-pill-label">На перевірці</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{courses.length}</div>
-                  <div className="stat-pill-label">Дисципліни</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{grades.length}</div>
-                  <div className="stat-pill-label">Оцінено робіт</div>
-                </div>
-              </div>
-            </section>
-
-            <div className="kpi-grid-4">
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Очікують перевірки</span>
-                <span className="kpi-metric-val">{ungradedSubmissions.length} роб.</span>
-                <span className="kpi-metric-sub">Нові здачі студентів</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Навчальне навантаження</span>
-                <span className="kpi-metric-val">
-                  {courses.reduce((acc, c) => acc + (Number(c.totalHours) || 0), 0)} год.
-                </span>
-                <span className="kpi-metric-sub">{courses.length} семестрові дисципліни</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Середній бал потоку</span>
-                <span className="kpi-metric-val">{averageStudentGrade}</span>
-                <span className="kpi-metric-sub">Успішність студентів груп</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Онлайн-заняття</span>
-                <span className="kpi-metric-val">{webinars.length}</span>
-                <span className="kpi-metric-sub">Заплановані лекції та ефіри</span>
-              </div>
-            </div>
-
-            <div className="studevo-card">
-              <div className="section-header-row">
-                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
-                  Здані роботи студентів ({allSubmissionsList.length})
-                </h3>
-                <button className="btn-studevo-primary" onClick={() => setActiveMenu('assignments')}>
-                  + Створити завдання
-                </button>
-              </div>
-
-              {allSubmissionsList.map((sub) => (
-                <div key={sub.id} className="queue-review-item">
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#212529' }}>
-                      {sub.studentName} <span style={{ color: 'var(--studevo-red-dark)' }}>({sub.group})</span> — {sub.assignmentTitle}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
-                      Прикріплений файл: <strong>{sub.fileName || '—'}</strong> ({sub.fileSize || '—'}) • Коментар: «{sub.comment}»
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                    {sub.isLate && (
-                      <span className="user-role-badge admin" style={{ background: '#fff4e6', color: '#d9480f' }}>
-                        Після дедлайну
-                      </span>
-                    )}
-                    {sub.hasFile && (
-                      <button
-                        type="button"
-                        className="btn-studevo-outline"
-                        style={{ padding: '5px 10px', fontSize: '11.5px' }}
-                        onClick={() => handleDownloadSubmission(sub)}
-                      >
-                        Завантажити файл
-                      </button>
-                    )}
-                    <span className={sub.status === 'GRADED' ? 'badge-allowed' : 'user-role-badge teacher'}>
-                      {sub.status === 'GRADED' ? `Оцінено: ${sub.score}/100` : 'Нова робота'}
-                    </span>
-                    <button
-                      className="btn-studevo-primary"
-                      style={{ padding: '6px 14px', fontSize: '12px' }}
-                      onClick={() => {
-                        handleSelectSubmissionForGrading(sub.id);
-                        setActiveMenu('grades');
-                      }}
-                    >
-                      Оцінити роботу &rarr;
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="studevo-card">
-              <div className="section-header-row">
-                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
-                  Навчальні дисципліни кафедри
-                </h3>
-                <button className="btn-studevo-outline" onClick={() => setActiveMenu('courses')}>
-                  Керування курсами &rarr;
-                </button>
-              </div>
-
-              <table className="studevo-table">
-                <thead>
-                  <tr>
-                    <th>Назва дисципліни</th>
-                    <th>Семестр / Години</th>
-                    <th>Змістові модулі</th>
-                    <th>Статус</th>
-                    <th>Дії</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {courses.map((c) => (
-                    <tr key={c.id}>
-                      <td><strong>{c.title}</strong></td>
-                      <td>{c.semester} семестр • {c.totalHours} год.</td>
-                      <td>{c.modules?.length || 0} модулі</td>
-                      <td>
-                        <span className={c.isPublished ? 'badge-allowed' : 'badge-denied'}>
-                          {c.isPublished ? 'Опубліковано' : 'Чернетка'}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            className="btn-studevo-outline"
-                            style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                            onClick={() => {
-                              setSelectedCourseId(c.id);
-                              setActiveLessonId(c.modules?.[0]?.lessons?.[0]?.id || null);
-                            }}
-                          >
-                            Редагувати матеріали
-                          </button>
-                          {!c.isPublished && (
-                            <button
-                              className="btn-studevo-primary"
-                              style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                              onClick={() => handlePublishCourse(c.id)}
-                            >
-                              Опублікувати
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {/* ========================================================
-            1C. DEAN'S OFFICE / ADMIN DASHBOARD
-            ======================================================== */}
-        {activeMenu === 'dashboard' && userRole === 'admin' && (
-          <>
-            <section className="studevo-welcome-banner">
-              <div className="welcome-text">
-                <h1>Панель деканату ФІОТ: Олена Франчук</h1>
-                <p>
-                  Управління академічними групами, розподіл семестрових дисциплін та контроль успішності студентів факультету.
-                </p>
-              </div>
-
-              <div className="banner-stats">
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{academicGroups.length}</div>
-                  <div className="stat-pill-label">Академ. групи</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{totalFacultyStudents}</div>
-                  <div className="stat-pill-label">Студентів</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="stat-pill-val">{courses.length}</div>
-                  <div className="stat-pill-label">Дисципліни</div>
-                </div>
-              </div>
-            </section>
-
-            <div className="kpi-grid-4">
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Контингент студентів</span>
-                <span className="kpi-metric-val">{totalFacultyStudents} осіб</span>
-                <span className="kpi-metric-sub">У {academicGroups.length} академічних групах</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Дисципліни в розкладі</span>
-                <span className="kpi-metric-val">{courses.length} курси</span>
-                <span className="kpi-metric-sub">Опубліковано: {courses.filter((c) => c.isPublished).length}</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Середній бал факультету</span>
-                <span className="kpi-metric-val">{averageStudentGrade}</span>
-                <span className="kpi-metric-sub">За результатами {grades.length} оцінок</span>
-              </div>
-              <div className="kpi-metric-card">
-                <span className="kpi-metric-label">Активні завдання</span>
-                <span className="kpi-metric-val">{assignments.length}</span>
-                <span className="kpi-metric-sub">Лабораторні та практичні</span>
-              </div>
-            </div>
-
-            <div className="studevo-card">
-              <div className="section-header-row">
-                <h3 className="section-title" style={{ fontSize: '15.5px' }}>
-                  Академічні групи та навчальні плани факультету
-                </h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn-studevo-primary" onClick={() => setActiveMenu('groups')}>
-                    + Додати групу
-                  </button>
-                  <button className="btn-studevo-outline" onClick={handleExportGradesCsv}>
-                    Завантажити зведену відомість (CSV)
-                  </button>
-                </div>
-              </div>
-
-              <table className="studevo-table">
-                <thead>
-                  <tr>
-                    <th>Шифр групи</th>
-                    <th>Факультет / Курс</th>
-                    <th>Чисельність</th>
-                    <th>Призначені семестрові дисципліни</th>
-                    <th>Дії</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {academicGroups.map((g) => (
-                    <tr key={g.id}>
-                      <td><strong>{g.name}</strong></td>
-                      <td>{g.faculty} • {g.studyYear} курс</td>
-                      <td>{g.studentsCount} студентів</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          {(g.assignedCourseIds || []).map((cid) => {
-                            const cObj = courses.find((c) => c.id === cid);
-                            return cObj ? (
-                              <span
-                                key={cid}
-                                style={{
-                                  fontSize: '11px',
-                                  background: '#e6fcf5',
-                                  color: '#0f766e',
-                                  border: '1px solid #99f6e4',
-                                  padding: '2px 8px',
-                                  borderRadius: '10px',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {cObj.title}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn-studevo-outline"
-                          style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                          onClick={() => setManagingGroupId(g.id)}
-                        >
-                          Налаштувати групу
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+        {activeMenu === 'dashboard' && (
+          <Dashboard
+            userRole={userRole}
+            currentUser={currentUser}
+            courses={courses}
+            assignments={assignments}
+            grades={grades}
+            webinars={webinars}
+            academicGroups={academicGroups}
+            ungradedSubmissions={ungradedSubmissions}
+            averageStudentGrade={averageStudentGrade}
+            getEctsLetter={getEctsLetter}
+            onOpenCourse={(courseId) => setSelectedCourseId(courseId)}
+            onOpenAssignment={handleOpenAssignment}
+            onOpenGrades={() => setActiveMenu('grades')}
+            onOpenWebinars={() => setActiveMenu('webinars')}
+            onOpenGroups={() => setActiveMenu('groups')}
+          />
         )}
 
         {/* 2. COURSES & SYLLABUS */}

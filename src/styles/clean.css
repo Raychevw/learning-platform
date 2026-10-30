@@ -1,0 +1,475 @@
+/* ============================================================================
+   Sprint 1 cleanup: flat, consistent LMS look (Studevo palette, no clutter).
+   Loaded after App.css, so these rules intentionally override the old theme.
+   ========================================================================== */
+
+:root {
+  --clean-bg: #f5f6f8;
+  --clean-card: #ffffff;
+  --clean-border: #e4e7ec;
+  --clean-text: #1d2433;
+  --clean-muted: #667085;
+  --clean-radius: 12px;
+}
+
+body {
+  background: var(--clean-bg);
+}
+
+/* Two-column shell: navigation + workspace. The old right column is removed. */
+.studevo-app-shell {
+  grid-template-columns: 244px minmax(0, 1fr) !important;
+  background: var(--clean-bg);
+}
+
+.studevo-organizer {
+  display: none !important;
+}
+
+.studevo-sidebar-nav {
+  box-shadow: none !important;
+  padding: 20px 14px 16px !important;
+}
+
+.studevo-brand-block {
+  padding: 0 8px 16px 8px !important;
+  margin-bottom: 16px !important;
+}
+
+.studevo-brand-icon {
+  background: var(--studevo-red-dark) !important;
+  box-shadow: none !important;
+}
+
+.studevo-menu-list {
+  gap: 2px !important;
+}
+
+.studevo-menu-item {
+  border-radius: 8px !important;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  color: #344054 !important;
+  box-shadow: none !important;
+}
+
+.studevo-menu-item:hover {
+  background: #f2f4f7 !important;
+  color: var(--clean-text) !important;
+}
+
+.studevo-menu-item.active {
+  background: #fef3f2 !important;
+  color: var(--studevo-red-dark) !important;
+  font-weight: 700 !important;
+  box-shadow: inset 2px 0 0 var(--studevo-red) !important;
+}
+
+.studevo-workspace {
+  padding: 28px 32px 48px !important;
+  background: transparent !important;
+  gap: 18px !important;
+}
+
+/* Cards and tables: flat, airy, readable. */
+.studevo-card {
+  border-radius: var(--clean-radius) !important;
+  border: 1px solid var(--clean-border) !important;
+  box-shadow: none !important;
+  background: var(--clean-card) !important;
+}
+
+.studevo-table th {
+  background: #f9fafb !important;
+  border-bottom: 1px solid var(--clean-border) !important;
+  color: var(--clean-muted) !important;
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.studevo-table td {
+  border-bottom: 1px solid #f2f4f7 !important;
+}
+
+.section-title {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: var(--clean-text) !important;
+}
+
+.btn-studevo-primary {
+  background: var(--studevo-red) !important;
+  border-color: var(--studevo-red) !important;
+  box-shadow: none !important;
+}
+
+.btn-studevo-primary:hover {
+  background: var(--studevo-red-dark) !important;
+}
+
+.btn-studevo-outline,
+.btn-studevo-secondary {
+  box-shadow: none !important;
+}
+
+/* Course view becomes a readable full page instead of a centered modal. */
+.modal-overlay {
+  background: var(--clean-bg) !important;
+  backdrop-filter: none !important;
+  align-items: flex-start !important;
+  padding: 28px 24px 60px !important;
+  overflow-y: auto !important;
+}
+
+.modal-window {
+  width: 100% !important;
+  max-width: 1040px !important;
+  max-height: none !important;
+  margin: 0 auto !important;
+  border: 1px solid var(--clean-border) !important;
+  border-radius: var(--clean-radius) !important;
+  box-shadow: none !important;
+}
+
+.modal-header {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 2;
+  border-radius: var(--clean-radius) var(--clean-radius) 0 0;
+}
+
+/* ---------------------------------------------------------------- Dashboard */
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-head h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--clean-text);
+}
+
+.page-head p {
+  margin: 0;
+  color: var(--clean-muted);
+  font-size: 13px;
+}
+
+.role-chip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: #fef3f2;
+  color: var(--studevo-red-dark);
+  border: 1px solid #fee4e2;
+}
+
+.live-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  border: 1px solid #d1fadf;
+  background: #ecfdf3;
+  color: #05603a;
+  border-radius: var(--clean-radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #12b76a;
+  box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.15);
+  flex-shrink: 0;
+}
+
+.live-banner-action {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dash-stat {
+  background: var(--clean-card);
+  border: 1px solid var(--clean-border);
+  border-radius: var(--clean-radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-stat span {
+  font-size: 12px;
+  color: var(--clean-muted);
+}
+
+.dash-stat b {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--clean-text);
+  line-height: 1.1;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.dash-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dash-section {
+  background: var(--clean-card);
+  border: 1px solid var(--clean-border);
+  border-radius: var(--clean-radius);
+  padding: 18px 20px;
+}
+
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dash-section-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--clean-text);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--studevo-red-dark);
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.course-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+.course-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+  border: 1px solid var(--clean-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.course-card:hover {
+  border-color: var(--studevo-red);
+}
+
+.course-card img {
+  width: 100%;
+  height: 92px;
+  object-fit: cover;
+  display: block;
+}
+
+.course-card-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.course-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--clean-text);
+}
+
+.course-card-meta {
+  font-size: 11.5px;
+  color: var(--clean-muted);
+}
+
+.progress {
+  height: 6px;
+  border-radius: 100px;
+  background: #eef0f3;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--studevo-red);
+  border-radius: 100px;
+}
+
+.dash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dash-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f2f4f7;
+  width: 100%;
+}
+
+.dash-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dash-item-btn {
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dash-item-btn:hover .dash-item-title {
+  color: var(--studevo-red-dark);
+}
+
+.dash-item-date {
+  min-width: 52px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--studevo-red-dark);
+  text-transform: uppercase;
+  padding-top: 2px;
+}
+
+.dash-item-date.overdue {
+  color: #b42318;
+}
+
+.dash-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dash-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clean-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-item-sub {
+  font-size: 11.5px;
+  color: var(--clean-muted);
+}
+
+.dash-empty {
+  margin: 4px 0;
+  font-size: 12.5px;
+  color: var(--clean-muted);
+}
+
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quick-link {
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--clean-border);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clean-text);
+  cursor: pointer;
+}
+
+.quick-link:hover {
+  border-color: var(--studevo-red);
+  color: var(--studevo-red-dark);
+}
+
+@media (max-width: 1100px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .studevo-app-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .studevo-sidebar-nav {
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--clean-border) !important;
+  }
+
+  .studevo-workspace {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 20px 16px 40px !important;
+  }
+
+  .dash-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
