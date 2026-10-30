@@ -1661,3 +1661,802 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ============================================================================
+   Visual polish v2 — глибша ієрархія, м'які тіні, брендований Studevo-стиль.
+   ========================================================================== */
+:root {
+  --clean-bg: #f4f5f9;
+  --clean-card: #ffffff;
+  --clean-border: #e8eaf0;
+  --clean-border-strong: #d9dde7;
+  --clean-text: #172033;
+  --clean-muted: #667085;
+  --clean-radius: 16px;
+  --surface-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 16px 40px -28px rgba(16, 24, 40, 0.35);
+  --surface-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.05), 0 22px 48px -26px rgba(16, 24, 40, 0.4);
+  --font-body: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-body) !important;
+}
+
+body {
+  background: #f4f5f9 !important;
+  color: var(--clean-text);
+}
+
+h1,
+h2,
+h3,
+h4,
+.studevo-brand-title,
+.section-title,
+.page-head h1 {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.022em;
+}
+
+/* ---------------------------------------------------------------- Workspace */
+.studevo-workspace {
+  background:
+    radial-gradient(900px 420px at 92% -8%, rgba(180, 35, 24, 0.06), transparent 72%),
+    radial-gradient(760px 380px at -8% 100%, rgba(23, 92, 211, 0.035), transparent 72%),
+    #f4f5f9 !important;
+  padding: 32px 36px 56px !important;
+  gap: 22px !important;
+}
+
+.page-head {
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.page-head h1 {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.035em !important;
+  color: #121829 !important;
+  line-height: 1.15;
+}
+
+.page-head p {
+  margin-top: 5px !important;
+  font-size: 13px !important;
+  color: #667085 !important;
+}
+
+.role-chip {
+  position: relative;
+  padding: 6px 13px 6px 27px !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  background: #ffffff !important;
+  border: 1px solid #f4c7c2 !important;
+  box-shadow: 0 4px 12px -8px rgba(180, 35, 24, 0.6);
+}
+
+.role-chip::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--studevo-red);
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.12);
+}
+
+/* ---------------------------------------------------------------- Sidebar */
+.studevo-sidebar-nav {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%) !important;
+  border-right: 1px solid #e9ebf1 !important;
+  box-shadow: 10px 0 32px -30px rgba(16, 24, 40, 0.4) !important;
+  padding: 22px 14px 18px !important;
+}
+
+.studevo-brand-block {
+  padding: 0 8px 18px 8px !important;
+  margin-bottom: 14px !important;
+  border-bottom: 1px solid #f0f1f5 !important;
+}
+
+.studevo-brand-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 11px !important;
+  background: linear-gradient(145deg, #d13b2e 0%, #a11f14 100%) !important;
+  box-shadow: 0 7px 16px -6px rgba(180, 35, 24, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+.studevo-brand-title {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.055em !important;
+  color: #8f1a10 !important;
+}
+
+.studevo-brand-subtitle {
+  margin-top: 1px;
+  font-size: 10px !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase;
+  color: #8a8f9c !important;
+}
+
+.studevo-menu-list {
+  gap: 4px !important;
+}
+
+.studevo-menu-item {
+  position: relative;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #3f4757 !important;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease !important;
+}
+
+.studevo-menu-item svg {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 0.85;
+}
+
+.studevo-menu-item:hover {
+  background: #f6f2f4 !important;
+  color: #7a271a !important;
+}
+
+.studevo-menu-item.active {
+  background: linear-gradient(135deg, #c02b1f 0%, #961c12 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 10px 22px -12px rgba(180, 35, 24, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+.studevo-menu-item.active svg {
+  opacity: 1;
+}
+
+.studevo-menu-item.active::before {
+  content: "";
+  position: absolute;
+  inset: 7px auto 7px 4px;
+  width: 3px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.studevo-menu-item.active::after {
+  display: none;
+}
+
+.studevo-profile-footer {
+  border-top: 1px solid #eef0f4 !important;
+  padding-top: 14px !important;
+}
+
+.studevo-profile-card {
+  padding: 10px !important;
+  border: 1px solid #f0e2e1 !important;
+  border-radius: 13px !important;
+  background: linear-gradient(145deg, #fff8f7 0%, #ffffff 78%) !important;
+}
+
+.studevo-profile-card .profile-avatar {
+  box-shadow: 0 0 0 3px #ffffff, 0 5px 12px -6px rgba(180, 35, 24, 0.55);
+}
+
+.studevo-profile-card .profile-name {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  color: #202636 !important;
+}
+
+.studevo-profile-card .profile-dept {
+  font-size: 10.5px !important;
+  color: #7c8494 !important;
+}
+
+.logout-action-btn {
+  border-radius: 10px !important;
+  border: 1px solid #e5e7ee !important;
+  background: #ffffff !important;
+  color: #475467 !important;
+  font-weight: 600 !important;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease !important;
+}
+
+.logout-action-btn:hover {
+  border-color: #f0b8b2 !important;
+  background: #fff5f4 !important;
+  color: var(--studevo-red-dark) !important;
+}
+
+/* ---------------------------------------------------------------- Surfaces */
+.studevo-card,
+.dash-section {
+  border-color: #e9ebf1 !important;
+  border-radius: var(--clean-radius) !important;
+  background: #ffffff !important;
+  box-shadow: var(--surface-shadow) !important;
+}
+
+.dash-section {
+  padding: 20px 22px !important;
+}
+
+.dash-section-head {
+  padding-bottom: 12px;
+  margin-bottom: 14px !important;
+  border-bottom: 1px solid #f1f2f6;
+}
+
+.dash-section-head h2 {
+  font-size: 15.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.015em;
+}
+
+.section-header-row {
+  align-items: center;
+}
+
+.section-title {
+  font-size: 23px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+/* ---------------------------------------------------------------- Stat tiles */
+.dash-stats {
+  gap: 16px !important;
+}
+
+.dash-stat {
+  position: relative;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 18px 20px !important;
+  border: 1px solid #e9ebf1 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: var(--surface-shadow) !important;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.dash-stat::after {
+  content: "";
+  position: absolute;
+  right: -32px;
+  top: -42px;
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.045;
+}
+
+.dash-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--surface-shadow-hover) !important;
+}
+
+.dash-stat-icon {
+  width: 46px !important;
+  height: 46px !important;
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  font-size: 12px !important;
+  color: inherit;
+}
+
+.dash-stat-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.dash-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dash-stat-label {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: #7c8494 !important;
+}
+
+.dash-stat b {
+  font-size: 27px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.035em;
+  line-height: 1.1 !important;
+  color: #141a29 !important;
+}
+
+.dash-stat.tone-red {
+  color: #b42318;
+}
+.dash-stat.tone-red .dash-stat-icon {
+  background: linear-gradient(145deg, #fef3f2, #fee4e2);
+  color: #b42318;
+}
+.dash-stat.tone-slate {
+  color: #475467;
+}
+.dash-stat.tone-slate .dash-stat-icon {
+  background: linear-gradient(145deg, #f4f5f8, #eceef3);
+  color: #475467;
+}
+.dash-stat.tone-amber {
+  color: #b54708;
+}
+.dash-stat.tone-amber .dash-stat-icon {
+  background: linear-gradient(145deg, #fff8eb, #fef0c7);
+  color: #b54708;
+}
+.dash-stat.tone-blue {
+  color: #175cd3;
+}
+.dash-stat.tone-blue .dash-stat-icon {
+  background: linear-gradient(145deg, #eff8ff, #dbeafe);
+  color: #175cd3;
+}
+.dash-stat.tone-green {
+  color: #067647;
+}
+.dash-stat.tone-green .dash-stat-icon {
+  background: linear-gradient(145deg, #ecfdf3, #d1fadf);
+  color: #067647;
+}
+
+/* ---------------------------------------------------------------- Tables */
+.studevo-table {
+  font-size: 12.8px !important;
+}
+
+.studevo-table th {
+  padding: 11px 14px !important;
+  background: #f8f9fc !important;
+  color: #6b7383 !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  border-bottom: 1px solid #eceef3 !important;
+}
+
+.studevo-table td {
+  padding: 13px 14px !important;
+  border-bottom: 1px solid #f1f2f6 !important;
+  color: #343b4a;
+}
+
+.studevo-table tbody tr {
+  transition: background 0.14s ease;
+}
+
+.studevo-table tbody tr:hover {
+  background: #fafbfe !important;
+}
+
+.studevo-table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.ects-badge {
+  box-shadow: inset 0 0 0 1px rgba(6, 118, 71, 0.12);
+}
+
+/* ---------------------------------------------------------------- Buttons */
+.btn-studevo-primary {
+  background: linear-gradient(135deg, #c22c20 0%, #a11f14 100%) !important;
+  border: 1px solid #a11f14 !important;
+  border-radius: 9px !important;
+  padding: 9px 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.005em;
+  box-shadow: 0 8px 18px -10px rgba(180, 35, 24, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease !important;
+}
+
+.btn-studevo-primary:hover {
+  background: linear-gradient(135deg, #b42318 0%, #8f1a10 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -12px rgba(180, 35, 24, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+
+.btn-studevo-primary:active {
+  transform: translateY(0);
+}
+
+.btn-studevo-outline,
+.btn-studevo-secondary {
+  border-radius: 9px !important;
+  padding: 8px 15px !important;
+  font-weight: 650 !important;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.16s ease !important;
+}
+
+.btn-studevo-outline {
+  border-color: #efc2bd !important;
+  color: #a11f14 !important;
+}
+
+.btn-studevo-outline:hover {
+  border-color: #d98c84 !important;
+  background: #fff6f5 !important;
+  transform: translateY(-1px);
+}
+
+.btn-studevo-secondary {
+  background: #f8f9fb !important;
+  border-color: #e7e9ef !important;
+  color: #3f4757 !important;
+}
+
+.btn-studevo-secondary:hover {
+  background: #f1f3f7 !important;
+}
+
+.btn-studevo-primary:focus-visible,
+.btn-studevo-outline:focus-visible,
+.btn-studevo-secondary:focus-visible,
+.studevo-menu-item:focus-visible,
+.input-studevo-control:focus-visible {
+  outline: 3px solid rgba(180, 35, 24, 0.16);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- Forms */
+.input-studevo-control {
+  padding: 10px 12px !important;
+  border: 1px solid #dfe2ea !important;
+  border-radius: 9px !important;
+  background: #fcfcfe !important;
+  font-size: 13px !important;
+  color: #1f2635 !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease !important;
+}
+
+.input-studevo-control:hover {
+  border-color: #cfd4df !important;
+}
+
+.input-studevo-control:focus {
+  border-color: #d98c84 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.09) !important;
+}
+
+.form-group-field label {
+  display: block;
+  margin-bottom: 6px !important;
+  font-size: 11.5px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.01em;
+  color: #4b5565 !important;
+}
+
+/* ---------------------------------------------------------------- Dashboard extras */
+.quick-links {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+}
+
+.quick-link {
+  position: relative;
+  padding: 11px 30px 11px 13px !important;
+  border-radius: 10px !important;
+  border-color: #e9ebf1 !important;
+  background: #fcfcfe !important;
+  font-size: 12.5px !important;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease !important;
+}
+
+.quick-link::after {
+  content: "→";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #98a2b3;
+  font-size: 13px;
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+
+.quick-link:hover {
+  border-color: #efc2bd !important;
+  background: #fff8f7 !important;
+}
+
+.quick-link:hover::after {
+  color: var(--studevo-red);
+  transform: translate(2px, -50%);
+}
+
+.course-card {
+  border-color: #e9ebf1 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.035);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+}
+
+.course-card img {
+  height: 112px !important;
+  transition: transform 0.35s ease, filter 0.35s ease;
+}
+
+.course-card:hover {
+  transform: translateY(-3px);
+  border-color: #efc2bd !important;
+  box-shadow: 0 18px 36px -24px rgba(16, 24, 40, 0.5);
+}
+
+.course-card:hover img {
+  transform: scale(1.035);
+  filter: saturate(1.06);
+}
+
+.course-card-title {
+  font-size: 14px !important;
+  letter-spacing: -0.012em;
+}
+
+.course-card-meta {
+  font-size: 11.5px !important;
+  color: #737b8b !important;
+}
+
+.progress {
+  height: 7px !important;
+  background: #eef0f4 !important;
+}
+
+.progress > span {
+  background: linear-gradient(90deg, #c22c20, #e05a4d) !important;
+}
+
+/* ---------------------------------------------------------------- Schedule */
+.schedule-day {
+  background: linear-gradient(180deg, #fbfcfe 0%, #f8f9fc 100%) !important;
+  border-color: #eaecf2 !important;
+  border-radius: 13px !important;
+  padding: 12px !important;
+}
+
+.schedule-day-name {
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  color: #8a91a0 !important;
+}
+
+.schedule-item {
+  border-color: #eaecf2 !important;
+  border-radius: 10px !important;
+  padding: 10px 11px !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.schedule-item:hover {
+  border-color: #efc2bd;
+  transform: translateY(-1px);
+}
+
+.schedule-time {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fef3f2;
+  font-size: 10px !important;
+  letter-spacing: 0.02em;
+}
+
+.schedule-course {
+  margin-top: 4px !important;
+}
+
+/* ---------------------------------------------------------------- Feed items */
+.notif-item {
+  border-color: #eaecf2 !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease !important;
+}
+
+.notif-item:hover {
+  border-color: #efc2bd !important;
+  background: #fff8f7 !important;
+  transform: translateX(2px);
+}
+
+.notif-icon {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 10px !important;
+}
+
+.dash-list .dash-item,
+.dash-announcement {
+  border-radius: 10px;
+}
+
+.dash-list .dash-item {
+  padding: 9px 10px;
+  margin: 0 -10px;
+  transition: background 0.15s ease;
+}
+
+.dash-list .dash-item:hover {
+  background: #fafbfe;
+}
+
+.dash-announcement {
+  padding: 14px !important;
+  margin-bottom: 8px;
+  border: 1px solid #eceef3 !important;
+  background: #fcfcfe;
+}
+
+.dash-announcement:last-child {
+  margin-bottom: 0;
+}
+
+.dash-announcement .dash-item-title {
+  color: #202636;
+  font-weight: 700;
+}
+
+.link-btn {
+  padding: 4px 8px !important;
+  border-radius: 7px;
+  transition: background 0.15s ease;
+}
+
+.link-btn:hover {
+  background: #fef3f2;
+  text-decoration: none !important;
+}
+
+.live-banner {
+  border-radius: 13px !important;
+  box-shadow: 0 10px 26px -22px rgba(5, 96, 58, 0.6);
+}
+
+/* ---------------------------------------------------------------- Modals */
+.modal-overlay {
+  background:
+    radial-gradient(800px 400px at 15% 0%, rgba(180, 35, 24, 0.06), transparent 70%),
+    #f4f5f9 !important;
+}
+
+.modal-window {
+  border-color: #e8eaf0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 30px 80px -40px rgba(16, 24, 40, 0.45) !important;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 18px 24px !important;
+  border-bottom: 1px solid #eef0f4 !important;
+}
+
+.modal-header h3 {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.025em;
+}
+
+.modal-body {
+  padding: 22px 24px !important;
+}
+
+.modal-footer {
+  padding: 16px 24px !important;
+  border-top: 1px solid #eef0f4 !important;
+  background: #fbfbfd;
+}
+
+/* ---------------------------------------------------------------- Profile & messenger */
+.profile-summary {
+  background:
+    radial-gradient(220px 160px at 50% -20%, rgba(180, 35, 24, 0.1), transparent 70%),
+    #ffffff !important;
+}
+
+.profile-summary .profile-avatar {
+  box-shadow: 0 0 0 5px #ffffff, 0 12px 24px -14px rgba(180, 35, 24, 0.7);
+}
+
+.profile-facts > div {
+  border-bottom-color: #f2f3f7 !important;
+}
+
+.messenger {
+  border-radius: 0 0 var(--clean-radius) var(--clean-radius);
+}
+
+.messenger-list {
+  background: #fbfbfd !important;
+}
+
+.conversation-item {
+  transition: background 0.15s ease;
+}
+
+.chat-bubble {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.chat-bubble.mine {
+  background: linear-gradient(135deg, #c22c20, #a11f14) !important;
+  box-shadow: 0 8px 18px -14px rgba(180, 35, 24, 0.8);
+}
+
+.thread-compose {
+  padding: 14px 18px !important;
+  background: #fcfcfe !important;
+}
+
+/* ---------------------------------------------------------------- Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .studevo-workspace {
+    padding: 26px 24px 44px !important;
+  }
+
+  .quick-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .studevo-workspace {
+    padding: 20px 16px 40px !important;
+  }
+
+  .page-head h1 {
+    font-size: 25px !important;
+  }
+
+  .dash-stat {
+    padding: 16px !important;
+  }
+
+  .dash-stat b {
+    font-size: 24px !important;
+  }
+}
+

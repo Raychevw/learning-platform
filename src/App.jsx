@@ -6,6 +6,7 @@ import Dashboard from './features/Dashboard.jsx';
 import WebinarsPage from './features/WebinarsPage.jsx';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
+import { modulesLabel, studentsLabel } from './utils/plural.js';
 import {
   INITIAL_COURSES,
   INITIAL_ASSIGNMENTS,
@@ -2068,8 +2069,8 @@ export default function App() {
                     <span
                       style={{
                         marginLeft: 'auto',
-                        background: activeMenu === 'grades' ? '#fff' : '#1864ab',
-                        color: activeMenu === 'grades' ? '#1864ab' : '#fff',
+                        background: activeMenu === 'grades' ? '#fff' : 'var(--studevo-red)',
+                        color: activeMenu === 'grades' ? 'var(--studevo-red-dark)' : '#fff',
                         fontSize: '10.5px',
                         fontWeight: 800,
                         padding: '1px 6px',
@@ -2260,7 +2261,7 @@ export default function App() {
                       <h3 className="course-card-title">{c.title}</h3>
                       <div className="course-card-instructor">{c.instructor}</div>
                       <div className="course-card-syllabus-meta">
-                        <span>{c.modules?.length || 0} модулі • Семестр {c.semester} • {c.totalHours} год.</span>
+                        <span>{modulesLabel(c.modules?.length || 0)} • Семестр {c.semester} • {c.totalHours} год.</span>
                       </div>
                       <p style={{ fontSize: '12px', color: '#6c757d', margin: '0 0 12px 0' }}>
                         {c.description}
@@ -2950,7 +2951,7 @@ export default function App() {
                       <td><strong>{g.name}</strong></td>
                       <td>{g.faculty}</td>
                       <td>{g.studyYear} курс</td>
-                      <td>{g.studentsCount} студентів</td>
+                      <td>{studentsLabel(g.studentsCount)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                           {(g.assignedCourseIds || []).map((cid) => {
@@ -2977,7 +2978,7 @@ export default function App() {
                       <td>
                         <select
                           className="input-studevo-control"
-                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                          style={{ padding: '4px 8px', fontSize: '12px', minWidth: '168px' }}
                           value={g.curatorId || ''}
                           onChange={(e) => handleAssignCurator(g.id, e.target.value)}
                         >
@@ -4218,7 +4219,7 @@ export default function App() {
                   <div className="course-view-instructor">{selectedCourse.instructor}</div>
                   <div className="course-view-meta">
                     <span className="meta-chip">Семестр {selectedCourse.semester}</span>
-                    <span className="meta-chip">{selectedCourse.modules?.length || 0} модулі</span>
+                    <span className="meta-chip">{modulesLabel(selectedCourse.modules?.length || 0)}</span>
                     <span className="meta-chip">{selectedCourse.totalHours} годин</span>
                   </div>
                   <div className="course-view-status-row">

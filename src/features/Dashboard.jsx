@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { modulesLabel, plural, studentsLabel } from '../utils/plural.js';
 
 function daysUntil(deadline) {
   const due = new Date(deadline);
@@ -35,15 +36,6 @@ function assignmentStatus(assignment, userId) {
   return { label: 'До здачі', tone: 'pending' };
 }
 
-/** Українське відмінювання для повідомлень і робіт. */
-function plural(n, one, few, many) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
-}
-
 function worksLabel(count) {
   return `${count} ${plural(count, 'робота очікує', 'роботи очікують', 'робіт очікують')} перевірки`;
 }
@@ -57,6 +49,66 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('uk-UA', { day: '2-digit', month: 'short' });
 }
+
+/** Компактні іконки для плиток статистики. */
+function StatIcon({ name }) {
+  const paths = {
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    ),
+    groups: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z" />
+        <path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
+      </>
+    ),
+    check: (
+      <>
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </>
+    ),
+    chart: (
+      <>
+        <path d="M3 3v18h18" />
+        <path d="M7 15l4-4 3 3 5-6" />
+      </>
+    ),
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name] || paths.groups}
+    </svg>
+  );
+}
+
 
 export default function Dashboard({
   userRole,
@@ -191,25 +243,31 @@ export default function Dashboard({
 
   const statTiles = isAdmin
     ? [
-        { label: 'Студенти', value: totals.students ?? totalStudents },
-        { label: 'Групи', value: totals.groups ?? academicGroups.length },
-        { label: 'Борги', value: totals.debts ?? 0 },
-        { label: 'На перевірці', value: totals.ungraded ?? 0 },
+        { label: 'Студенти', value: totals.students ?? totalStudents, icon: 'users', tone: 'red' },
+        { label: 'Групи', value: totals.groups ?? academicGroups.length, icon: 'groups', tone: 'slate' },
+        { label: 'Борги', value: totals.debts ?? 0, icon: 'alert', tone: 'amber' },
+        { label: 'На перевірці', value: totals.ungraded ?? 0, icon: 'clock', tone: 'blue' },
       ]
     : [
         {
           label: isTeacher ? 'Мої курси' : 'Доступні курси',
           value: visibleCourses.length,
+          icon: 'book',
+          tone: 'red',
         },
         {
           label: isStudent ? 'До здачі' : 'На перевірку',
           value: pendingCount,
+          icon: isStudent ? 'check' : 'clock',
+          tone: isStudent ? 'blue' : 'amber',
         },
         {
           label: isStudent ? 'Середній бал' : 'Студенти',
           value: isStudent
             ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
             : teacherStudentCount,
+          icon: isStudent ? 'chart' : 'users',
+          tone: isStudent ? 'green' : 'slate',
         },
       ];
 
@@ -284,9 +342,14 @@ export default function Dashboard({
 
       <div className={`dash-stats ${isAdmin ? 'dash-stats-4' : ''}`}>
         {statTiles.map((tile) => (
-          <div key={tile.label} className="dash-stat">
-            <span>{tile.label}</span>
-            <b>{tile.value}</b>
+          <div key={tile.label} className={`dash-stat tone-${tile.tone || 'red'}`}>
+            <span className="dash-stat-icon">
+              <StatIcon name={tile.icon} />
+            </span>
+            <span className="dash-stat-body">
+              <span className="dash-stat-label">{tile.label}</span>
+              <b>{tile.value}</b>
+            </span>
           </div>
         ))}
       </div>
@@ -405,7 +468,8 @@ export default function Dashboard({
                       {isAdmin || isTeacher ? (
                         <>
                           <div className="course-card-meta">
-                            {studentsForCourse(course.id)} студентів • {(course.modules || []).length} модулів
+                            {studentsLabel(studentsForCourse(course.id))} •{' '}
+                            {modulesLabel((course.modules || []).length)}
                             {isAdmin ? ` • ${course.totalHours || 0} год` : ''}
                           </div>
                           {isTeacher && (
@@ -564,7 +628,7 @@ export default function Dashboard({
                       <span className="dash-item-title">{course.title}</span>
                       <span className="dash-item-sub">
                         Середній бал: {averageForCourse(course.title) ?? '—'} •{' '}
-                        {studentsForCourse(course.id)} студентів
+                        {studentsLabel(studentsForCourse(course.id))}
                       </span>
                     </span>
                   </li>
