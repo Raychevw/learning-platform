@@ -22,7 +22,7 @@ Write-Host '==========================================================' -Foregro
 
 $pidsFile = Join-Path $root 'logs/pids.json'
 $stopped = 0
-$ports = @(3000, 3001, 3002, 3003, 3004, 5173)
+$ports = @(3000, 3001, 3002, 3003, 3004, 3005, 5173)
 
 function Stop-ByPid([int]$procId, [string]$name) {
     try {

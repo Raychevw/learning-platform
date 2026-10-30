@@ -1,0 +1,167 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness/readiness probe for the Communication Service",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/messages": {
+      "post": {
+        "operationId": "MessagesController_send",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a message to a user",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/inbox": {
+      "get": {
+        "operationId": "MessagesController_inbox",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Incoming messages for the current user",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/sent": {
+      "get": {
+        "operationId": "MessagesController_sent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Messages sent by the current user",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/unread": {
+      "get": {
+        "operationId": "MessagesController_unread",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unread messages count",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/{id}/read": {
+      "patch": {
+        "operationId": "MessagesController_markRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a message as read",
+        "tags": [
+          "Messages"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Communication Service API",
+    "description": "Повідомлення між студентами, викладачами та деканатом",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Messages",
+      "description": ""
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "SendMessageDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

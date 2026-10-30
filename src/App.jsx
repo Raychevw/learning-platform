@@ -79,6 +79,12 @@ export default function App() {
   const [schedule, setSchedule] = useState([]);
   const [allEnrollments, setAllEnrollments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [directory, setDirectory] = useState([]);
+  const [inboxMessages, setInboxMessages] = useState([]);
+  const [sentMessages, setSentMessages] = useState([]);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [messageTab, setMessageTab] = useState('inbox');
+  const [composeForm, setComposeForm] = useState({ recipientId: '', subject: '', body: '' });
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
@@ -89,8 +95,20 @@ export default function App() {
 
     const load = async () => {
       const userId = encodeURIComponent(currentUser.id);
-      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes, enrollmentsRes, analyticsRes] =
-        await Promise.allSettled([
+      const [
+        catalog,
+        assignmentsRes,
+        gradesRes,
+        groupsRes,
+        webinarsRes,
+        scheduleRes,
+        enrollmentsRes,
+        analyticsRes,
+        directoryRes,
+        inboxRes,
+        sentRes,
+        unreadRes,
+      ] = await Promise.allSettled([
           api.get(`/api/catalog?userId=${userId}`),
           api.get('/api/assignments-full'),
           api.get('/api/grades'),
@@ -101,6 +119,10 @@ export default function App() {
             ? api.get('/api/enrollments')
             : Promise.resolve(null),
           currentUser.role === 'admin' ? api.get('/api/analytics/overview') : Promise.resolve(null),
+          api.get('/api/auth/directory'),
+          api.get('/api/messages/inbox'),
+          api.get('/api/messages/sent'),
+          api.get('/api/messages/unread'),
         ]);
       if (isCancelled) return;
 
@@ -116,6 +138,12 @@ export default function App() {
       apply(enrollmentsRes, setAllEnrollments);
       if (analyticsRes.status === 'fulfilled' && analyticsRes.value) {
         setAnalytics(analyticsRes.value);
+      }
+      apply(directoryRes, setDirectory);
+      apply(inboxRes, setInboxMessages);
+      apply(sentRes, setSentMessages);
+      if (unreadRes.status === 'fulfilled' && unreadRes.value) {
+        setUnreadMessages(Number(unreadRes.value.unread) || 0);
       }
     };
 
@@ -1677,6 +1705,37 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    const recipient = directory.find((user) => user.id === composeForm.recipientId);
+    if (!recipient || !composeForm.body.trim()) {
+      showNotification('Оберіть отримувача та введіть текст повідомлення.', true);
+      return;
+    }
+
+    const res = await syncBackend('/messages', 'POST', {
+      recipientId: recipient.id,
+      recipientName: recipient.fullName,
+      subject: composeForm.subject.trim(),
+      body: composeForm.body.trim(),
+    });
+    if (!res) return;
+
+    setSentMessages((prev) => [res, ...prev]);
+    setComposeForm({ recipientId: '', subject: '', body: '' });
+    showNotification('Повідомлення надіслано.');
+  };
+
+  const handleOpenMessage = async (message) => {
+    if (!message.unread) return;
+    const res = await syncBackend(`/messages/${message.id}/read`, 'PATCH');
+    if (!res) return;
+    setInboxMessages((prev) =>
+      prev.map((item) => (item.id === message.id ? { ...item, unread: false, readAt: res.readAt } : item))
+    );
+    setUnreadMessages((prev) => Math.max(0, prev - 1));
+  };
+
   const handleAssignTeacher = async (courseId, ownerId) => {
     const res = await syncBackend(`/catalog/${courseId}/owner`, 'PATCH', {
       ownerId: ownerId || null,
@@ -1994,6 +2053,7 @@ export default function App() {
           { id: 'assignments', label: 'Завдання', icon: 'check' },
           { id: 'grades', label: 'Оцінки', icon: 'chart' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
+          { id: 'messages', label: 'Повідомлення', icon: 'mail' },
         ]
       : userRole === 'teacher'
       ? [
@@ -2002,11 +2062,13 @@ export default function App() {
           { id: 'assignments', label: 'Завдання', icon: 'check' },
           { id: 'grades', label: 'Оцінювання', icon: 'chart' },
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
+          { id: 'messages', label: 'Повідомлення', icon: 'mail' },
         ]
       : [
           { id: 'dashboard', label: 'Панель', icon: 'grid' },
           { id: 'groups', label: 'Користувачі та групи', icon: 'users' },
           { id: 'grades', label: 'Відомості', icon: 'chart' },
+          { id: 'messages', label: 'Повідомлення', icon: 'mail' },
           { id: 'audit', label: 'Журнал', icon: 'shield' },
         ];
 
@@ -2090,7 +2152,28 @@ export default function App() {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                     </svg>
                   )}
+                  {item.icon === 'mail' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                    </svg>
+                  )}
                   <span>{item.label}</span>
+                  {item.id === 'messages' && unreadMessages > 0 && (
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        background: activeMenu === 'messages' ? '#fff' : 'var(--studevo-red)',
+                        color: activeMenu === 'messages' ? 'var(--studevo-red-dark)' : '#fff',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      {unreadMessages}
+                    </span>
+                  )}
                   {item.id === 'grades' && userRole === 'teacher' && ungradedSubmissions.length > 0 && (
                     <span
                       style={{
@@ -3750,7 +3833,126 @@ export default function App() {
           </div>
         )}
 
-        {/* 7. ADMIN: SYSTEM ACTIVITY LOGS */}
+        {/* 7. MESSAGES (student / teacher / dean) */}
+        {activeMenu === 'messages' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">Повідомлення</h2>
+              <span className="dash-hint">Непрочитаних: {unreadMessages}</span>
+            </div>
+
+            <div className="studevo-card" style={{ marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Нове повідомлення
+              </h3>
+              <form onSubmit={handleSendMessage}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.6fr', gap: '12px' }}>
+                  <div className="form-group-field">
+                    <label>Отримувач</label>
+                    <select
+                      className="input-studevo-control"
+                      value={composeForm.recipientId}
+                      onChange={(e) => setComposeForm({ ...composeForm, recipientId: e.target.value })}
+                      required
+                    >
+                      <option value="">— оберіть —</option>
+                      {directory
+                        .filter((user) => user.id !== currentUser?.id)
+                        .map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.fullName} (
+                            {user.role === 'STUDENT'
+                              ? 'студент'
+                              : user.role === 'TEACHER'
+                                ? 'викладач'
+                                : 'деканат'}
+                            )
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="form-group-field">
+                    <label>Тема</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={composeForm.subject}
+                      onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
+                      placeholder="Коротко про що повідомлення"
+                    />
+                  </div>
+                </div>
+                <div className="form-group-field">
+                  <label>Текст повідомлення</label>
+                  <textarea
+                    rows="3"
+                    className="input-studevo-control"
+                    value={composeForm.body}
+                    onChange={(e) => setComposeForm({ ...composeForm, body: e.target.value })}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-studevo-primary">
+                  Надіслати
+                </button>
+              </form>
+            </div>
+
+            <div className="studevo-card">
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  className={messageTab === 'inbox' ? 'btn-studevo-primary' : 'btn-studevo-outline'}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => setMessageTab('inbox')}
+                >
+                  Вхідні ({inboxMessages.length})
+                </button>
+                <button
+                  type="button"
+                  className={messageTab === 'sent' ? 'btn-studevo-primary' : 'btn-studevo-outline'}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => setMessageTab('sent')}
+                >
+                  Надіслані ({sentMessages.length})
+                </button>
+              </div>
+
+              {(messageTab === 'inbox' ? inboxMessages : sentMessages).length === 0 ? (
+                <p className="dash-empty">Повідомлень немає.</p>
+              ) : (
+                (messageTab === 'inbox' ? inboxMessages : sentMessages).map((message) => (
+                  <div
+                    key={message.id}
+                    className={`message-row ${message.unread ? 'unread' : ''}`}
+                    onClick={() => messageTab === 'inbox' && handleOpenMessage(message)}
+                  >
+                    <div className="message-head">
+                      <strong>
+                        {messageTab === 'inbox'
+                          ? message.senderName
+                          : `До: ${message.recipientName}`}
+                      </strong>
+                      <span className="dash-hint">
+                        {new Date(message.createdAt).toLocaleString('uk-UA', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    {message.subject ? <div className="message-subject">{message.subject}</div> : null}
+                    <div className="message-body">{message.body}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 8. ADMIN: SYSTEM ACTIVITY LOGS */}
         {activeMenu === 'audit' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">

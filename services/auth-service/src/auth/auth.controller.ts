@@ -24,6 +24,13 @@ export class AuthController {
     return this.authService.findById(req.user.userId);
   }
 
+  @Get('directory')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Довідник користувачів для повідомлень (id, ПІБ, роль)' })
+  directory() {
+    return this.authService.directory();
+  }
+
   @Get('users')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()

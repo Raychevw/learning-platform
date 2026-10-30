@@ -71,6 +71,8 @@
   експорт звіту CSV.
 - **Власність курсів** — викладач бачить і редагує лише свої дисципліни; декан призначає
   відповідального викладача (`PATCH /api/catalog/:courseId/owner`).
+- **Повідомлення** — окремий `communication-service`: студент ↔ викладач ↔ деканат,
+  вхідні/надіслані, непрочитані, довідник користувачів.
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -93,6 +95,7 @@ docker compose up --build
 | Swagger (assignment) | http://localhost:3002/api/docs |
 | Swagger (auth) | http://localhost:3003/api/docs |
 | Swagger (audit) | http://localhost:3004/api/docs |
+| Swagger (messages) | http://localhost:3005/api/docs |
 | MinIO console | http://localhost:9001 |
 
 Остановка: `docker compose down` (данные остаются в volumes), `docker compose down -v` — удалить данные.
@@ -215,6 +218,10 @@ POST /api/auth/login
 | GET | `/api/enrollments?courseId=` | реальный ростер курса (для участников вебинара) |
 | GET | `/api/schedule?groupId=&courseId=` | розклад занять групи/курсу |
 | GET | `/api/analytics/overview` | аналітика деканату: борги, пропуски, не перевірено, успішність груп (admin) |
+| GET | `/api/auth/directory` | довідник користувачів для вибору отримувача |
+| GET/POST | `/api/messages/inbox`, `/api/messages` | вхідні та надсилання повідомлень |
+| GET | `/api/messages/sent`, `/api/messages/unread` | надіслані та кількість непрочитаних |
+| PATCH | `/api/messages/:id/read` | позначити прочитаним |
 | POST/DELETE | `/api/schedule`, `/api/schedule/:id` | керування розкладом (teacher/admin) |
 
 Полные спецификации: `contracts/*.json` (генерируются из Swagger) и `contracts/events-schema.json`.
@@ -250,6 +257,7 @@ services/
   course-service/        каталог, уроки, вебинары, S3      :3001
   assignment-service/    задания, сдачи, оценки, группы   :3002
   audit-service/         журнал безопасности и статистика  :3004
+  communication-service/ сообщения между ролями            :3005
   api-gateway/           шлюз, JWT, CORS, rate-limit        :3000
 services/*/src/database/migrations/  начальные миграции схемы (TypeORM)
 contracts/               OpenAPI + JSON-схемы событий

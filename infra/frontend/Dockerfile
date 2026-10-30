@@ -10,6 +10,7 @@ COPY services/assignment-service/package.json ./services/assignment-service/
 COPY services/api-gateway/package.json ./services/api-gateway/
 COPY services/auth-service/package.json ./services/auth-service/
 COPY services/audit-service/package.json ./services/audit-service/
+COPY services/communication-service/package.json ./services/communication-service/
 RUN npm ci --no-audit --no-fund
 
 # Build the SPA

@@ -89,14 +89,15 @@ if ($Infra -eq 'docker') {
         Write-Err 'Docker недоступен. Запустите Docker Desktop или используйте -Infra local.'
         exit 1
     }
-    docker compose up -d course-db assignment-db auth-db audit-db redis_broker minio
+    docker compose up -d course-db assignment-db auth-db audit-db communication-db redis_broker minio
     if ($LASTEXITCODE -ne 0) { Write-Err 'docker compose завершился с ошибкой'; exit 1 }
 
     $containers = @(
         @{ Name = 'studevo_course_db';     Db = (Cfg 'COURSE_DB_NAME' 'course_db') },
         @{ Name = 'studevo_assignment_db'; Db = (Cfg 'ASSIGNMENT_DB_NAME' 'assignment_db') },
         @{ Name = 'studevo_auth_db';       Db = (Cfg 'AUTH_DB_NAME' 'auth_db') },
-        @{ Name = 'studevo_audit_db';      Db = (Cfg 'AUDIT_DB_NAME' 'audit_db') }
+        @{ Name = 'studevo_audit_db';      Db = (Cfg 'AUDIT_DB_NAME' 'audit_db') },
+        @{ Name = 'studevo_communication_db'; Db = (Cfg 'COMMUNICATION_DB_NAME' 'communication_db') }
     )
     foreach ($c in $containers) {
         $ready = $false
@@ -113,6 +114,7 @@ if ($Infra -eq 'docker') {
     $assignmentDbPort = Cfg 'ASSIGNMENT_DB_PORT' '5434'
     $authDbPort       = Cfg 'AUTH_DB_PORT' '5435'
     $auditDbPort      = Cfg 'AUDIT_DB_PORT' '5436'
+    $communicationDbPort = Cfg 'COMMUNICATION_DB_PORT' '5437'
 }
 else {
     Write-Step '[1/6] Инфраструктура: локальный PostgreSQL/Redis'
@@ -121,12 +123,13 @@ else {
     $assignmentDbPort = $localPort
     $authDbPort = $localPort
     $auditDbPort = $localPort
+    $communicationDbPort = $localPort
     Write-Ok "PostgreSQL: ${dbHost}:${localPort} (БД: course_db, assignment_db, auth_db)"
 
     $psql = Get-Command psql -ErrorAction SilentlyContinue
     if ($psql) {
         $env:PGPASSWORD = $dbPassword
-        foreach ($db in @((Cfg 'COURSE_DB_NAME' 'course_db'), (Cfg 'ASSIGNMENT_DB_NAME' 'assignment_db'), (Cfg 'AUTH_DB_NAME' 'auth_db'), (Cfg 'AUDIT_DB_NAME' 'audit_db'))) {
+        foreach ($db in @((Cfg 'COURSE_DB_NAME' 'course_db'), (Cfg 'ASSIGNMENT_DB_NAME' 'assignment_db'), (Cfg 'AUTH_DB_NAME' 'auth_db'), (Cfg 'AUDIT_DB_NAME' 'audit_db'), (Cfg 'COMMUNICATION_DB_NAME' 'communication_db'))) {
             $exists = & psql -h $dbHost -p $localPort -U $dbUser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" 2>$null
             if ($exists -ne '1') {
                 & psql -h $dbHost -p $localPort -U $dbUser -d postgres -c "CREATE DATABASE $db" 2>&1 | Out-Null
@@ -156,6 +159,7 @@ $services = @(
     @{ Name = 'course';     Entry = 'services/course-service/dist/main.js';     Port = (Cfg 'COURSE_SERVICE_PORT' '3001');     DbName = (Cfg 'COURSE_DB_NAME' 'course_db');          DbPort = $courseDbPort },
     @{ Name = 'assignment'; Entry = 'services/assignment-service/dist/main.js'; Port = (Cfg 'ASSIGNMENT_SERVICE_PORT' '3002'); DbName = (Cfg 'ASSIGNMENT_DB_NAME' 'assignment_db');  DbPort = $assignmentDbPort },
     @{ Name = 'audit';      Entry = 'services/audit-service/dist/main.js';      Port = (Cfg 'AUDIT_SERVICE_PORT' '3004');      DbName = (Cfg 'AUDIT_DB_NAME' 'audit_db');            DbPort = $auditDbPort },
+    @{ Name = 'communication'; Entry = 'services/communication-service/dist/main.js'; Port = (Cfg 'COMMUNICATION_SERVICE_PORT' '3005'); DbName = (Cfg 'COMMUNICATION_DB_NAME' 'communication_db'); DbPort = $communicationDbPort },
     @{ Name = 'gateway';    Entry = 'services/api-gateway/dist/main.js';        Port = (Cfg 'GATEWAY_PORT' '3000');            DbName = $null;                                       DbPort = $null }
 )
 
@@ -194,6 +198,7 @@ $env:COURSE_SERVICE_URL = (Cfg 'COURSE_SERVICE_URL' 'http://localhost:3001')
 $env:ASSIGNMENT_SERVICE_URL = (Cfg 'ASSIGNMENT_SERVICE_URL' 'http://localhost:3002')
 $env:AUTH_SERVICE_URL = (Cfg 'AUTH_SERVICE_URL' 'http://localhost:3003')
 $env:AUDIT_SERVICE_URL = (Cfg 'AUDIT_SERVICE_URL' 'http://localhost:3004')
+$env:COMMUNICATION_SERVICE_URL = (Cfg 'COMMUNICATION_SERVICE_URL' 'http://localhost:3005')
 $env:AUDIT_INGEST_TOKEN = (Cfg 'AUDIT_INGEST_TOKEN' 'change_me_super_long_random_secret_at_least_32_chars')
 
 $started = @()
@@ -274,6 +279,7 @@ Write-Ok "Course docs:     http://localhost:$(Cfg 'COURSE_SERVICE_PORT' '3001')/
 Write-Ok "Assignment docs: http://localhost:$(Cfg 'ASSIGNMENT_SERVICE_PORT' '3002')/api/docs"
 Write-Ok "Auth docs:       http://localhost:$(Cfg 'AUTH_SERVICE_PORT' '3003')/api/docs"
 Write-Ok "Audit docs:      http://localhost:$(Cfg 'AUDIT_SERVICE_PORT' '3004')/api/docs"
+Write-Ok "Messages docs:   http://localhost:$(Cfg 'COMMUNICATION_SERVICE_PORT' '3005')/api/docs"
 Write-Ok "MinIO console:   http://localhost:$(Cfg 'MINIO_CONSOLE_PORT' '9001')  (если Infra=docker)"
 Write-Host ''
 Write-Ok "Логи: $logsDir"

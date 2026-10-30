@@ -99,6 +99,24 @@ services:
       timeout: 5s
       retries: 10
 
+  communication-db:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: studevo_communication_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-lms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      POSTGRES_DB: ${COMMUNICATION_DB_NAME:-communication_db}
+    ports:
+      - "${COMMUNICATION_DB_PORT:-5437}:5432"
+    volumes:
+      - communication_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms} -d ${COMMUNICATION_DB_NAME:-communication_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ---------------------------------------------------------------- infra
   redis_broker:
     <<: *service-defaults
@@ -290,6 +308,33 @@ services:
       retries: 10
       start_period: 20s
 
+  communication-service:
+    <<: [*service-defaults]
+    build:
+      context: ./services/communication-service
+      dockerfile: Dockerfile
+    container_name: studevo_communication_service
+    environment:
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3005
+      DB_HOST: communication-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-lms}
+      DB_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      DB_NAME: ${COMMUNICATION_DB_NAME:-communication_db}
+    ports:
+      - "${COMMUNICATION_SERVICE_PORT:-3005}:3005"
+    depends_on:
+      communication-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # ---------------------------------------------------------------- edge
   api-gateway:
     <<: [*service-defaults]
@@ -306,6 +351,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:3003
       AUDIT_SERVICE_URL: http://audit-service:3004
       AUDIT_INGEST_TOKEN: ${AUDIT_INGEST_TOKEN:-change_me_super_long_random_secret_at_least_32_chars}
+      COMMUNICATION_SERVICE_URL: http://communication-service:3005
     ports:
       - "${GATEWAY_PORT:-3000}:3000"
     depends_on:
@@ -316,6 +362,8 @@ services:
       auth-service:
         condition: service_healthy
       audit-service:
+        condition: service_healthy
+      communication-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
@@ -348,6 +396,7 @@ volumes:
   assignment_db_data:
   auth_db_data:
   audit_db_data:
+  communication_db_data:
   redis_data:
   minio_data:
 

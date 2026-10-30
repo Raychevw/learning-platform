@@ -19,6 +19,7 @@ const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:3
 const ASSIGNMENT_SERVICE_URL = process.env.ASSIGNMENT_SERVICE_URL || 'http://localhost:3002';
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3003';
 const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:3004';
+const COMMUNICATION_SERVICE_URL = process.env.COMMUNICATION_SERVICE_URL || 'http://localhost:3005';
 const JWT_SECRET = process.env.JWT_SECRET || 'change_me_super_long_random_secret_at_least_32_chars';
 const AUDIT_INGEST_TOKEN = process.env.AUDIT_INGEST_TOKEN || JWT_SECRET;
 
@@ -190,13 +191,14 @@ async function checkDownstream(name: string, url: string) {
 }
 
 async function healthPayload() {
-  const [course, assignment, auth, audit] = await Promise.all([
+  const [course, assignment, auth, audit, communication] = await Promise.all([
     checkDownstream('courseService', COURSE_SERVICE_URL),
     checkDownstream('assignmentService', ASSIGNMENT_SERVICE_URL),
     checkDownstream('authService', AUTH_SERVICE_URL),
     checkDownstream('auditService', AUDIT_SERVICE_URL),
+    checkDownstream('communicationService', COMMUNICATION_SERVICE_URL),
   ]);
-  const services = [course, assignment, auth, audit];
+  const services = [course, assignment, auth, audit, communication];
   return {
     status: 'UP',
     gateway: { port: PORT, status: 'HEALTHY' },
@@ -349,6 +351,7 @@ mountProxy('/api/analytics', ASSIGNMENT_SERVICE_URL, '/api/analytics', '/analyti
 mountProxy('/api/submissions', ASSIGNMENT_SERVICE_URL, '/api/submissions', '/submissions');
 mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
 mountProxy('/api/audit', AUDIT_SERVICE_URL, '/api/audit', '/audit');
+mountProxy('/api/messages', COMMUNICATION_SERVICE_URL, '/api/messages', '/messages');
 
 // ----------------------------------------------------------------- fallbacks
 app.use('/api', (req: Request, res: Response) => {

@@ -51,6 +51,26 @@
         ]
       }
     },
+    "/auth/directory": {
+      "get": {
+        "operationId": "AuthController_directory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Довідник користувачів для повідомлень (id, ПІБ, роль)",
+        "tags": [
+          "Auth & Identity"
+        ]
+      }
+    },
     "/auth/users": {
       "get": {
         "operationId": "AuthController_listUsers",

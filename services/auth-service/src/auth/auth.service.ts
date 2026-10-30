@@ -74,6 +74,17 @@ export class AuthService {
     return users.map(toPublicUser);
   }
 
+  /** Публічний довідник для вибору отримувача повідомлення. */
+  async directory() {
+    const users = await this.users.find({ where: { isActive: true }, order: { fullName: 'ASC' } });
+    return users.map((user) => ({
+      id: user.id,
+      fullName: user.fullName,
+      role: user.role,
+      department: user.department,
+    }));
+  }
+
   async createUser(input: {
     email: string;
     password: string;

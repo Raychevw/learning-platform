@@ -602,6 +602,43 @@ body {
   text-decoration: underline;
 }
 
+.message-row {
+  padding: 12px 14px;
+  border: 1px solid var(--clean-border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: #ffffff;
+  cursor: default;
+}
+
+.message-row.unread {
+  border-color: #fecaca;
+  background: #fffbfb;
+  cursor: pointer;
+}
+
+.message-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+}
+
+.message-subject {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--clean-text);
+  margin-bottom: 3px;
+}
+
+.message-body {
+  font-size: 12.5px;
+  color: #475467;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 .dash-item {
   display: flex;
   align-items: flex-start;

@@ -53,6 +53,7 @@ async function main() {
     { file: 'course-service-api.json', kind: 'OpenAPI' },
     { file: 'assignment-service-api.json', kind: 'OpenAPI' },
     { file: 'audit-service-api.json', kind: 'OpenAPI' },
+    { file: 'communication-service-api.json', kind: 'OpenAPI' },
     { file: 'events-schema.json', kind: 'JSON Schema' },
   ];
 
@@ -85,12 +86,14 @@ async function main() {
       { token: 'assignment-db', label: 'БД assignment-db (database-per-service)' },
       { token: 'auth-db', label: 'БД auth-db (database-per-service)' },
       { token: 'audit-db', label: 'БД audit-db (database-per-service)' },
+      { token: 'communication-db', label: 'БД communication-db (database-per-service)' },
       { token: 'redis_broker', label: 'Redis-брокер событий' },
       { token: 'api-gateway', label: 'API Gateway (единая точка входа)' },
       { token: 'course-service', label: 'course-service' },
       { token: 'assignment-service', label: 'assignment-service' },
       { token: 'auth-service', label: 'auth-service' },
       { token: 'audit-service', label: 'audit-service' },
+      { token: 'communication-service', label: 'communication-service' },
     ];
     for (const r of required) {
       if (compose.includes(r.token)) ok(r.label);
@@ -106,6 +109,7 @@ async function main() {
     'services/assignment-service/dist/main.js',
     'services/auth-service/dist/main.js',
     'services/audit-service/dist/main.js',
+    'services/communication-service/dist/main.js',
     'services/api-gateway/dist/main.js',
   ];
   let artifactsOk = true;
@@ -320,6 +324,54 @@ async function main() {
           }
         }
         if (!auditOk) fail('GET /api/audit/logs не вернул журнал', `status=${auditStatus}`);
+
+        // Повідомлення: студент -> викладач, перевірка вхідних
+        try {
+          const teacherLogin = await fetch(`${gatewayUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: 'teacher', password: demoPassword }),
+            signal: AbortSignal.timeout(5000),
+          });
+          const teacherJson = await teacherLogin.json().catch(() => null);
+          const teacherToken = teacherJson?.accessToken;
+          if (!teacherToken) {
+            fail('Не удалось войти преподавателем для проверки сообщений');
+          } else {
+            const subject = `verify-${Date.now()}`;
+            const sendRes = await fetch(`${gatewayUrl}/api/messages`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                recipientId: 'usr-teacher',
+                recipientName: teacherJson?.user?.fullName || 'Teacher',
+                subject,
+                body: 'Architecture verification message',
+              }),
+              signal: AbortSignal.timeout(5000),
+            });
+            if (sendRes.status !== 201) {
+              fail('Не удалось отправить сообщение', `status=${sendRes.status}`);
+            } else {
+              let inboxOk = false;
+              for (let attempt = 0; attempt < 5 && !inboxOk; attempt++) {
+                const inboxRes = await fetch(`${gatewayUrl}/api/messages/inbox`, {
+                  headers: { Authorization: `Bearer ${teacherToken}` },
+                  signal: AbortSignal.timeout(5000),
+                });
+                const inbox = await inboxRes.json().catch(() => null);
+                if (inboxRes.ok && Array.isArray(inbox)) {
+                  inboxOk = inbox.some((item) => item.subject === subject);
+                }
+                if (!inboxOk) await new Promise((resolve) => setTimeout(resolve, 250));
+              }
+              if (inboxOk) ok('Сообщения: отправка и входящие работают');
+              else fail('Сообщение не появилось во входящих преподавателя');
+            }
+          }
+        } catch (messageError) {
+          fail('Проверка сообщений не удалась', messageError.message);
+        }
 
         // Деканатская аналитика успеваемости
         try {
