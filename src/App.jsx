@@ -98,6 +98,9 @@ export default function App() {
 
   const userRole = currentUser ? currentUser.role : 'student';
   const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [pendingWrites, setPendingWrites] = useState(0);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Core Data States. Seed-данные используются только как offline-демо:
   // как только backend отвечает, источником истины становится PostgreSQL.
@@ -597,11 +600,14 @@ export default function App() {
    * «успешных» сохранений больше нет.
    */
   const syncBackend = async (path, method = 'POST', body = null) => {
+    setPendingWrites((count) => count + 1);
     try {
       return await request(path.startsWith('/api') ? path : `/api${path}`, { method, body });
     } catch (err) {
       showNotification(err.message || 'Не вдалося зберегти зміни на сервері.', true);
       return null;
+    } finally {
+      setPendingWrites((count) => Math.max(0, count - 1));
     }
   };
 
@@ -610,6 +616,7 @@ export default function App() {
   // ========================================================
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
+    if (isLoggingIn) return;
     setLoginError('');
 
     if (!loginInput.trim() || !passwordInput) {
@@ -617,21 +624,26 @@ export default function App() {
       return;
     }
 
+    setIsLoggingIn(true);
     try {
       const loggedIn = await login(loginInput.trim(), passwordInput);
       setActiveMenu('dashboard');
+      setMobileNavOpen(false);
       setNotification(null);
       setLoginInput('');
       setPasswordInput('');
       appendAuditLog('Вхід у систему', loggedIn.dept || 'Кабінет', 'ALLOWED', loggedIn.name);
     } catch (err) {
       setLoginError(err.message || 'Невірний логін або пароль.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
   const handleLogout = () => {
     appendAuditLog('Вихід із системи', currentUser?.dept || 'Кабінет', 'ALLOWED');
     logout();
+    setMobileNavOpen(false);
     setLoginInput('');
     setPasswordInput('');
     setLoginError('');
@@ -1772,31 +1784,40 @@ export default function App() {
             )}
 
             <div className="form-group-field" style={{ marginBottom: 0 }}>
-              <label>Логін або електронна пошта</label>
+              <label htmlFor="login-identity">Логін або електронна пошта</label>
               <input
+                id="login-identity"
                 type="text"
                 className="input-studevo-control"
                 placeholder="Введіть логін або email"
                 value={loginInput}
                 onChange={(e) => setLoginInput(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>
 
             <div className="form-group-field" style={{ marginBottom: 0 }}>
-              <label>Пароль</label>
+              <label htmlFor="login-password">Пароль</label>
               <input
+                id="login-password"
                 type="password"
                 className="input-studevo-control"
                 placeholder="Введіть пароль"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>
 
-            <button type="submit" className="btn-studevo-primary" style={{ width: '100%', padding: '10px', fontSize: '14px', marginTop: '4px' }}>
-              Увійти
+            <button
+              type="submit"
+              className="btn-studevo-primary"
+              disabled={isLoggingIn}
+              style={{ width: '100%', padding: '10px', fontSize: '14px', marginTop: '4px' }}
+            >
+              {isLoggingIn ? 'Входимо…' : 'Увійти'}
             </button>
 
             <div className="login-quick-fill-bar">
@@ -1944,12 +1965,15 @@ export default function App() {
         ];
 
   return (
-    <div className={`studevo-app-shell role-theme-${userRole}`}>
+    <div
+      className={`studevo-app-shell role-theme-${userRole} ${pendingWrites > 0 ? 'is-busy' : ''}`}
+      aria-busy={pendingWrites > 0}
+    >
       {/* ========================================================
           LEFT COLUMN (260px) - NAVIGATION & PROFILE
           ======================================================== */}
-      <aside className="studevo-sidebar-nav">
-        <div>
+      <aside className={`studevo-sidebar-nav ${mobileNavOpen ? 'nav-open' : ''}`}>
+        <div className="studevo-sidebar-top">
           <div className="studevo-brand-block">
             <div className="studevo-brand-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1970,12 +1994,33 @@ export default function App() {
             </div>
           </div>
 
-          <ul className="studevo-menu-list">
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            aria-label={mobileNavOpen ? 'Закрити меню' : 'Відкрити меню'}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((open) => !open)}
+          >
+            {mobileNavOpen ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            )}
+          </button>
+
+          <ul className={`studevo-menu-list ${mobileNavOpen ? 'is-open' : ''}`}>
             {roleMenus.map((item) => (
               <li key={item.id}>
                 <button
                   className={`studevo-menu-item ${activeMenu === item.id ? 'active' : ''}`}
-                  onClick={() => setActiveMenu(item.id)}
+                  onClick={() => {
+                    setActiveMenu(item.id);
+                    setMobileNavOpen(false);
+                  }}
                 >
                   {item.icon === 'grid' && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -3565,8 +3610,11 @@ export default function App() {
                         />
                       </div>
                       <div className="form-group-field">
-                        <label>Кафедра / підрозділ</label>
+                        <label htmlFor="profile-department">
+                          {userRole === 'student' ? 'Група / підрозділ' : 'Кафедра / підрозділ'}
+                        </label>
                         <input
+                          id="profile-department"
                           type="text"
                           className="input-studevo-control"
                           value={profileValues.department}
