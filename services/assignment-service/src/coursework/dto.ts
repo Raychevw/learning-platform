@@ -58,8 +58,17 @@ export class CreateAssignmentBodyDto {
   @MaxLength(64)
   type?: string;
 
+  @IsOptional()
+  @IsISO8601()
+  openAt?: string;
+
   @IsISO8601()
   deadline!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedFormats?: string[];
 
   @IsOptional()
   @IsInt()

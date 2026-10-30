@@ -27,6 +27,8 @@ import { HealthController } from './presentation/controllers/HealthController.js
 import { AuthGuard } from './auth/auth.guard.js';
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
 import { Schedule1730000000001 } from './database/migrations/1730000000001-schedule.js';
+import { LessonMaterials1730000000002 } from './database/migrations/1730000000002-lesson-materials.js';
+import { STORAGE_SERVICE_TOKEN, createStorageService } from './infrastructure/storage/storage.service.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
@@ -57,7 +59,7 @@ if (usePostgres) {
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'course_db'),
         entities: ALL_ENTITIES,
-        migrations: [Init1730000000000, Schedule1730000000001],
+        migrations: [Init1730000000000, Schedule1730000000001, LessonMaterials1730000000002],
         migrationsRun: true,
         synchronize: false,
         retryAttempts: 2,
@@ -78,6 +80,11 @@ const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, ScheduleS
   controllers: [HealthController, CourseController, ...catalogControllers],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
+    {
+      provide: STORAGE_SERVICE_TOKEN,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => createStorageService(configService),
+    },
     {
       provide: COURSE_REPOSITORY_TOKEN,
       useClass: usePostgres ? CourseRepositoryImpl : InMemoryCourseRepository,

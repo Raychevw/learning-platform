@@ -223,7 +223,110 @@
             "description": ""
           }
         },
-        "summary": "Add a lesson / learning material to a module",
+        "summary": "Add a lesson / learning material (text, link, video)",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/modules/{moduleId}/lessons-file": {
+      "post": {
+        "operationId": "CatalogController_addLessonWithFile",
+        "parameters": [
+          {
+            "name": "moduleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "linkUrl": {
+                    "type": "string"
+                  },
+                  "videoUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Add a lesson with an uploaded file (PDF/Word/PPT/video)",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/lessons/{lessonId}": {
+      "patch": {
+        "operationId": "CatalogController_updateLesson",
+        "parameters": [
+          {
+            "name": "lessonId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Edit a learning material (title/content/link/video)",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
+    "/catalog/lessons/{lessonId}/file": {
+      "get": {
+        "operationId": "CatalogController_downloadLesson",
+        "parameters": [
+          {
+            "name": "lessonId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Download an uploaded learning material",
         "tags": [
           "Catalog (courses, modules, lessons)"
         ]

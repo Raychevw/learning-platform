@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import crypto from 'node:crypto';
+import { Readable } from 'node:stream';
+import type { IStorageService } from '../infrastructure/storage/storage.service.js';
+import { STORAGE_SERVICE_TOKEN } from '../infrastructure/storage/storage.service.js';
+import { formatFileSize, safeFileName } from './upload.config.js';
 import { CourseEntity } from '../infrastructure/database/entities/CourseEntity.js';
 import {
   CourseModuleEntity,
@@ -39,6 +44,7 @@ export class CatalogService {
     @InjectRepository(ScheduleEntryEntity) private readonly schedule: Repository<ScheduleEntryEntity>,
     private readonly dataSource: DataSource,
     private readonly events: WebinarEventsService,
+    @Inject(STORAGE_SERVICE_TOKEN) private readonly storage: IStorageService,
   ) {}
 
   // ----------------------------------------------------------------- courses
@@ -64,7 +70,7 @@ export class CatalogService {
           title: m.title,
           lessons: lessons
             .filter((l) => l.moduleId === m.id)
-            .map((l) => ({ id: l.id, title: l.title, type: l.type, content: l.content, completed: doneSet.has(l.id) })),
+            .map((l) => this.toLessonDto(l, doneSet.has(l.id))),
         }));
       const all = courseModules.flatMap((m) => m.lessons);
       const progress = all.length ? Math.round((all.filter((l) => l.completed).length / all.length) * 100) : 0;
@@ -130,22 +136,108 @@ export class CatalogService {
     return { id: mod.id, title: mod.title, lessons: [] };
   }
 
-  async addLesson(moduleId: string, dto: { title: string; type?: string; content?: string }) {
+  async addLesson(
+    moduleId: string,
+    dto: { title: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    file?: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null,
+  ) {
     if (!dto.title || !dto.title.trim()) throw new BadRequestException('Lesson title cannot be empty');
     const mod = await this.modules.findOneBy({ id: moduleId });
     if (!mod) throw new NotFoundException(`Module ${moduleId} not found`);
     const count = await this.lessons.countBy({ moduleId });
+
+    let fileKey: string | null = null;
+    let fileName = '';
+    let fileSize = '';
+    let mimeType: string | null = null;
+
+    if (file) {
+      fileKey = `materials/${moduleId}/${crypto.randomUUID()}-${safeFileName(file.originalname)}`;
+      await this.storage.put(fileKey, file.buffer, file.mimetype);
+      fileName = file.originalname;
+      fileSize = formatFileSize(file.size);
+      mimeType = file.mimetype;
+    }
+
     const lesson = await this.lessons.save(
       this.lessons.create({
         id: newId('l'),
         moduleId,
         title: dto.title.trim(),
         type: dto.type || 'Лекція',
-        content: (dto.content || '').trim() || 'Навчальний матеріал для самостійного опрацювання та підготовки до практичних робіт.',
+        content:
+          (dto.content || '').trim() ||
+          'Навчальний матеріал для самостійного опрацювання та підготовки до практичних робіт.',
+        linkUrl: (dto.linkUrl || '').trim(),
+        videoUrl: (dto.videoUrl || '').trim(),
+        fileKey,
+        fileName,
+        fileSize,
+        mimeType,
         orderIndex: count + 1,
       }),
     );
-    return { id: lesson.id, title: lesson.title, type: lesson.type, content: lesson.content, completed: false };
+    return this.toLessonDto(lesson, false);
+  }
+
+  async updateLesson(
+    lessonId: string,
+    dto: { title?: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    file?: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null,
+  ) {
+    const lesson = await this.lessons.findOneBy({ id: lessonId });
+    if (!lesson) throw new NotFoundException(`Lesson ${lessonId} not found`);
+
+    if (dto.title !== undefined) {
+      if (!dto.title.trim()) throw new BadRequestException('Lesson title cannot be empty');
+      lesson.title = dto.title.trim();
+    }
+    if (dto.type !== undefined) lesson.type = dto.type;
+    if (dto.content !== undefined) lesson.content = dto.content.trim();
+    if (dto.linkUrl !== undefined) lesson.linkUrl = dto.linkUrl.trim();
+    if (dto.videoUrl !== undefined) lesson.videoUrl = dto.videoUrl.trim();
+
+    if (file) {
+      const newKey = `materials/${lesson.moduleId}/${crypto.randomUUID()}-${safeFileName(file.originalname)}`;
+      await this.storage.put(newKey, file.buffer, file.mimetype);
+      if (lesson.fileKey) await this.storage.delete(lesson.fileKey).catch(() => undefined);
+      lesson.fileKey = newKey;
+      lesson.fileName = file.originalname;
+      lesson.fileSize = formatFileSize(file.size);
+      lesson.mimeType = file.mimetype;
+    }
+
+    const saved = await this.lessons.save(lesson);
+    return this.toLessonDto(saved, false);
+  }
+
+  async getLessonFile(lessonId: string) {
+    const lesson = await this.lessons.findOneBy({ id: lessonId });
+    if (!lesson) throw new NotFoundException(`Lesson ${lessonId} not found`);
+    if (!lesson.fileKey) throw new NotFoundException('До цього матеріалу не прикріплено файл');
+    const stream: Readable = await this.storage.getStream(lesson.fileKey);
+    return {
+      stream,
+      fileName: lesson.fileName || 'material',
+      mimeType: lesson.mimeType || 'application/octet-stream',
+    };
+  }
+
+  private toLessonDto(lesson: LessonEntity, completed: boolean) {
+    return {
+      id: lesson.id,
+      title: lesson.title,
+      type: lesson.type,
+      content: lesson.content,
+      linkUrl: lesson.linkUrl || '',
+      videoUrl: lesson.videoUrl || '',
+      fileName: lesson.fileName || '',
+      fileSize: lesson.fileSize || '',
+      mimeType: lesson.mimeType || null,
+      hasFile: Boolean(lesson.fileKey),
+      downloadUrl: lesson.fileKey ? `/api/catalog/lessons/${lesson.id}/file` : null,
+      completed,
+    };
   }
 
   async toggleLessonCompleted(lessonId: string, userId: string) {

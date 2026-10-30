@@ -44,6 +44,26 @@ export class LessonEntity {
   @Column({ type: 'text', default: '' })
   content!: string;
 
+  /** Зовнішнє посилання або відео (YouTube/Drive тощо). */
+  @Column({ name: 'link_url', length: 512, default: '' })
+  linkUrl!: string;
+
+  @Column({ name: 'video_url', length: 512, default: '' })
+  videoUrl!: string;
+
+  /** Завантажений файл матеріалу (PDF/Word/PPT/відео). */
+  @Column({ name: 'file_key', type: 'varchar', length: 512, nullable: true })
+  fileKey!: string | null;
+
+  @Column({ name: 'file_name', length: 255, default: '' })
+  fileName!: string;
+
+  @Column({ name: 'file_size', length: 32, default: '' })
+  fileSize!: string;
+
+  @Column({ name: 'mime_type', type: 'varchar', length: 128, nullable: true })
+  mimeType!: string | null;
+
   @Column({ type: 'int', default: 0 })
   orderIndex!: number;
 }

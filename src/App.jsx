@@ -77,6 +77,7 @@ export default function App() {
   const [academicGroups, setAcademicGroups] = useState(INITIAL_GROUPS);
   const [webinars, setWebinars] = useState(INITIAL_WEBINARS);
   const [schedule, setSchedule] = useState([]);
+  const [allEnrollments, setAllEnrollments] = useState([]);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
@@ -87,14 +88,16 @@ export default function App() {
 
     const load = async () => {
       const userId = encodeURIComponent(currentUser.id);
-      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes] = await Promise.allSettled([
-        api.get(`/api/catalog?userId=${userId}`),
-        api.get('/api/assignments-full'),
-        api.get('/api/grades'),
-        api.get('/api/groups'),
-        api.get('/api/webinars'),
-        api.get('/api/schedule'),
-      ]);
+      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes, enrollmentsRes] =
+        await Promise.allSettled([
+          api.get(`/api/catalog?userId=${userId}`),
+          api.get('/api/assignments-full'),
+          api.get('/api/grades'),
+          api.get('/api/groups'),
+          api.get('/api/webinars'),
+          api.get('/api/schedule'),
+          currentUser.role === 'teacher' ? api.get('/api/enrollments') : Promise.resolve(null),
+        ]);
       if (isCancelled) return;
 
       const apply = (result, setter) => {
@@ -106,6 +109,7 @@ export default function App() {
       apply(groupsRes, setAcademicGroups);
       apply(webinarsRes, setWebinars);
       apply(scheduleRes, setSchedule);
+      apply(enrollmentsRes, setAllEnrollments);
     };
 
     load();
@@ -314,6 +318,9 @@ export default function App() {
     title: '',
     type: 'Лекція',
     content: '',
+    linkUrl: '',
+    videoUrl: '',
+    file: null,
   });
 
   // Group Management Modal State (Admin)
@@ -345,7 +352,9 @@ export default function App() {
     description: '',
     type: 'Лабораторна',
     maxScore: 100,
+    openAt: '',
     deadline: '2026-10-29T23:59',
+    allowedFormats: 'pdf, docx',
     rubricTitle: 'Критерії оцінювання роботи',
     crit1Name: 'Архітектура та якість коду',
     crit1Max: 40,
@@ -735,20 +744,42 @@ export default function App() {
       return;
     }
 
-    const res = await syncBackend(`/catalog/modules/${targetModId}/lessons`, 'POST', {
-      title: newLessonForm.title.trim(),
-      type: newLessonForm.type,
-      content: newLessonForm.content.trim(),
-    });
+    let res;
+    if (newLessonForm.file) {
+      const formData = new FormData();
+      formData.append('title', newLessonForm.title.trim());
+      formData.append('type', newLessonForm.type);
+      if (newLessonForm.content.trim()) formData.append('content', newLessonForm.content.trim());
+      if (newLessonForm.linkUrl.trim()) formData.append('linkUrl', newLessonForm.linkUrl.trim());
+      if (newLessonForm.videoUrl.trim()) formData.append('videoUrl', newLessonForm.videoUrl.trim());
+      formData.append('file', newLessonForm.file);
+      res = await syncBackend(`/catalog/modules/${targetModId}/lessons-file`, 'POST', formData);
+    } else {
+      res = await syncBackend(`/catalog/modules/${targetModId}/lessons`, 'POST', {
+        title: newLessonForm.title.trim(),
+        type: newLessonForm.type,
+        content: newLessonForm.content.trim(),
+        linkUrl: newLessonForm.linkUrl.trim(),
+        videoUrl: newLessonForm.videoUrl.trim(),
+      });
+    }
+    if (!res) return;
 
     const newLesson = {
-      id: res?.id || `l-${Date.now()}`,
-      title: newLessonForm.title.trim(),
-      type: newLessonForm.type,
+      id: res.id,
+      title: res.title || newLessonForm.title.trim(),
+      type: res.type || newLessonForm.type,
       completed: false,
       content:
+        res.content ||
         newLessonForm.content.trim() ||
         'Навчальний матеріал для самостійного опрацювання та підготовки до практичних робіт.',
+      linkUrl: res.linkUrl || '',
+      videoUrl: res.videoUrl || '',
+      fileName: res.fileName || '',
+      fileSize: res.fileSize || '',
+      hasFile: Boolean(res.hasFile),
+      downloadUrl: res.downloadUrl || null,
     };
 
     setCourses((prev) =>
@@ -766,7 +797,14 @@ export default function App() {
     );
 
     setActiveLessonId(newLesson.id);
-    setNewLessonForm((prev) => ({ ...prev, title: '', content: '' }));
+    setNewLessonForm((prev) => ({
+      ...prev,
+      title: '',
+      content: '',
+      linkUrl: '',
+      videoUrl: '',
+      file: null,
+    }));
     showNotification(`Матеріал «${newLesson.title}» додано до курсу.`);
   };
 
@@ -789,7 +827,12 @@ export default function App() {
       title: newAssignment.title.trim(),
       description: newAssignment.description.trim() || 'Виконати завдання згідно з вимогами курсу.',
       type: newAssignment.type,
+      openAt: newAssignment.openAt ? new Date(newAssignment.openAt).toISOString() : undefined,
       deadline: new Date(newAssignment.deadline).toISOString(),
+      allowedFormats: newAssignment.allowedFormats
+        .split(',')
+        .map((format) => format.trim().toLowerCase())
+        .filter(Boolean),
       maxScore: totalMax,
       rubricTitle: `Критерії оцінювання (${totalMax} балів)`,
       criteria: [
@@ -877,6 +920,22 @@ export default function App() {
         : `Роботу «${res.fileName || 'без файлу'}» надіслано викладачу на перевірку.`,
       Boolean(res.isLate),
     );
+  };
+
+  const handleDownloadLesson = async (lesson) => {
+    try {
+      const blob = await requestBlob(`/api/catalog/lessons/${lesson.id}/file`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = lesson.fileName || 'material';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showNotification(err.message || 'Не вдалося завантажити матеріал.', true);
+    }
   };
 
   const handleDownloadSubmission = async (sub) => {
@@ -2038,6 +2097,7 @@ export default function App() {
             webinars={webinars}
             academicGroups={academicGroups}
             schedule={schedule}
+            allEnrollments={allEnrollments}
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
@@ -2251,6 +2311,28 @@ export default function App() {
                         value={newAssignment.deadline}
                         onChange={(e) => setNewAssignment({ ...newAssignment, deadline: e.target.value })}
                         required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+                    <div className="form-group-field">
+                      <label>Дата відкриття (необов'язково)</label>
+                      <input
+                        type="datetime-local"
+                        className="input-studevo-control"
+                        value={newAssignment.openAt}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, openAt: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group-field">
+                      <label>Формати відповіді (через кому)</label>
+                      <input
+                        type="text"
+                        className="input-studevo-control"
+                        placeholder="pdf, docx"
+                        value={newAssignment.allowedFormats}
+                        onChange={(e) => setNewAssignment({ ...newAssignment, allowedFormats: e.target.value })}
                       />
                     </div>
                   </div>
@@ -3825,6 +3907,31 @@ export default function App() {
                                 <p style={{ margin: '0 0 10px 0', fontSize: '13px', lineHeight: 1.55, color: '#212529' }}>
                                   {l.content || 'Конспект лекції та додаткові матеріали до теми модуля.'}
                                 </p>
+                                {(l.videoUrl || l.linkUrl || l.hasFile) && (
+                                  <div className="lesson-materials">
+                                    {l.videoUrl && (
+                                      <a href={l.videoUrl} target="_blank" rel="noreferrer">
+                                        Відео
+                                      </a>
+                                    )}
+                                    {l.linkUrl && (
+                                      <a href={l.linkUrl} target="_blank" rel="noreferrer">
+                                        Посилання на матеріал
+                                      </a>
+                                    )}
+                                    {l.hasFile && (
+                                      <button
+                                        type="button"
+                                        className="btn-studevo-outline"
+                                        style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                                        onClick={() => handleDownloadLesson(l)}
+                                      >
+                                        Завантажити {l.fileName || 'файл'}
+                                        {l.fileSize ? ` (${l.fileSize})` : ''}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                   <button
                                     type="button"
@@ -3912,6 +4019,40 @@ export default function App() {
                       value={newLessonForm.content}
                       onChange={(e) => setNewLessonForm({ ...newLessonForm, content: e.target.value })}
                     />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="url"
+                        className="input-studevo-control"
+                        placeholder="Посилання на матеріал (URL)"
+                        value={newLessonForm.linkUrl}
+                        onChange={(e) => setNewLessonForm({ ...newLessonForm, linkUrl: e.target.value })}
+                      />
+                      <input
+                        type="url"
+                        className="input-studevo-control"
+                        placeholder="Посилання на відео (YouTube/Drive)"
+                        value={newLessonForm.videoUrl}
+                        onChange={(e) => setNewLessonForm({ ...newLessonForm, videoUrl: e.target.value })}
+                      />
+                    </div>
+                    <label className="file-dropzone-box" style={{ marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {newLessonForm.file
+                          ? newLessonForm.file.name
+                          : 'Файл: PDF, Word, PPT, ZIP, відео (до 60 МБ)'}
+                      </span>
+                      <span className="btn-studevo-outline" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                        Обрати
+                      </span>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.txt,.md,.mp4,.webm,.png,.jpg,.jpeg"
+                        style={{ display: 'none' }}
+                        onChange={(e) =>
+                          setNewLessonForm({ ...newLessonForm, file: e.target.files?.[0] || null })
+                        }
+                      />
+                    </label>
                     <button type="submit" className="btn-studevo-primary" style={{ width: '100%' }}>
                       Зберегти матеріал
                     </button>

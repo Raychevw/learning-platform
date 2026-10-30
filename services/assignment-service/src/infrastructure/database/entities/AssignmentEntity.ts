@@ -23,8 +23,15 @@ export class AssignmentEntity {
   @Column('int')
   maxScore!: number;
 
+  @Column({ name: 'open_at', type: 'timestamp with time zone', nullable: true })
+  openAt!: Date | null;
+
   @Column('timestamp with time zone')
   dueDate!: Date;
+
+  /** Дозволені формати файлу відповіді: pdf, docx, zip, pptx... */
+  @Column({ name: 'allowed_formats', type: 'jsonb', default: () => "'[\"pdf\",\"docx\"]'" })
+  allowedFormats!: string[];
 
   @Column({ default: true })
   isCourseVerified!: boolean;

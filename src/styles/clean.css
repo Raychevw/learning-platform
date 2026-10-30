@@ -547,6 +547,25 @@ body {
   text-decoration: underline;
 }
 
+.lesson-materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.lesson-materials a {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--studevo-red-dark);
+  text-decoration: none;
+}
+
+.lesson-materials a:hover {
+  text-decoration: underline;
+}
+
 .dash-item {
   display: flex;
   align-items: flex-start;

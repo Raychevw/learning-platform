@@ -63,6 +63,9 @@
   (`GET /api/enrollments?courseId=`), без выдуманных студентов и счётчиков.
 - **Особистий кабінет студента** — профіль (факультет, спеціальність, група, семестр), розклад,
   предмети, завдання зі статусами, оцінки/борги та онлайн-заняття з реальних даних.
+- **Кабінет викладача** — дисципліни, кількість студентів, найближчі пари, роботи на перевірку,
+  статистика успішності; матеріали з файлами (PDF/Word/PPT/відео), посиланнями та відео;
+  завдання з датою відкриття, дедлайном і дозволеними форматами відповіді.
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -182,7 +185,10 @@ POST /api/auth/login
 | GET | `/api/catalog?userId=` | каталог с модулями, уроками, прогрессом |
 | POST | `/api/catalog` | создать курс |
 | POST | `/api/catalog/:courseId/modules` | добавить модуль |
-| POST | `/api/catalog/modules/:moduleId/lessons` | добавить урок |
+| POST | `/api/catalog/modules/:moduleId/lessons` | добавить материал (текст/ссылка/видео) |
+| POST | `/api/catalog/modules/:moduleId/lessons-file` | материал с файлом (`multipart`, до 60 МБ) |
+| PATCH | `/api/catalog/lessons/:id` | редактировать материал |
+| GET | `/api/catalog/lessons/:id/file` | скачать файл материала |
 | POST | `/api/catalog/lessons/:id/toggle` | отметить урок пройденным |
 | GET/POST | `/api/assignments-full` | задания со сдачами / создать |
 | POST | `/api/assignments/:id/submit` | сдать работу (JSON, без файла) |

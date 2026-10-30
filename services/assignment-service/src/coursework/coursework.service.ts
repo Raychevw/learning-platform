@@ -85,7 +85,9 @@ export class CourseworkService {
         title: a.title,
         description: a.description,
         type: a.type,
+        openAt: a.openAt instanceof Date ? a.openAt.toISOString() : a.openAt,
         deadline: a.dueDate instanceof Date ? a.dueDate.toISOString() : a.dueDate,
+        allowedFormats: a.allowedFormats || ['pdf', 'docx'],
         maxScore: a.maxScore,
         rubricTitle: a.rubricTitle,
         criteria: a.criteria || [],
@@ -100,7 +102,9 @@ export class CourseworkService {
     title: string;
     description?: string;
     type?: string;
+    openAt?: string;
     deadline: string;
+    allowedFormats?: string[];
     maxScore?: number;
     rubricTitle?: string;
     criteria?: RubricCriterion[];
@@ -110,6 +114,19 @@ export class CourseworkService {
 
     const dueDate = new Date(dto.deadline);
     if (Number.isNaN(dueDate.getTime())) throw new BadRequestException('Некоректна дата дедлайну');
+
+    let openAt: Date | null = null;
+    if (dto.openAt) {
+      openAt = new Date(dto.openAt);
+      if (Number.isNaN(openAt.getTime())) throw new BadRequestException('Некоректна дата відкриття');
+      if (openAt.getTime() >= dueDate.getTime()) {
+        throw new BadRequestException('Дата відкриття має бути раніше за дедлайн');
+      }
+    }
+
+    const allowedFormats = (dto.allowedFormats?.length ? dto.allowedFormats : ['pdf', 'docx'])
+      .map((format) => format.toLowerCase().replace(/^\./, '').trim())
+      .filter(Boolean);
 
     const criteria = this.normalizeCriteria(dto.criteria);
     const totalMax = criteria.reduce((sum, c) => sum + (Number(c.max) || 0), 0);
@@ -121,7 +138,9 @@ export class CourseworkService {
       title: dto.title.trim(),
       description: (dto.description || '').trim(),
       type: dto.type || 'Лабораторна',
+      openAt,
       dueDate,
+      allowedFormats,
       maxScore: totalMax,
       rubricTitle: dto.rubricTitle || `Критерії оцінювання (${totalMax} балів)`,
       criteria,
@@ -179,6 +198,23 @@ export class CourseworkService {
     const now = new Date();
     const due = asg.dueDate instanceof Date ? asg.dueDate : new Date(asg.dueDate);
     const isLate = now.getTime() > due.getTime();
+
+    if (asg.openAt) {
+      const open = asg.openAt instanceof Date ? asg.openAt : new Date(asg.openAt);
+      if (now.getTime() < open.getTime()) {
+        throw new BadRequestException(
+          `Завдання відкриється ${open.toLocaleString('uk-UA')}. Здача ще недоступна.`,
+        );
+      }
+    }
+
+    if (file) {
+      const ext = (file.originalname.split('.').pop() || '').toLowerCase();
+      const allowed = asg.allowedFormats?.length ? asg.allowedFormats : ['pdf', 'docx'];
+      if (!allowed.includes(ext)) {
+        throw new BadRequestException(`Дозволені формати відповіді: ${allowed.join(', ')}`);
+      }
+    }
 
     if (isLate && !allowLateSubmissions()) {
       throw new BadRequestException(

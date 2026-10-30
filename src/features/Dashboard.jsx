@@ -50,6 +50,7 @@ export default function Dashboard({
   webinars,
   academicGroups,
   schedule = [],
+  allEnrollments = [],
   myGroup = null,
   semester = 1,
   ungradedSubmissions,
@@ -65,6 +66,23 @@ export default function Dashboard({
   const isTeacher = userRole === 'teacher';
   const isAdmin = userRole === 'admin';
   const totalStudents = academicGroups.reduce((sum, group) => sum + (Number(group.studentsCount) || 0), 0);
+  const teacherStudentCount = new Set((allEnrollments || []).map((item) => item.userId)).size;
+
+  const studentsForCourse = (courseId) => {
+    const groupIds = (academicGroups || [])
+      .filter((group) => (group.assignedCourseIds || []).includes(courseId))
+      .map((group) => group.id);
+    return new Set(
+      (allEnrollments || []).filter((item) => groupIds.includes(item.groupId)).map((item) => item.userId)
+    ).size;
+  };
+
+  const averageForCourse = (courseTitle) => {
+    const items = grades.filter((grade) => grade.courseTitle === courseTitle);
+    if (items.length === 0) return null;
+    const sum = items.reduce((acc, grade) => acc + Number(grade.finalScore || 0), 0);
+    return (sum / items.length).toFixed(1);
+  };
 
   const visibleCourses = useMemo(
     () => (isStudent ? courses.filter((course) => course.isPublished !== false) : courses),
@@ -136,15 +154,13 @@ export default function Dashboard({
           <b>{isAdmin ? academicGroups.length : pendingCount}</b>
         </div>
         <div className="dash-stat">
-          <span>{isAdmin ? 'Студенти' : isStudent ? 'Середній бал' : 'Найближчий вебінар'}</span>
+          <span>{isAdmin ? 'Студенти' : isStudent ? 'Середній бал' : 'Студенти'}</span>
           <b>
             {isAdmin
               ? totalStudents
               : isStudent
                 ? `${averageStudentGrade} ${getEctsLetter(averageStudentGrade)}`
-                : nextWebinars[0]
-                  ? formatDate(nextWebinars[0].scheduledAt)
-                  : '—'}
+                : teacherStudentCount}
           </b>
         </div>
       </div>
@@ -215,10 +231,18 @@ export default function Dashboard({
                     <div className="course-card-body">
                       <div className="course-card-title">{course.title}</div>
                       <div className="course-card-meta">{course.instructor || 'Викладач не вказаний'}</div>
-                      {isAdmin ? (
-                        <div className="course-card-meta">
-                          {(course.modules || []).length} модулів • {course.totalHours || 0} год
-                        </div>
+                      {isAdmin || isTeacher ? (
+                        <>
+                          <div className="course-card-meta">
+                            {studentsForCourse(course.id)} студентів • {(course.modules || []).length} модулів
+                            {isAdmin ? ` • ${course.totalHours || 0} год` : ''}
+                          </div>
+                          {isTeacher && (
+                            <div className="course-card-meta">
+                              Середній бал: {averageForCourse(course.title) ?? '—'}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <>
                           <div className="progress">
@@ -335,6 +359,7 @@ export default function Dashboard({
               )}
             </section>
           ) : isTeacher ? (
+            <>
             <section className="dash-section">
               <div className="dash-section-head">
                 <h2>На перевірку</h2>
@@ -357,6 +382,25 @@ export default function Dashboard({
                 </ul>
               )}
             </section>
+            <section className="dash-section">
+              <div className="dash-section-head">
+                <h2>Успішність студентів</h2>
+              </div>
+              <ul className="dash-list">
+                {visibleCourses.map((course) => (
+                  <li key={course.id} className="dash-item">
+                    <span className="dash-item-main">
+                      <span className="dash-item-title">{course.title}</span>
+                      <span className="dash-item-sub">
+                        Середній бал: {averageForCourse(course.title) ?? '—'} •{' '}
+                        {studentsForCourse(course.id)} студентів
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            </>
           ) : (
             <section className="dash-section">
               <div className="dash-section-head">
