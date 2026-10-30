@@ -4210,8 +4210,10 @@ export default function App() {
               </button>
             </div>
 
-            <div className="modal-body">
-              <div className="course-view-hero">
+            <div className="modal-body course-view-body">
+              <div className="course-view-layout">
+                <aside className="course-view-aside">
+                  <div className="course-view-hero">
                 <div className="course-view-cover">
                   <img src={selectedCourse.cover} alt={selectedCourse.title} />
                 </div>
@@ -4235,7 +4237,9 @@ export default function App() {
               </div>
 
               <p className="course-view-description">{selectedCourse.description}</p>
+                </aside>
 
+                <div className="course-view-content">
               <div className="course-view-section-head">
                 <h4>Змістові модулі та навчальні матеріали</h4>
                 <span className="dash-hint">
@@ -4531,9 +4535,11 @@ export default function App() {
                   </form>
                 </div>
               )}
+                </div>
+              </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer course-view-footer">
               {userRole === 'teacher' && !selectedCourse.isPublished && (
                 <button
                   className="btn-studevo-primary"
