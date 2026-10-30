@@ -2153,6 +2153,7 @@ export default function App() {
             onOpenGrades={() => setActiveMenu('grades')}
             onOpenWebinars={() => setActiveMenu('webinars')}
             onOpenGroups={() => setActiveMenu('groups')}
+            onOpenSchedule={() => setActiveMenu('schedule')}
             onOpenAnnouncements={() => setActiveMenu('announcements')}
             onOpenMessages={() => setActiveMenu('messages')}
           />
@@ -2648,6 +2649,13 @@ export default function App() {
                 Завантажити відомість (CSV)
               </button>
             </div>
+
+            {userRole === 'admin' && (
+              <div className="dean-readonly-note">
+                <strong>Режим перегляду.</strong> Деканат переглядає відомості та успішність факультету.
+                Оцінювання робіт виконують лише викладачі.
+              </div>
+            )}
 
             {userRole === 'teacher' && (
               <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '22px', marginBottom: '22px' }}>

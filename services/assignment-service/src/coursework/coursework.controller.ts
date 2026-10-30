@@ -108,9 +108,9 @@ export class CourseworkController {
 
   // ---------------- Grading
   @Post('grading/grade')
-  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @Roles(UserRole.TEACHER)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Grade a submission using server-side rubric validation and Strategy pattern' })
+  @ApiOperation({ summary: 'Grade a submission using server-side rubric validation and Strategy pattern (teacher only)' })
   grade(@Body() dto: GradeBodyDto, @Req() req: AuthRequest) {
     return this.coursework.gradeSubmission(dto, req.user);
   }

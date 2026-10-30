@@ -1515,6 +1515,25 @@ body {
   opacity: 0.4;
 }
 
+/* ------------------------------------------------------------ Dean read-only note */
+.dean-readonly-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  border: 1px solid #fecdca;
+  border-radius: 10px;
+  background: #fff9f8;
+  color: #7a271a;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.dean-readonly-note strong {
+  color: var(--studevo-red-dark);
+}
+
 /* ------------------------------------------------------------ Notifications */
 .notif-list {
   display: flex;

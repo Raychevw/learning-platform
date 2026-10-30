@@ -325,6 +325,23 @@ async function main() {
         }
         if (!auditOk) fail('GET /api/audit/logs не вернул журнал', `status=${auditStatus}`);
 
+        // Деканат не має права оцінювати роботи студентів.
+        try {
+          const adminGradeRes = await fetch(`${gatewayUrl}/api/grading/grade`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+            signal: AbortSignal.timeout(5000),
+          });
+          if (adminGradeRes.status === 403) {
+            ok('Деканат не може оцінювати роботи (403)');
+          } else {
+            fail('Деканат не повинен мати доступ до оцінювання', `status=${adminGradeRes.status}`);
+          }
+        } catch (err) {
+          fail('Перевірка заборони оцінювання для деканату', err.message);
+        }
+
         // Повідомлення: студент -> викладач, перевірка вхідних
         try {
           const teacherLogin = await fetch(`${gatewayUrl}/api/auth/login`, {

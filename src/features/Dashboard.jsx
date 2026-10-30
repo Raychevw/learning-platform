@@ -81,6 +81,7 @@ export default function Dashboard({
   onOpenGrades,
   onOpenWebinars,
   onOpenGroups,
+  onOpenSchedule,
   onOpenAnnouncements,
   onOpenMessages,
 }) {
@@ -157,7 +158,7 @@ export default function Dashboard({
       action: onOpenMessages,
     });
   }
-  if (!isStudent && ungradedSubmissions.length > 0) {
+  if (isTeacher && ungradedSubmissions.length > 0) {
     notifications.push({
       id: 'ungraded',
       tone: 'warning',
@@ -193,7 +194,7 @@ export default function Dashboard({
         { label: 'Студенти', value: totals.students ?? totalStudents },
         { label: 'Групи', value: totals.groups ?? academicGroups.length },
         { label: 'Борги', value: totals.debts ?? 0 },
-        { label: 'Не перевірено', value: totals.ungraded ?? 0 },
+        { label: 'На перевірці', value: totals.ungraded ?? 0 },
       ]
     : [
         {
@@ -245,7 +246,7 @@ export default function Dashboard({
     URL.revokeObjectURL(url);
   };
 
-  const roleLabel = isStudent ? 'Студент' : isTeacher ? 'Викладач' : 'Адміністратор';
+  const roleLabel = isStudent ? 'Студент' : isTeacher ? 'Викладач' : 'Деканат';
 
   return (
     <div className="dash">
@@ -376,7 +377,7 @@ export default function Dashboard({
       <div className="dash-grid">
         <section className="dash-section">
           <div className="dash-section-head">
-            <h2>{isAdmin ? 'Курси' : 'Мої курси'}</h2>
+            <h2>{isAdmin ? 'Дисципліни факультету' : 'Мої курси'}</h2>
             {!isAdmin && (
               <button type="button" className="link-btn" onClick={onOpenGrades}>
                 {isStudent ? 'Оцінки' : 'Оцінювання'}
@@ -587,6 +588,12 @@ export default function Dashboard({
                 <button type="button" className="quick-link" onClick={onOpenGrades}>
                   Відомості оцінок
                 </button>
+                <button type="button" className="quick-link" onClick={onOpenSchedule}>
+                  Розклад занять
+                </button>
+                <button type="button" className="quick-link" onClick={onOpenAnnouncements}>
+                  Оголошення
+                </button>
               </div>
             </section>
 
@@ -642,7 +649,7 @@ export default function Dashboard({
             {pendingByCourse.length > 0 && (
               <section className="dash-section">
                 <div className="dash-section-head">
-                  <h2>Не перевірено</h2>
+                  <h2>На перевірці у викладачів</h2>
                 </div>
                 <ul className="dash-list">
                   {pendingByCourse.map((item) => (

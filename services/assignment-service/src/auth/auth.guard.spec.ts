@@ -67,6 +67,18 @@ describe('AuthGuard (assignment-service)', () => {
     expect(guard.canActivate(context)).toBe(true);
   });
 
+  it('деканат не может оценивать работы (403)', () => {
+    const guard = makeGuard({ [ROLES_KEY]: [UserRole.TEACHER] });
+    const { context } = makeContext({ authorization: `Bearer ${token(UserRole.ADMIN)}` });
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
+  it('преподаватель может оценивать работы', () => {
+    const guard = makeGuard({ [ROLES_KEY]: [UserRole.TEACHER] });
+    const { context } = makeContext({ authorization: `Bearer ${token(UserRole.TEACHER)}` });
+    expect(guard.canActivate(context)).toBe(true);
+  });
+
   it('прокидывает личность студента из токена', () => {
     const guard = makeGuard({ [ROLES_KEY]: [UserRole.STUDENT] });
     const { context, request } = makeContext({ authorization: `Bearer ${token(UserRole.STUDENT)}` });

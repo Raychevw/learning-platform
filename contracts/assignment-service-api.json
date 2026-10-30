@@ -370,7 +370,7 @@
             "bearer": []
           }
         ],
-        "summary": "Grade a submission using server-side rubric validation and Strategy pattern",
+        "summary": "Grade a submission using server-side rubric validation and Strategy pattern (teacher only)",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
