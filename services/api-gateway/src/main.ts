@@ -1,89 +1,204 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+
+// ============================================================================
+//  API Gateway — единая точка входа.
+//  Отвечает за: CORS-whitelist, проверку JWT, инъекцию доверенных заголовков
+//  x-user-*, rate-limit логина, маршрутизацию и корреляцию запросов.
+// ============================================================================
 
 const app = express();
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '2mb' }));
 
-// Enable CORS for frontend
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+const PORT = Number(process.env.PORT || 3000);
+const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:3001';
+const ASSIGNMENT_SERVICE_URL = process.env.ASSIGNMENT_SERVICE_URL || 'http://localhost:3002';
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3003';
+const JWT_SECRET = process.env.JWT_SECRET || 'change_me_super_long_random_secret_at_least_32_chars';
+
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:8080')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// ----------------------------------------------------------------- CORS
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-role, x-user-id');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Expose-Headers', 'X-Request-Id');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('X-Content-Type-Options', 'nosniff');
+
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
+    res.sendStatus(204);
     return;
   }
   next();
 });
 
-const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:3001';
-const ASSIGNMENT_SERVICE_URL = process.env.ASSIGNMENT_SERVICE_URL || 'http://localhost:3002';
-const PORT = process.env.PORT || 3000;
+// ----------------------------------------------------------------- request id + logging
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
 
-// Health check endpoint with downstream health checks
-app.get('/health', async (req: Request, res: Response) => {
-  const checkService = async (url: string) => {
-    try {
-      const resp = await fetch(`${url}/courses`, { signal: AbortSignal.timeout(1500) }).catch(() => null);
-      if (resp && resp.ok) return 'UP';
-      const baseResp = await fetch(url, { signal: AbortSignal.timeout(1500) }).catch(() => null);
-      return baseResp ? 'UP' : 'DOWN';
-    } catch {
-      return 'DOWN';
-    }
-  };
-
-  const courseHealth = await checkService(COURSE_SERVICE_URL);
-  const assignmentHealth = await checkService(ASSIGNMENT_SERVICE_URL);
-
-  res.json({
-    status: 'UP',
-    timestamp: new Date().toISOString(),
-    gateway: {
-      port: PORT,
-      status: 'HEALTHY',
-    },
-    downstreamServices: {
-      courseService: {
-        url: COURSE_SERVICE_URL,
-        status: courseHealth,
-      },
-      assignmentService: {
-        url: ASSIGNMENT_SERVICE_URL,
-        status: assignmentHealth,
-      },
-    },
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - startedAt;
+    const who = (req as any).user?.role ? ` role=${(req as any).user.role}` : '';
+    console.log(`[GATEWAY] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${ms}ms${who} rid=${requestId}`);
   });
+  next();
 });
 
-// Root metadata and routing registry
-app.get('/', (req: Request, res: Response) => {
+// ----------------------------------------------------------------- auth
+const PUBLIC_API_PATHS = new Set(['/auth/login']);
+
+/** Убираем любые клиентские попытки выдать себя за другого пользователя. */
+function stripIdentityHeaders(req: Request) {
+  delete req.headers['x-user-id'];
+  delete req.headers['x-user-role'];
+  delete req.headers['x-user-email'];
+  delete req.headers['x-user-name'];
+}
+
+interface LoginBucket {
+  count: number;
+  resetAt: number;
+}
+const loginAttempts = new Map<string, LoginBucket>();
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 20;
+
+function loginRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const bucket = loginAttempts.get(ip);
+  if (!bucket || bucket.resetAt < now) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > LOGIN_MAX_ATTEMPTS;
+}
+
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+  stripIdentityHeaders(req);
+
+  const path = req.path;
+  if (PUBLIC_API_PATHS.has(path)) {
+    if (path === '/auth/login' && req.method === 'POST' && loginRateLimited(req.ip || 'unknown')) {
+      res.status(429).json({
+        statusCode: 429,
+        message: 'Забагато спроб входу. Спробуйте пізніше.',
+        error: 'Too Many Requests',
+      });
+      return;
+    }
+    next();
+    return;
+  }
+
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) {
+    res.status(401).json({ statusCode: 401, message: 'Потрібна авторизація', error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(header.slice(7).trim(), JWT_SECRET) as jwt.JwtPayload;
+    if (!payload.sub || !payload.role) throw new Error('Malformed token payload');
+
+    (req as any).user = payload;
+    req.headers['x-user-id'] = String(payload.sub);
+    req.headers['x-user-role'] = String(payload.role);
+    if (payload.email) req.headers['x-user-email'] = String(payload.email);
+    // HTTP-заголовки обязаны быть ASCII — имя может содержать кириллицу.
+    if (payload.name) req.headers['x-user-name'] = encodeURIComponent(String(payload.name));
+    next();
+  } catch {
+    res.status(401).json({ statusCode: 401, message: 'Недійсний або прострочений токен', error: 'Unauthorized' });
+  }
+});
+
+// ----------------------------------------------------------------- health
+async function checkDownstream(name: string, url: string) {
+  try {
+    const resp = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) });
+    return { name, url, status: resp.ok ? 'UP' : 'DOWN', httpStatus: resp.status };
+  } catch {
+    return { name, url, status: 'DOWN', httpStatus: null };
+  }
+}
+
+async function healthPayload() {
+  const [course, assignment, auth] = await Promise.all([
+    checkDownstream('courseService', COURSE_SERVICE_URL),
+    checkDownstream('assignmentService', ASSIGNMENT_SERVICE_URL),
+    checkDownstream('authService', AUTH_SERVICE_URL),
+  ]);
+  const services = [course, assignment, auth];
+  return {
+    status: 'UP',
+    gateway: { port: PORT, status: 'HEALTHY' },
+    downstreamServices: Object.fromEntries(services.map((s) => [s.name, s])),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+app.get('/health', async (_req: Request, res: Response) => {
+  res.json(await healthPayload());
+});
+app.get('/api/health', async (_req: Request, res: Response) => {
+  res.json(await healthPayload());
+});
+
+// ----------------------------------------------------------------- root registry
+app.get('/', (_req: Request, res: Response) => {
   res.json({
-    name: 'Learning Platform API Gateway',
-    version: '1.0.0',
-    description: 'Single Entry Point for all microservices',
+    name: 'Studevo API Gateway',
+    version: '2.0.0',
+    auth: 'POST /api/auth/login -> JWT; все /api/* требуют Authorization: Bearer <token>',
     endpoints: {
       health: 'GET /health',
-      catalog: 'GET /api/catalog, POST /api/catalog',
-      courses: 'GET /api/courses, POST /api/courses, GET /api/courses/:id',
-      assignments: 'GET /api/assignments, GET /api/assignments-full, POST /api/assignments-full',
-      submissions: 'POST /api/assignments/:id/submit',
+      auth: 'POST /api/auth/login, GET /api/auth/me, GET|POST /api/auth/users',
+      catalog: 'GET|POST /api/catalog, POST /api/catalog/:courseId/modules, POST /api/catalog/modules/:moduleId/lessons, POST /api/catalog/lessons/:lessonId/toggle',
+      courses: 'GET /api/courses, GET /api/courses/:id, POST /api/courses, POST /api/courses/:id/publish',
+      assignments: 'GET|POST /api/assignments-full, POST /api/assignments/:id/submit, GET /api/assignments',
       grading: 'POST /api/grading/grade, GET /api/grades',
-      groups: 'GET /api/groups, POST /api/groups',
-      webinars: 'GET /api/webinars, POST /api/webinars, PATCH /api/webinars/:id/status, POST /api/webinars/:id/chat',
-      students: 'POST /api/students, GET /api/students/:id',
+      groups: 'GET|POST /api/groups, POST /api/groups/:id/toggle-course, POST|DELETE /api/groups/:id/students',
+      webinars: 'GET|POST /api/webinars, PATCH /api/webinars/:id/status, POST /api/webinars/:id/chat, DELETE /api/webinars/:id',
     },
   });
 });
 
-// Proxy helper function using modern fetch
+// ----------------------------------------------------------------- proxy
 async function proxyRequest(targetUrl: string, req: Request, res: Response) {
+  const requestId = (req as any).requestId || crypto.randomUUID();
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Request-Id': requestId,
+    };
+
+    if (req.headers.authorization) headers.authorization = req.headers.authorization;
+    for (const name of ['x-user-id', 'x-user-role', 'x-user-email', 'x-user-name']) {
+      const value = req.headers[name];
+      if (value) headers[name] = String(value);
+    }
+
     const fetchOptions: RequestInit = {
       method: req.method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(5000),
+      headers,
+      signal: AbortSignal.timeout(15000),
     };
 
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
@@ -92,75 +207,67 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
 
     const response = await fetch(targetUrl, fetchOptions);
     const contentType = response.headers.get('content-type');
-
     res.status(response.status);
+
     if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      res.json(data);
+      res.json(await response.json());
     } else {
-      const text = await response.text();
-      res.send(text);
+      res.send(await response.text());
     }
   } catch (error) {
-    console.error(`[GATEWAY ERROR] Failed to proxy to ${targetUrl}:`, (error as Error).message);
+    console.error(`[GATEWAY ERROR] ${req.method} ${targetUrl}: ${(error as Error).message} rid=${requestId}`);
     res.status(502).json({
+      statusCode: 502,
       error: 'Bad Gateway',
-      message: `Unable to reach downstream service at ${targetUrl}`,
-      details: (error as Error).message,
+      message: `Сервис недоступен: ${targetUrl}`,
+      requestId,
     });
   }
 }
 
-// Route: Courses -> Course Service
-app.all('/api/courses*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/courses', '/courses');
-  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
+function mountProxy(prefix: string, targetBase: string, rewriteFrom: string, rewriteTo: string) {
+  app.all(`${prefix}*`, (req: Request, res: Response) => {
+    const targetPath = req.originalUrl.replace(rewriteFrom, rewriteTo);
+    proxyRequest(`${targetBase}${targetPath}`, req, res);
+  });
+}
+
+// Auth
+mountProxy('/api/auth', AUTH_SERVICE_URL, '/api/auth', '/auth');
+// Course service
+mountProxy('/api/courses', COURSE_SERVICE_URL, '/api/courses', '/courses');
+mountProxy('/api/catalog', COURSE_SERVICE_URL, '/api/catalog', '/catalog');
+mountProxy('/api/webinars', COURSE_SERVICE_URL, '/api/webinars', '/webinars');
+// Assignment service
+mountProxy('/api/assignments', ASSIGNMENT_SERVICE_URL, '/api/assignments', '/assignments');
+mountProxy('/api/grading', ASSIGNMENT_SERVICE_URL, '/api/grading', '/grading');
+mountProxy('/api/grades', ASSIGNMENT_SERVICE_URL, '/api/grades', '/grades');
+mountProxy('/api/groups', ASSIGNMENT_SERVICE_URL, '/api/groups', '/groups');
+mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
+
+// ----------------------------------------------------------------- fallbacks
+app.use('/api', (req: Request, res: Response) => {
+  res.status(404).json({ statusCode: 404, message: `Маршрут ${req.method} ${req.originalUrl} не найден` });
 });
 
-// Route: Catalog (Courses + Modules + Lessons + Progress) -> Course Service
-app.all('/api/catalog*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/catalog', '/catalog');
-  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[GATEWAY UNHANDLED]', err.message);
+  if (res.headersSent) return;
+  res.status(500).json({ statusCode: 500, message: 'Внутренняя ошибка шлюза' });
 });
 
-// Route: Webinars -> Course Service
-app.all('/api/webinars*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/webinars', '/webinars');
-  proxyRequest(`${COURSE_SERVICE_URL}${targetPath}`, req, res);
-});
-
-// Route: Assignments & Submissions -> Assignment Service
-app.all('/api/assignments*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/assignments', '/assignments');
-  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
-});
-
-// Route: Grading -> Assignment Service
-app.all('/api/grading*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/grading', '/grading');
-  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
-});
-
-// Route: Grades -> Assignment Service
-app.all('/api/grades*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/grades', '/grades');
-  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
-});
-
-// Route: Academic Groups -> Assignment Service
-app.all('/api/groups*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/groups', '/groups');
-  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
-});
-
-// Route: Students -> Assignment Service
-app.all('/api/students*', (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace('/api/students', '/students');
-  proxyRequest(`${ASSIGNMENT_SERVICE_URL}${targetPath}`, req, res);
-});
-
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[API GATEWAY] Running on http://localhost:${PORT}`);
-  console.log(`[API GATEWAY] Routing /api/catalog, /api/courses, /api/webinars -> ${COURSE_SERVICE_URL}`);
-  console.log(`[API GATEWAY] Routing /api/assignments, /api/grading, /api/grades, /api/groups, /api/students -> ${ASSIGNMENT_SERVICE_URL}`);
+  console.log(`[API GATEWAY] auth       -> ${AUTH_SERVICE_URL}`);
+  console.log(`[API GATEWAY] catalog    -> ${COURSE_SERVICE_URL}`);
+  console.log(`[API GATEWAY] assignments-> ${ASSIGNMENT_SERVICE_URL}`);
+  console.log(`[API GATEWAY] CORS origins: ${ALLOWED_ORIGINS.join(', ')}`);
 });
+
+function shutdown(signal: string) {
+  console.log(`[API GATEWAY] ${signal} received, shutting down...`);
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

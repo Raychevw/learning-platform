@@ -1,6 +1,21 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness/readiness probe for the Course Service",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/courses": {
       "post": {
         "description": "Creates a draft course in Course Bounded Context",

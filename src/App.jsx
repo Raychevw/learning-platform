@@ -1,455 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
-
-const API_BASE = 'http://localhost:3000';
-const STORAGE_KEY = 'studevo_lms_state_v2';
-
-const LECTURE_SLIDES = [
-  {
-    slideNum: 1,
-    tag: 'Модуль 2 • Поведінкові патерни GoF',
-    title: 'Патерн проектування Strategy (Стратегія)',
-    points: [
-      'Відокремлення алгоритмів розрахунку від основного бізнес-контексту сервісу',
-      'Заміна складних умовних конструкцій if/else на поліморфні класи стратегій',
-      'Можливість перемикання алгоритму під час виконання програми (Runtime)',
-    ],
-    code: `interface GradingStrategy {
-  calculate(rawScore: number, maxScore: number): number;
-}`,
-  },
-  {
-    slideNum: 2,
-    tag: 'Практична реалізація • Чиста архітектура',
-    title: 'Інкапсуляція правил оцінювання робіт',
-    points: [
-      'StandardGradingStrategy — базовий розрахунок балів за критеріями рубрики',
-      'LatePenaltyStrategy — автоматичне застосування коефіцієнта 0.8 при простроченні',
-      'ExcellenceBonusStrategy — нарахування +5 бонусних балів за високу якість коду',
-    ],
-    code: `class LatePenaltyStrategy implements GradingStrategy {
-  calculate(raw: number, max: number): number {
-    return Math.min(max, Math.round(raw * 0.8 * 10) / 10);
-  }
-}`,
-  },
-  {
-    slideNum: 3,
-    tag: 'Принципи SOLID • Open/Closed Principle',
-    title: 'Переваги для тестування та масштабування',
-    points: [
-      'Нові правила додаються без модифікації існуючого коду сервісу перевірки робіт',
-      'Кожна стратегія покривається ізольованими Unit-тестами за мілісекунди',
-      'Відсутність побічних ефектів при зміні регламенту семестрового контролю',
-    ],
-    code: `const context = new SubmissionGrader(new ExcellenceBonusStrategy());
-const finalScore = context.evaluate(submission); // 99 / 100 (ECTS: A)`,
-  },
-  {
-    slideNum: 4,
-    tag: 'Підсумки заняття та Q&A',
-    title: 'Вимоги до захисту Лабораторної роботи №4',
-    points: [
-      'Реалізувати щонайменше 3 власні класи стратегій у доменному шарі проекту',
-      'Налаштувати діаграму класів UML та додати її у PDF-звіт',
-      'Завантажити архів або PDF-звіт у розділі «Завдання» до встановленого дедлайну',
-    ],
-    code: `// Успішного виконання лабораторної роботи!
-// Запитання можна ставити у чаті трансляції або голосом (Підняти руку)`,
-  },
-];
-
-const ACCOUNTS = [
-  {
-    id: 'usr-student',
-    login: 'student',
-    email: 'o.petrenko@univ.edu.ua',
-    password: '123456',
-    name: 'Олександр Петренко',
-    role: 'student',
-    dept: 'Група ІПЗ-412 • 4 курс',
-    initials: 'ОП',
-  },
-  {
-    id: 'usr-teacher',
-    login: 'teacher',
-    email: 'd.kovalenko@univ.edu.ua',
-    password: '123456',
-    name: 'Дмитро Коваленко, доц.',
-    role: 'teacher',
-    dept: 'Кафедра інженерії ПЗ',
-    initials: 'ДК',
-  },
-  {
-    id: 'usr-admin',
-    login: 'admin',
-    email: 'dekanat.fiot@univ.edu.ua',
-    password: '123456',
-    name: 'Олена Франчук',
-    role: 'admin',
-    dept: 'Деканат ФІОТ',
-    initials: 'ОФ',
-  },
-];
-
-const INITIAL_COURSES = [
-  {
-    id: 'c-1',
-    title: 'Архітектура програмного забезпечення',
-    instructor: 'Дмитро Коваленко, доц.',
-    description: 'Чиста архітектура, патерни проектування GoF, принципи SOLID та побудова сучасних веб-систем.',
-    semester: 7,
-    modulesCount: 2,
-    totalHours: 120,
-    isPublished: true,
-    cover: '/course-coding.jpg',
-    modules: [
-      {
-        id: 'm-1',
-        title: 'Модуль 1: Принципи SOLID та Чиста архітектура',
-        lessons: [
-          {
-            id: 'l-1',
-            title: 'Лекція 1: Огляд шарів домену та інфраструктури',
-            type: 'Лекція',
-            completed: true,
-            content:
-              'У чистій архітектурі бізнес-логіка знаходиться в центрі системи та не залежить від бази даних чи зовнішніх бібліотек. Усі залежності спрямовані всередину до доменної моделі.',
-          },
-          {
-            id: 'l-2',
-            title: 'Методичні вказівки до виконання лабораторних робіт',
-            type: 'Методичка',
-            completed: true,
-            content:
-              'Посібник містить вимоги до оформлення звітів, побудови діаграм класів та критерії оцінювання практичних завдань.',
-          },
-        ],
-      },
-      {
-        id: 'm-2',
-        title: 'Модуль 2: Породжуючі та поведінкові патерни проектування',
-        lessons: [
-          {
-            id: 'l-3',
-            title: 'Відео-лекція: Застосування патерна Strategy на практиці',
-            type: 'Відео',
-            completed: false,
-            content:
-              'Розгляд гнучкого вибору алгоритмів під час виконання програми на прикладі розрахунку рейтингових балів студентів.',
-          },
-          {
-            id: 'l-4',
-            title: 'Презентація: Побудова складних об’єктів через Builder',
-            type: 'Презентація',
-            completed: false,
-            content:
-              'Покрокове конструювання об’єктів навчальних завдань із критеріями оцінювання та термінами здачі.',
-          },
-        ],
-      },
-    ],
-    progress: 50,
-  },
-  {
-    id: 'c-2',
-    title: 'Основи вебдизайну та ергономіка UX/UI',
-    instructor: 'Олена Грищенко, ст. викл.',
-    description: 'Проєктування інтерфейсів, доступність, типографіка та компонування сучасних освітніх платформ.',
-    semester: 7,
-    modulesCount: 1,
-    totalHours: 90,
-    isPublished: true,
-    cover: '/course-webdesign.jpg',
-    modules: [
-      {
-        id: 'm-3',
-        title: 'Модуль 1: Дизайн-системи та візуальна ієрархія',
-        lessons: [
-          {
-            id: 'l-5',
-            title: 'Лекція: Колірні схеми та контрастність в інтерфейсах',
-            type: 'Лекція',
-            completed: true,
-            content:
-              'Правильно підібрана сітка та візуальні акценти дозволяють користувачу швидко знаходити потрібні розділи без зайвого візуального шуму.',
-          },
-          {
-            id: 'l-6',
-            title: 'Практикум: Інтерактивне прототипування у Figma',
-            type: 'Методичка',
-            completed: false,
-            content:
-              'Побудова адаптивних компонентів карток курсів, таблиць журналу та модальних вікон.',
-          },
-        ],
-      },
-    ],
-    progress: 50,
-  },
-  {
-    id: 'c-3',
-    title: 'Математичні методи дослідження операцій',
-    instructor: 'Василь Мельник, проф.',
-    description: 'Теорія графів, симплекс-метод, оптимізаційні алгоритми та моделювання систем.',
-    semester: 7,
-    modulesCount: 1,
-    totalHours: 120,
-    isPublished: true,
-    cover: '/course-math.jpg',
-    modules: [
-      {
-        id: 'm-4',
-        title: 'Модуль 1: Лінійне програмування та потоки в мережах',
-        lessons: [
-          {
-            id: 'l-7',
-            title: 'Лекція 1: Постановка задачі лінійної оптимізації',
-            type: 'Лекція',
-            completed: false,
-            content:
-              'Канонічна та стандартна форми задачі лінійного програмування. Геометрична інтерпретація допустимих розв’язків.',
-          },
-        ],
-      },
-    ],
-    progress: 0,
-  },
-];
-
-const INITIAL_ASSIGNMENTS = [
-  {
-    id: 'asg-1',
-    courseId: 'c-1',
-    courseTitle: 'Архітектура програмного забезпечення',
-    title: 'Лабораторна робота 3: Проектування REST API та взаємодії модулів',
-    description: 'Спроектувати контракти взаємодії між модулями курсів та оцінювання.',
-    type: 'Лабораторна',
-    deadline: '2026-10-18T23:59:00.000Z',
-    maxScore: 100,
-    rubricTitle: 'Чиста архітектура (3 критерії)',
-    criteria: [
-      { id: 'clean_arch', name: 'Чиста архітектура та поділ шарів', max: 35 },
-      { id: 'patterns', name: 'Правильність застосування патернів', max: 35 },
-      { id: 'tests', name: 'Покриття модульними тестами', max: 30 },
-    ],
-    submissions: [
-      {
-        id: 'sub-1',
-        studentId: 'usr-student',
-        studentName: 'Олександр Петренко',
-        group: 'ІПЗ-412',
-        submittedAt: '2026-10-14T12:30:00.000Z',
-        fileName: 'Звіт_Лаб3_Петренко_ІПЗ412.pdf',
-        fileSize: '1.4 МБ',
-        comment: 'Виконано відповідно до методичних вказівок. Посилання на репозиторій додано у звіт.',
-        status: 'READY_FOR_GRADING',
-        score: null,
-      },
-    ],
-  },
-  {
-    id: 'asg-2',
-    courseId: 'c-1',
-    courseTitle: 'Архітектура програмного забезпечення',
-    title: 'Лабораторна робота 4: Патерни Decorator та Strategy',
-    description: 'Реалізувати гнучкий розрахунок підсумкових балів та кешування даних.',
-    type: 'Лабораторна',
-    deadline: '2026-10-24T23:59:00.000Z',
-    maxScore: 100,
-    rubricTitle: 'Шаблони проектування GoF',
-    criteria: [
-      { id: 'clean_arch', name: 'Реалізація патерна Strategy', max: 40 },
-      { id: 'patterns', name: 'Реалізація патерна Decorator', max: 35 },
-      { id: 'tests', name: 'Модульні тести та висновки', max: 25 },
-    ],
-    submissions: [],
-  },
-  {
-    id: 'asg-3',
-    courseId: 'c-2',
-    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
-    title: 'Практична робота 2: Макет навчального кабінету',
-    description: 'Розробити інтерактивний дизайн-прототип системи навчання.',
-    type: 'Практична',
-    deadline: '2026-10-28T23:59:00.000Z',
-    maxScore: 100,
-    rubricTitle: 'Ергономіка та дизайн',
-    criteria: [
-      { id: 'clean_arch', name: 'Компонування та модульна сітка', max: 40 },
-      { id: 'patterns', name: 'Колористика та типографіка', max: 35 },
-      { id: 'tests', name: 'Зручність навігації', max: 25 },
-    ],
-    submissions: [],
-  },
-];
-
-const INITIAL_GRADES = [
-  {
-    id: 'grd-1',
-    assignmentId: 'asg-prev-1',
-    submissionId: 'sub-prev-1',
-    studentId: 'usr-student',
-    studentName: 'Олександр Петренко',
-    group: 'ІПЗ-412',
-    courseTitle: 'Архітектура програмного забезпечення',
-    assignmentTitle: 'Лабораторна робота 2: Декомпозиція модулів системи',
-    submittedAt: '10 жовтня 2026',
-    rawScore: 95,
-    finalScore: 95,
-    maxScore: 100,
-    rule: 'STANDARD',
-    ruleDesc: 'Стандартний розрахунок',
-    feedback: 'Відмінно виконано декомпозицію модулів. Дотримано всіх вимог.',
-  },
-  {
-    id: 'grd-2',
-    assignmentId: 'asg-prev-2',
-    submissionId: 'sub-prev-2',
-    studentId: 'usr-student',
-    studentName: 'Олександр Петренко',
-    group: 'ІПЗ-412',
-    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
-    assignmentTitle: 'Практична робота 1: Аналіз патернів навігації',
-    submittedAt: '11 жовтня 2026',
-    rawScore: 92,
-    finalScore: 97,
-    maxScore: 100,
-    rule: 'EXCELLENCE_BONUS',
-    ruleDesc: 'Заохочувальний бонус (+5 балів)',
-    feedback: 'Гарна колористика та якісне компонування інтерфейсу.',
-  },
-];
-
-const INITIAL_GROUPS = [
-  {
-    id: 'g-1',
-    name: 'ІПЗ-412',
-    faculty: 'ФІОТ',
-    studyYear: 4,
-    studentsCount: 28,
-    assignedCourseIds: ['c-1', 'c-2', 'c-3'],
-    studentsList: ['Олександр Петренко', 'Марія Бондаренко', 'Ігор Ткаченко', 'Софія Кравчук'],
-  },
-  {
-    id: 'g-2',
-    name: 'ІПЗ-411',
-    faculty: 'ФІОТ',
-    studyYear: 4,
-    studentsCount: 26,
-    assignedCourseIds: ['c-1', 'c-2'],
-    studentsList: ['Андрій Шевченко', 'Дарина Лисенко', 'Максим Поліщук'],
-  },
-  {
-    id: 'g-3',
-    name: 'КН-301',
-    faculty: 'ФІОТ',
-    studyYear: 3,
-    studentsCount: 30,
-    assignedCourseIds: ['c-2', 'c-3'],
-    studentsList: ['Богдан Савченко', 'Вікторія Романюк'],
-  },
-];
-
-const INITIAL_WEBINARS = [
-  {
-    id: 'web-1',
-    courseId: 'c-1',
-    courseTitle: 'Архітектура програмного забезпечення',
-    title: 'Онлайн-лекція: Чиста архітектура та інверсія залежностей',
-    instructor: 'Дмитро Коваленко, доц.',
-    scheduledAt: '2026-10-16T18:00:00.000Z',
-    status: 'LIVE',
-    chat: [
-      {
-        id: 'msg-1',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Вітаю групу ІПЗ-412! Сьогодні розбираємо побудову чистої архітектури та підготовку до Лабораторної №4.',
-        time: '18:02',
-      },
-      {
-        id: 'msg-2',
-        senderName: 'Олександр Петренко',
-        senderRole: 'student',
-        text: 'Добрий вечір! Підкажіть, чи можна здати звіт у форматі PDF разом із посиланням на GitHub?',
-        time: '18:05',
-      },
-      {
-        id: 'msg-3',
-        senderName: 'Дмитро Коваленко, доц.',
-        senderRole: 'teacher',
-        text: 'Так, звісно. Прикріплюйте PDF-файл у розділі «Завдання» та додавайте посилання в коментарі.',
-        time: '18:06',
-      },
-    ],
-  },
-  {
-    id: 'web-2',
-    courseId: 'c-2',
-    courseTitle: 'Основи вебдизайну та ергономіка UX/UI',
-    title: 'Практичний семінар: Розбір макетів студентських робіт',
-    instructor: 'Олена Грищенко, ст. викл.',
-    scheduledAt: '2026-10-21T14:30:00.000Z',
-    status: 'SCHEDULED',
-    chat: [
-      {
-        id: 'msg-4',
-        senderName: 'Олена Грищенко, ст. викл.',
-        senderRole: 'teacher',
-        text: 'Підготуйте ваші прототипи для спільного обговорення на занятті.',
-        time: '14:00',
-      },
-    ],
-  },
-];
-
-const INITIAL_AUDIT_LOGS = [
-  {
-    id: 'log-1',
-    userId: 'Олександр Петренко (ІПЗ-412)',
-    ip: '192.168.1.45',
-    action: 'Завантаження звіту лабораторної роботи №3',
-    resource: 'Архітектура ПЗ',
-    status: 'ALLOWED',
-    time: '14.10.2026 12:30',
-  },
-  {
-    id: 'log-2',
-    userId: 'Дмитро Коваленко, доц.',
-    ip: '192.168.1.10',
-    action: 'Оновлення робочої програми дисципліни',
-    resource: 'Архітектура ПЗ',
-    status: 'ALLOWED',
-    time: '14.10.2026 14:02',
-  },
-  {
-    id: 'log-3',
-    userId: 'Олена Франчук (Деканат)',
-    ip: '192.168.1.5',
-    action: 'Затвердження навчального плану групи ІПЗ-412',
-    resource: 'Деканат ФІОТ',
-    status: 'ALLOWED',
-    time: '15.10.2026 10:15',
-  },
-];
-
-const INITIAL_EVENTS = [
-  {
-    id: 'ev-1',
-    type: 'grade',
-    title: 'Виставлено 97 балів (ECTS: A)',
-    desc: 'Основи вебдизайну — Практична робота №1.',
-    time: 'Нещодавно',
-  },
-  {
-    id: 'ev-2',
-    type: 'course',
-    title: 'Триває онлайн-лекція',
-    desc: 'Архітектура ПЗ: Чиста архітектура та інверсія залежностей.',
-    time: 'Сьогодні о 18:00',
-  },
-];
+import { api } from './api/client.js';
+import { useAuth } from './auth/useAuth.js';
+import { newId } from './lib/id.js';
+import {
+  LECTURE_SLIDES,
+  INITIAL_COURSES,
+  INITIAL_ASSIGNMENTS,
+  INITIAL_GRADES,
+  INITIAL_GROUPS,
+  INITIAL_WEBINARS,
+  INITIAL_AUDIT_LOGS,
+  INITIAL_EVENTS,
+} from './data/seed.js';
 
 function getEctsLetter(score) {
   const num = Number(score) || 0;
@@ -459,6 +22,15 @@ function getEctsLetter(score) {
   if (num >= 64) return 'D';
   if (num >= 60) return 'E';
   return 'FX';
+}
+
+/** Ближайший круглый час для формы планирования вебинара. */
+function getDefaultWebinarDate() {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0);
+  d.setSeconds(0);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 }
 
 function calcCourseProgress(modules) {
@@ -485,26 +57,7 @@ const UK_MONTHS = [
 ];
 
 export default function App() {
-  const loadStoredState = () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  };
-
-  const persisted = useMemo(() => loadStoredState(), []);
-
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem('studevo_auth_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const { user: currentUser, booting, login, logout } = useAuth();
 
   // Login Form States
   const [loginInput, setLoginInput] = useState('');
@@ -514,62 +67,47 @@ export default function App() {
   const userRole = currentUser ? currentUser.role : 'student';
   const [activeMenu, setActiveMenu] = useState('dashboard');
 
-  // Core Data States
-  const [courses, setCourses] = useState(() => persisted?.courses || INITIAL_COURSES);
-  const [assignments, setAssignments] = useState(() => persisted?.assignments || INITIAL_ASSIGNMENTS);
-  const [grades, setGrades] = useState(() => persisted?.grades || INITIAL_GRADES);
-  const [academicGroups, setAcademicGroups] = useState(() => persisted?.academicGroups || INITIAL_GROUPS);
-  const [webinars, setWebinars] = useState(() => persisted?.webinars || INITIAL_WEBINARS);
-  const [auditLogs, setAuditLogs] = useState(() => persisted?.auditLogs || INITIAL_AUDIT_LOGS);
-  const [eventsFeed, setEventsFeed] = useState(() => persisted?.eventsFeed || INITIAL_EVENTS);
+  // Core Data States. Seed-данные используются только как offline-демо:
+  // как только backend отвечает, источником истины становится PostgreSQL.
+  const [courses, setCourses] = useState(INITIAL_COURSES);
+  const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
+  const [grades, setGrades] = useState(INITIAL_GRADES);
+  const [academicGroups, setAcademicGroups] = useState(INITIAL_GROUPS);
+  const [webinars, setWebinars] = useState(INITIAL_WEBINARS);
+  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+  const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
+  // Загрузка живых данных через API Gateway после входа.
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          courses,
-          assignments,
-          grades,
-          academicGroups,
-          webinars,
-          auditLogs,
-          eventsFeed,
-        })
-      );
-    } catch (e) {
-      console.warn('Could not save state:', e);
-    }
-  }, [courses, assignments, grades, academicGroups, webinars, auditLogs, eventsFeed]);
-
-  // Load live data from PostgreSQL via API Gateway on startup and user switch
-  useEffect(() => {
+    if (!currentUser) return undefined;
     let isCancelled = false;
-    const fetchAllData = async () => {
-      try {
-        const userId = currentUser?.id || 'usr-student';
-        const [cRes, aRes, gRes, grpRes, wRes] = await Promise.all([
-          fetch(`${API_BASE}/api/catalog?userId=${userId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(`${API_BASE}/api/assignments-full`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(`${API_BASE}/api/grades`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(`${API_BASE}/api/groups`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch(`${API_BASE}/api/webinars`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        ]);
-        if (isCancelled) return;
-        if (Array.isArray(cRes) && cRes.length > 0) setCourses(cRes);
-        if (Array.isArray(aRes) && aRes.length > 0) setAssignments(aRes);
-        if (Array.isArray(gRes) && gRes.length > 0) setGrades(gRes);
-        if (Array.isArray(grpRes) && grpRes.length > 0) setAcademicGroups(grpRes);
-        if (Array.isArray(wRes) && wRes.length > 0) setWebinars(wRes);
-      } catch (err) {
-        console.warn('Backend load failed, using local persisted cache:', err);
-      }
+
+    const load = async () => {
+      const userId = encodeURIComponent(currentUser.id);
+      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes] = await Promise.allSettled([
+        api.get(`/api/catalog?userId=${userId}`),
+        api.get('/api/assignments-full'),
+        api.get('/api/grades'),
+        api.get('/api/groups'),
+        api.get('/api/webinars'),
+      ]);
+      if (isCancelled) return;
+
+      const apply = (result, setter) => {
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) setter(result.value);
+      };
+      apply(catalog, setCourses);
+      apply(assignmentsRes, setAssignments);
+      apply(gradesRes, setGrades);
+      apply(groupsRes, setAcademicGroups);
+      apply(webinarsRes, setWebinars);
     };
-    fetchAllData();
+
+    load();
     return () => {
       isCancelled = true;
     };
-  }, [currentUser?.id]);
+  }, [currentUser]);
 
   // Real-time synchronization across multiple browser tabs/windows (e.g. Teacher in Tab 1, Student in Tab 2)
   useEffect(() => {
@@ -594,19 +132,8 @@ export default function App() {
       // Fallback for environments without BroadcastChannel
     }
 
-    const handleStorageChange = (e) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (parsed.webinars) setWebinars(parsed.webinars);
-        } catch {}
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     return () => {
       if (bc) bc.close();
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -708,14 +235,6 @@ export default function App() {
   });
   const [gradingResult, setGradingResult] = useState(null);
 
-  const getDefaultWebinarDate = () => {
-    const d = new Date(Date.now() + 60 * 60 * 1000);
-    d.setMinutes(0);
-    d.setSeconds(0);
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
-  };
-
   // Webinars & Zoom Room State
   const [activeWebinarId, setActiveWebinarId] = useState('web-1');
   const [chatInput, setChatInput] = useState('');
@@ -729,6 +248,7 @@ export default function App() {
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [streamSeconds, setStreamSeconds] = useState(845); // 14:05 initial live timer
+  const [liveViewersCount, setLiveViewersCount] = useState(24); // демонстрационный счётчик зрителей
   const [zoomViewMode, setZoomViewMode] = useState('speaker'); // 'speaker' | 'gallery'
   const [zoomSideTab, setZoomSideTab] = useState('chat'); // 'chat' | 'participants' | 'none'
   const videoStreamRef = useRef(null);
@@ -835,7 +355,7 @@ export default function App() {
     });
     const actor = customUser || (currentUser ? currentUser.name : 'Користувач');
     const newEntry = {
-      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: newId('log'),
       userId: actor,
       ip: '192.168.1.45',
       action,
@@ -848,7 +368,7 @@ export default function App() {
 
   const appendEvent = (type, title, desc) => {
     const ev = {
-      id: `ev-${Date.now()}`,
+      id: newId('ev'),
       type,
       title,
       desc,
@@ -857,66 +377,47 @@ export default function App() {
     setEventsFeed((prev) => [ev, ...prev.slice(0, 7)]);
   };
 
-  const syncBackend = async (path, method = 'POST', body = null, overrideRole = null) => {
+  /**
+   * Единая точка записи в backend. Возвращает данные либо null.
+   * Любая ошибка (сеть, 4xx, 5xx) показывается пользователю — молчаливых
+   * «успешных» сохранений больше нет.
+   */
+  const syncBackend = async (path, method = 'POST', body = null) => {
     try {
-      const fullPath = path.startsWith('/api') ? path : `/api${path}`;
-      const roleHeader = (overrideRole || userRole || 'student').toUpperCase();
-      const res = await fetch(`${API_BASE}${fullPath}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-role': roleHeader,
-          'x-user-id': currentUser?.id || 'usr-student',
-        },
-        body: body && method !== 'GET' && method !== 'DELETE' ? JSON.stringify(body) : undefined,
-      });
-      if (res.ok) {
-        return await res.json().catch(() => null);
-      }
-    } catch {
-      // Offline / local fallback
+      return await api.request(path.startsWith('/api') ? path : `/api${path}`, { method, body });
+    } catch (err) {
+      showNotification(err.message || 'Не вдалося зберегти зміни на сервері.', true);
+      return null;
     }
-    return null;
   };
 
   // ========================================================
-  // LOGIN WITH USERNAME/EMAIL & PASSWORD
+  // LOGIN: РЕАЛЬНАЯ АУТЕНТИФИКАЦИЯ ЧЕРЕЗ AUTH-SERVICE (JWT)
   // ========================================================
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    const q = loginInput.trim().toLowerCase();
-    const matched = ACCOUNTS.find(
-      (a) => a.login.toLowerCase() === q || a.email.toLowerCase() === q
-    );
 
-    if (!matched || !passwordInput.trim()) {
-      setLoginError('Невірний логін або пароль. Перевірте введені дані.');
+    if (!loginInput.trim() || !passwordInput) {
+      setLoginError('Введіть логін та пароль.');
       return;
     }
 
-    await syncBackend(
-      '/auth/sso/login',
-      'POST',
-      {
-        email: matched.email,
-        full_name: matched.name,
-        role: matched.role.toUpperCase(),
-      },
-      matched.role
-    );
-
-    setCurrentUser(matched);
-    localStorage.setItem('studevo_auth_user', JSON.stringify(matched));
-    setActiveMenu('dashboard');
-    setNotification(null);
-    appendAuditLog('Вхід у систему', matched.dept, 'ALLOWED', matched.name);
+    try {
+      const loggedIn = await login(loginInput.trim(), passwordInput);
+      setActiveMenu('dashboard');
+      setNotification(null);
+      setLoginInput('');
+      setPasswordInput('');
+      appendAuditLog('Вхід у систему', loggedIn.dept || 'Кабінет', 'ALLOWED', loggedIn.name);
+    } catch (err) {
+      setLoginError(err.message || 'Невірний логін або пароль.');
+    }
   };
 
   const handleLogout = () => {
     appendAuditLog('Вихід із системи', currentUser?.dept || 'Кабінет', 'ALLOWED');
-    localStorage.removeItem('studevo_auth_user');
-    setCurrentUser(null);
+    logout();
     setLoginInput('');
     setPasswordInput('');
     setLoginError('');
@@ -929,7 +430,7 @@ export default function App() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourse.title.trim()) return;
-    const courseId = `c-${Date.now()}`;
+    const courseId = newId('c');
     const created = {
       id: courseId,
       title: newCourse.title.trim(),
@@ -942,11 +443,11 @@ export default function App() {
       cover: newCourse.cover || '/course-coding.jpg',
       modules: [
         {
-          id: `m-${Date.now()}`,
+          id: newId('m'),
           title: 'Модуль 1: Вступ та основні поняття курсу',
           lessons: [
             {
-              id: `l-${Date.now()}`,
+              id: newId('l'),
               title: 'Лекція 1: Вступна лекція та робоча програма',
               type: 'Лекція',
               completed: false,
@@ -1099,7 +600,7 @@ export default function App() {
     const totalMax = c1Max + c2Max + c3Max;
 
     const createdAsg = {
-      id: `asg-${Date.now()}`,
+      id: newId('asg'),
       courseId: targetCourse.id,
       courseTitle: targetCourse.title,
       title: newAssignment.title.trim(),
@@ -1146,7 +647,7 @@ export default function App() {
     if (!targetAsg) return;
 
     const newSub = {
-      id: `sub-${Date.now()}`,
+      id: newId('sub'),
       studentId: currentUser?.id || 'usr-student',
       studentName: currentUser?.name || 'Олександр Петренко',
       group: 'ІПЗ-412',
@@ -1229,7 +730,7 @@ export default function App() {
     }
 
     const resultObj = {
-      id: `grd-${Date.now()}`,
+      id: newId('grd'),
       assignmentId: targetSub?.assignmentId || 'asg-1',
       submissionId: targetSub?.id || 'sub-1',
       studentId: targetSub?.studentId || 'usr-student',
@@ -1481,7 +982,9 @@ export default function App() {
         const bc = new BroadcastChannel('studevo_live_webinar_bus');
         bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
         bc.close();
-      } catch {}
+      } catch {
+        /* BroadcastChannel недоступен в этом окружении */
+      }
       showNotification('Ви підняли руку. Викладач отримав сповіщення.');
     }
   };
@@ -1491,7 +994,7 @@ export default function App() {
     if (!newWebinarForm.title.trim()) return;
     const targetCourse = courses.find((c) => c.id === newWebinarForm.courseId) || courses[0];
     const createdWeb = {
-      id: `web-${Date.now()}`,
+      id: newId('web'),
       courseId: targetCourse.id,
       courseTitle: targetCourse.title,
       title: newWebinarForm.title.trim(),
@@ -1500,7 +1003,7 @@ export default function App() {
       status: 'SCHEDULED',
       chat: [
         {
-          id: `msg-${Date.now()}`,
+          id: newId('msg'),
           senderName: currentUser?.name || 'Викладач',
           senderRole: userRole,
           text: `Онлайн-заняття «${newWebinarForm.title.trim()}» додано до розкладу.`,
@@ -1526,7 +1029,9 @@ export default function App() {
         const bc = new BroadcastChannel('studevo_live_webinar_bus');
         bc.postMessage({ type: 'WEBINAR_UPDATE', payload: updated });
         bc.close();
-      } catch {}
+      } catch {
+        /* BroadcastChannel недоступен в этом окружении */
+      }
       return updated;
     });
     setActiveWebinarId(createdWeb.id);
@@ -1544,7 +1049,9 @@ export default function App() {
         const bc = new BroadcastChannel('studevo_live_webinar_bus');
         bc.postMessage({ type: 'WEBINAR_UPDATE', payload: updated });
         bc.close();
-      } catch {}
+      } catch {
+        /* BroadcastChannel недоступен в этом окружении */
+      }
       return updated;
     });
     if (activeWebinarId === webinarId) {
@@ -1572,7 +1079,9 @@ export default function App() {
       const bc = new BroadcastChannel('studevo_live_webinar_bus');
       bc.postMessage({ type: 'STATUS_CHANGE', payload: { webinarId, newStatus } });
       bc.close();
-    } catch {}
+    } catch {
+      /* BroadcastChannel недоступен в этом окружении */
+    }
     showNotification(newStatus === 'LIVE' ? 'Прямий ефір розпочато!' : 'Трансляцію завершено.');
   };
 
@@ -1596,7 +1105,9 @@ export default function App() {
       const bc = new BroadcastChannel('studevo_live_webinar_bus');
       bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
       bc.close();
-    } catch {}
+    } catch {
+      /* BroadcastChannel недоступен в этом окружении */
+    }
     setChatInput('');
   };
 
@@ -1607,7 +1118,7 @@ export default function App() {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     const group = {
-      id: `g-${Date.now()}`,
+      id: newId('g'),
       name: newGroupName.trim(),
       faculty: newGroupFaculty.trim(),
       studyYear: Number(newGroupYear),
@@ -1767,7 +1278,24 @@ export default function App() {
   };
 
   // ========================================================
-  // CLEAN LOGIN PAGE (LOGIN & PASSWORD)
+  // SESSION BOOTSTRAP (ПРОВЕРКА СОХРАНЁННОГО JWT)
+  // ========================================================
+  if (booting) {
+    return (
+      <div className="sso-auth-overlay">
+        <div className="sso-auth-card" style={{ textAlign: 'center', padding: '48px 32px' }}>
+          <div className="sso-auth-logo" style={{ justifyContent: 'center' }}>
+            <span className="logo-icon">S</span>
+            <span className="logo-title">STUDEVO</span>
+          </div>
+          <p style={{ color: '#475569', fontSize: 13, marginTop: 16 }}>Перевірка сесії…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ========================================================
+  // LOGIN PAGE (JWT-АУТЕНТИФИКАЦИЯ)
   // ========================================================
   if (!currentUser) {
     return (
@@ -1779,6 +1307,9 @@ export default function App() {
               <span className="logo-title">STUDEVO</span>
             </div>
             <h2>Вхід до особистого кабінету</h2>
+            <p style={{ color: '#64748b', fontSize: 12, margin: '6px 0 0' }}>
+              Університетський SSO · захищено JWT
+            </p>
           </div>
 
           <form className="sso-auth-body" onSubmit={handlePasswordLogin}>
@@ -1817,7 +1348,7 @@ export default function App() {
             </button>
 
             <div className="login-quick-fill-bar">
-              <span>Швидке заповнення:</span>
+              <span>Демо-доступ (пароль 123456):</span>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   type="button"
@@ -3217,6 +2748,9 @@ export default function App() {
                             {formatStreamTimer(streamSeconds)}
                           </span>
                         )}
+                        <span style={{ color: '#cbd5e1', marginLeft: '8px', fontSize: '11px', fontWeight: 500 }}>
+                          {liveViewersCount} глядачів
+                        </span>
                       </div>
 
                       <div className="zoom-view-switch-btns">

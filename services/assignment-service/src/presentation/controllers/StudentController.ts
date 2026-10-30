@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus } from '@nestj
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { RegisterStudentUseCase, GetStudentUseCase } from '../../application/student/RegisterStudentUseCase.js';
 import { RegisterStudentDto, StudentResponseDto } from '../dtos/CreateAssignmentDto.js';
+import { Roles, UserRole } from '../../auth/auth.guard.js';
 
 @ApiTags('Students')
 @Controller('students')
@@ -12,6 +13,7 @@ export class StudentController {
   ) {}
 
   @Post()
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register student', description: 'Registers a new student profile in Student Bounded Context' })
   @ApiBody({ type: RegisterStudentDto })

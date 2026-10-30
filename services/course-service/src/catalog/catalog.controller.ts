@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, HttpCode, Htt
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service.js';
 import type { CreateCatalogCourseDto } from './catalog.service.js';
+import { Roles, UserRole } from '../auth/auth.guard.js';
 
 @ApiTags('Catalog (courses, modules, lessons)')
 @Controller('catalog')
@@ -16,6 +17,7 @@ export class CatalogController {
   }
 
   @Post()
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a course (draft) with an introductory module and lecture' })
   create(@Body() dto: CreateCatalogCourseDto) {
@@ -23,6 +25,7 @@ export class CatalogController {
   }
 
   @Post(':courseId/modules')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a module to a course' })
   addModule(@Param('courseId') courseId: string, @Body() dto: { title: string }) {
@@ -30,6 +33,7 @@ export class CatalogController {
   }
 
   @Post('modules/:moduleId/lessons')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a lesson / learning material to a module' })
   addLesson(@Param('moduleId') moduleId: string, @Body() dto: { title: string; type?: string; content?: string }) {
@@ -56,6 +60,7 @@ export class WebinarController {
   }
 
   @Post()
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Schedule a webinar' })
   create(@Body() dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string }) {
@@ -63,6 +68,7 @@ export class WebinarController {
   }
 
   @Patch(':id/status')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Change webinar status (SCHEDULED | LIVE | FINISHED)' })
   status(@Param('id') id: string, @Body() dto: { status: string }) {
     return this.catalog.changeWebinarStatus(id, dto?.status);
@@ -76,6 +82,7 @@ export class WebinarController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete or cancel a scheduled webinar' })
   delete(@Param('id') id: string) {

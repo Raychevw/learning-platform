@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CourseEntity } from './infrastructure/database/entities/CourseEntity.js';
@@ -20,6 +21,8 @@ import { CourseController } from './presentation/controllers/CourseController.js
 import { CatalogService } from './catalog/catalog.service.js';
 import { CatalogController, WebinarController } from './catalog/catalog.controller.js';
 import { CatalogSeeder } from './catalog/catalog.seeder.js';
+import { HealthController } from './presentation/controllers/HealthController.js';
+import { AuthGuard } from './auth/auth.guard.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
@@ -41,7 +44,7 @@ if (usePostgres) {
         port: Number(configService.get<number>('DB_PORT', 5432)),
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('COURSE_DB_NAME', 'course_db'),
+        database: configService.get<string>('DB_NAME', 'course_db'),
         entities: ALL_ENTITIES,
         synchronize: true,
         retryAttempts: 2,
@@ -59,8 +62,9 @@ const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder] : [];
 
 @Module({
   imports: dynamicImports,
-  controllers: [CourseController, ...catalogControllers],
+  controllers: [HealthController, CourseController, ...catalogControllers],
   providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },
     {
       provide: COURSE_REPOSITORY_TOKEN,
       useClass: usePostgres ? CourseRepositoryImpl : InMemoryCourseRepository,

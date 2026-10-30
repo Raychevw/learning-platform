@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus, NotFoundExcep
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CreateAssignmentUseCase, GetAssignmentUseCase, ListAssignmentsUseCase } from '../../application/assignment/CreateAssignmentUseCase.js';
 import { CreateAssignmentDto, AssignmentResponseDto } from '../dtos/CreateAssignmentDto.js';
+import { Roles, UserRole } from '../../auth/auth.guard.js';
 
 @ApiTags('Assignments')
 @Controller('assignments')
@@ -13,6 +14,7 @@ export class AssignmentController {
   ) {}
 
   @Post()
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create an assignment',

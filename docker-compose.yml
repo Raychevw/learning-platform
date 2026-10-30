@@ -1,101 +1,295 @@
-version: '3.8'
+# ============================================================================
+# Studevo LMS — полный стек одной командой:
+#   docker compose up --build
+#
+# Сервисы:
+#   frontend          http://localhost:8080   (React build + nginx, /api -> gateway)
+#   api-gateway       http://localhost:3000   (единая точка входа, JWT-проверка)
+#   auth-service      http://localhost:3003   (SSO/логин, выпуск JWT)
+#   course-service    http://localhost:3001   (каталог, модули, уроки, вебинары)
+#   assignment-servicehttp://localhost:3002   (задания, сдачи, оценки, группы)
+#
+# Инфраструктура: PostgreSQL (3 изолированные БД), Redis (события), MinIO (S3).
+# Секреты берутся из .env; значения по умолчанию — только для локальной разработки.
+# ============================================================================
+
+name: studevo
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - studevo
+
+x-jwt-env: &jwt-env
+  JWT_SECRET: ${JWT_SECRET:-change_me_super_long_random_secret_at_least_32_chars}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
 
 services:
-  # Central PostgreSQL Database for University LMS Modular Monolith
-  postgres:
-    image: postgres:15-alpine
-    container_name: lms_postgres
+  # ---------------------------------------------------------------- databases
+  course-db:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: studevo_course_db
     environment:
-      POSTGRES_USER: lms_admin
-      POSTGRES_PASSWORD: lms_secure_password
-      POSTGRES_DB: lms_db
+      POSTGRES_USER: ${DB_USER:-lms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      POSTGRES_DB: ${COURSE_DB_NAME:-course_db}
     ports:
-      - "5432:5432"
+      - "${COURSE_DB_PORT:-5433}:5432"
     volumes:
-      - lms_postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+      - course_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lms_admin -d lms_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms} -d ${COURSE_DB_NAME:-course_db}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # Redis for Caching Course Pages, Chat Buffering & BullMQ Job Queues
-  redis:
-    image: redis:7-alpine
-    container_name: lms_redis
+  assignment-db:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: studevo_assignment_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-lms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      POSTGRES_DB: ${ASSIGNMENT_DB_NAME:-assignment_db}
     ports:
-      - "6379:6379"
+      - "${ASSIGNMENT_DB_PORT:-5434}:5432"
     volumes:
-      - lms_redis_data:/data
-    restart: unless-stopped
+      - assignment_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms} -d ${ASSIGNMENT_DB_NAME:-assignment_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-db:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: studevo_auth_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-lms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
+    ports:
+      - "${AUTH_DB_PORT:-5435}:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms} -d ${AUTH_DB_NAME:-auth_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------- infra
+  redis_broker:
+    <<: *service-defaults
+    image: redis:7-alpine
+    container_name: studevo_redis_broker
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # S3-compatible Object Storage (MinIO) for PDF lectures, materials and lab submissions
   minio:
+    <<: *service-defaults
     image: minio/minio:latest
-    container_name: lms_minio
+    container_name: studevo_minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minio_admin
-      MINIO_ROOT_PASSWORD: minio_secret_key
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minio_secret_key}
     ports:
-      - "9000:9000"   # S3 API endpoint
-      - "9001:9001"   # Web Console
+      - "9000:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - lms_minio_data:/data
-    restart: unless-stopped
+      - minio_data:/data
 
-  # Helper service to ensure S3 bucket 'lms-files' exists
   minio-init:
     image: minio/mc:latest
+    container_name: studevo_minio_init
     depends_on:
-      - minio
+      minio:
+        condition: service_started
+    networks:
+      - studevo
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 minio_admin minio_secret_key;
-      /usr/bin/mc mb --ignore-existing myminio/lms-files;
-      /usr/bin/mc anonymous set download myminio/lms-files;
+      until mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-minio_admin} ${S3_SECRET_KEY:-minio_secret_key}; do
+        echo 'waiting for minio...'; sleep 2;
+      done;
+      mc mb --ignore-existing local/${S3_BUCKET:-lms-files};
+      mc anonymous set download local/${S3_BUCKET:-lms-files};
       exit 0;
       "
+    restart: "no"
 
-  # NestJS Modular Monolith Backend (Port 3000)
-  backend:
+  # ---------------------------------------------------------------- microservices
+  auth-service:
+    <<: [*service-defaults]
     build:
-      context: ./backend
+      context: ./services/auth-service
       dockerfile: Dockerfile
-    container_name: lms_backend
+    container_name: studevo_auth_service
     environment:
-      PORT: 3000
-      NODE_ENV: development
-      DB_HOST: postgres
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3003
+      DB_HOST: auth-db
       DB_PORT: 5432
-      DB_USER: lms_admin
-      DB_PASSWORD: lms_secure_password
-      DB_NAME: lms_db
-      REDIS_HOST: redis
+      DB_USER: ${DB_USER:-lms}
+      DB_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      DB_NAME: ${AUTH_DB_NAME:-auth_db}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-123456}
+    ports:
+      - "${AUTH_SERVICE_PORT:-3003}:3003"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  course-service:
+    <<: [*service-defaults]
+    build:
+      context: ./services/course-service
+      dockerfile: Dockerfile
+    container_name: studevo_course_service
+    environment:
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: course-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-lms}
+      DB_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      DB_NAME: ${COURSE_DB_NAME:-course_db}
+      USE_POSTGRES: "true"
+      REDIS_HOST: redis_broker
       REDIS_PORT: 6379
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minio_admin
-      S3_SECRET_KEY: minio_secret_key
-      S3_BUCKET: lms-files
-      JWT_SECRET: super_secure_university_jwt_secret_key_2026
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minio_admin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minio_secret_key}
+      S3_BUCKET: ${S3_BUCKET:-lms-files}
+      S3_FORCE_PATH_STYLE: "true"
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
     ports:
-      - "3000:3000"
+      - "${COURSE_SERVICE_PORT:-3001}:3001"
     depends_on:
-      postgres:
+      course-db:
         condition: service_healthy
-      redis:
+      redis_broker:
         condition: service_healthy
       minio:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  assignment-service:
+    <<: [*service-defaults]
+    build:
+      context: ./services/assignment-service
+      dockerfile: Dockerfile
+    container_name: studevo_assignment_service
+    environment:
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3002
+      DB_HOST: assignment-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-lms}
+      DB_PASSWORD: ${DB_PASSWORD:-lms_secure_password}
+      DB_NAME: ${ASSIGNMENT_DB_NAME:-assignment_db}
+      USE_POSTGRES: "true"
+      REDIS_HOST: redis_broker
+      REDIS_PORT: 6379
+      COURSE_SERVICE_URL: http://course-service:3001
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      - "${ASSIGNMENT_SERVICE_PORT:-3002}:3002"
+    depends_on:
+      assignment-db:
+        condition: service_healthy
+      redis_broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ---------------------------------------------------------------- edge
+  api-gateway:
+    <<: [*service-defaults]
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: studevo_api_gateway
+    environment:
+      <<: *jwt-env
+      NODE_ENV: production
+      PORT: 3000
+      COURSE_SERVICE_URL: http://course-service:3001
+      ASSIGNMENT_SERVICE_URL: http://assignment-service:3002
+      AUTH_SERVICE_URL: http://auth-service:3003
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      course-service:
+        condition: service_healthy
+      assignment-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/frontend/Dockerfile
+    container_name: studevo_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - studevo
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  lms_postgres_data:
-  lms_redis_data:
-  lms_minio_data:
+  course_db_data:
+  assignment_db_data:
+  auth_db_data:
+  redis_data:
+  minio_data:
+
+networks:
+  studevo:
+    driver: bridge

@@ -1,8 +1,14 @@
-import { Controller, Get, Post, Delete, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Post, Delete, Param, Body, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CourseworkService } from './coursework.service.js';
+import { Roles, UserRole, AuthUser } from '../auth/auth.guard.js';
+
+interface AuthRequest {
+  user: AuthUser;
+}
 
 @ApiTags('Coursework (Assignments, Submissions, Grading, Groups)')
+@ApiBearerAuth()
 @Controller()
 export class CourseworkController {
   constructor(private readonly coursework: CourseworkService) {}
@@ -10,11 +16,12 @@ export class CourseworkController {
   // ---------------- Assignments
   @Get('assignments-full')
   @ApiOperation({ summary: 'List assignments with nested student submissions' })
-  listAssignments() {
-    return this.coursework.listAssignments();
+  listAssignments(@Req() req: AuthRequest) {
+    return this.coursework.listAssignments(req.user);
   }
 
   @Post('assignments-full')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an assignment with rubric criteria' })
   createAssignment(@Body() dto: any) {
@@ -23,14 +30,21 @@ export class CourseworkController {
 
   // ---------------- Submissions
   @Post('assignments/:id/submit')
+  @Roles(UserRole.STUDENT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Submit an assignment work by a student' })
-  submit(@Param('id') id: string, @Body() dto: any) {
-    return this.coursework.submitAssignment(id, dto);
+  submit(@Param('id') id: string, @Body() dto: any, @Req() req: AuthRequest) {
+    return this.coursework.submitAssignment(id, {
+      ...dto,
+      // Identity always comes from the verified token, never from the request body.
+      studentId: req.user.userId,
+      studentName: req.user.name || dto?.studentName,
+    });
   }
 
   // ---------------- Grading
   @Post('grading/grade')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Grade a submission using Strategy pattern' })
   grade(@Body() dto: any) {
@@ -38,9 +52,9 @@ export class CourseworkController {
   }
 
   @Get('grades')
-  @ApiOperation({ summary: 'List all gradebook entries' })
-  listGrades() {
-    return this.coursework.listGrades();
+  @ApiOperation({ summary: 'List gradebook entries (students see only their own)' })
+  listGrades(@Req() req: AuthRequest) {
+    return this.coursework.listGrades(req.user);
   }
 
   // ---------------- Academic Groups
@@ -51,6 +65,7 @@ export class CourseworkController {
   }
 
   @Post('groups')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create academic group' })
   createGroup(@Body() dto: any) {
@@ -58,6 +73,7 @@ export class CourseworkController {
   }
 
   @Post('groups/:id/toggle-course')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Toggle assigned course for group' })
   toggleCourse(@Param('id') id: string, @Body() dto: { courseId: string }) {
@@ -65,6 +81,7 @@ export class CourseworkController {
   }
 
   @Post('groups/:id/students')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add student to group' })
   addStudent(@Param('id') id: string, @Body() dto: { studentName: string }) {
@@ -72,6 +89,7 @@ export class CourseworkController {
   }
 
   @Delete('groups/:id/students/:name')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove student from group' })
   removeStudent(@Param('id') id: string, @Param('name') name: string) {

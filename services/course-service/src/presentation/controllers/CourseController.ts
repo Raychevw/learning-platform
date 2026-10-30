@@ -4,6 +4,7 @@ import { CreateCourseUseCase } from '../../application/course/CreateCourseUseCas
 import { PublishCourseUseCase } from '../../application/course/PublishCourseUseCase.js';
 import { GetCourseUseCase, ListCoursesUseCase } from '../../application/course/GetCourseUseCase.js';
 import { CreateCourseDto, CourseResponseDto } from '../dtos/CreateCourseDto.js';
+import { Roles, UserRole } from '../../auth/auth.guard.js';
 
 @ApiTags('Courses')
 @Controller('courses')
@@ -16,6 +17,7 @@ export class CourseController {
   ) {}
 
   @Post()
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new course', description: 'Creates a draft course in Course Bounded Context' })
   @ApiBody({ type: CreateCourseDto })
@@ -42,6 +44,7 @@ export class CourseController {
   }
 
   @Post(':id/publish')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
     summary: 'Publish course (Idempotent)', 

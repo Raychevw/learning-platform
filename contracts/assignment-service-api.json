@@ -1,6 +1,21 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness/readiness probe for the Assignment Service",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/students": {
       "post": {
         "description": "Registers a new student profile in Student Bounded Context",
@@ -176,6 +191,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "List assignments with nested student submissions",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -189,6 +209,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Create an assignment with rubric criteria",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -213,6 +238,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Submit an assignment work by a student",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -228,6 +258,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Grade a submission using Strategy pattern",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -243,7 +278,12 @@
             "description": ""
           }
         },
-        "summary": "List all gradebook entries",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List gradebook entries (students see only their own)",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
@@ -258,6 +298,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "List academic groups",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -271,6 +316,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Create academic group",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -295,6 +345,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Toggle assigned course for group",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -319,6 +374,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Add student to group",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
@@ -351,6 +411,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "summary": "Remove student from group",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"

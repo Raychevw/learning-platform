@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { StudentEntity } from './infrastructure/database/entities/StudentEntity.js';
@@ -26,6 +27,8 @@ import { GradeAssignmentUseCase } from './application/assignment/GradeAssignment
 import { CourseworkService } from './coursework/coursework.service.js';
 import { CourseworkController } from './coursework/coursework.controller.js';
 import { CourseworkSeeder } from './coursework/coursework.seeder.js';
+import { HealthController } from './presentation/controllers/HealthController.js';
+import { AuthGuard } from './auth/auth.guard.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
@@ -47,7 +50,7 @@ if (usePostgres) {
         port: Number(configService.get<number>('DB_PORT', 5432)),
         username: configService.get<string>('DB_USER', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('ASSIGNMENT_DB_NAME', 'assignment_db'),
+        database: configService.get<string>('DB_NAME', 'assignment_db'),
         entities: ALL_ENTITIES,
         synchronize: true,
         retryAttempts: 2,
@@ -64,8 +67,9 @@ const courseworkProviders = usePostgres ? [CourseworkService, CourseworkSeeder] 
 
 @Module({
   imports: dynamicImports,
-  controllers: [StudentController, AssignmentController, ...courseworkControllers],
+  controllers: [HealthController, StudentController, AssignmentController, ...courseworkControllers],
   providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },
     {
       provide: STUDENT_REPOSITORY_TOKEN,
       useClass: usePostgres ? StudentRepositoryImpl : InMemoryStudentRepository,

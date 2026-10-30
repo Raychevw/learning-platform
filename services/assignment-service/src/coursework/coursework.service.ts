@@ -13,6 +13,12 @@ import { GradeAssignmentUseCase } from '../application/assignment/GradeAssignmen
 export const newId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+/** Minimal viewer descriptor used for row-level access filtering. */
+export interface Viewer {
+  userId: string;
+  role: string;
+}
+
 @Injectable()
 export class CourseworkService {
   constructor(
@@ -25,7 +31,7 @@ export class CourseworkService {
   ) {}
 
   // ---------------------------------------------------------------- assignments
-  async listAssignments() {
+  async listAssignments(viewer?: Viewer) {
     const list = await this.assignments.find({ order: { createdAt: 'ASC' } });
     if (list.length === 0) return [];
 
@@ -34,8 +40,11 @@ export class CourseworkService {
       order: { submittedAt: 'DESC' },
     });
 
+    // Students receive only their own submissions (no access to classmates' work).
+    const visibleSubs = viewer?.role === 'STUDENT' ? subs.filter((s) => s.studentId === viewer.userId) : subs;
+
     return list.map((a) => {
-      const aSubs = subs.filter((s) => s.assignmentId === a.id);
+      const aSubs = visibleSubs.filter((s) => s.assignmentId === a.id);
       return {
         id: a.id,
         courseId: a.courseId,
@@ -207,8 +216,11 @@ export class CourseworkService {
   }
 
   // ---------------------------------------------------------------- grades
-  async listGrades() {
-    const list = await this.grades.find({ order: { gradedAt: 'DESC' } });
+  async listGrades(viewer?: Viewer) {
+    const list = await this.grades.find({
+      where: viewer?.role === 'STUDENT' ? { studentId: viewer.userId } : {},
+      order: { gradedAt: 'DESC' },
+    });
     return list.map((g) => {
       let ruleDesc = 'Стандартний розрахунок';
       if (g.rule === 'LATE_PENALTY') ruleDesc = 'Зниження на 20% (пізня здача)';

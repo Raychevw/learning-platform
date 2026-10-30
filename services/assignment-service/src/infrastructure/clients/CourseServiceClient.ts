@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import jwt from 'jsonwebtoken';
 
 export const COURSE_SERVICE_CLIENT_TOKEN = Symbol('COURSE_SERVICE_CLIENT_TOKEN');
 
@@ -29,12 +30,31 @@ export class CourseServiceClient implements ICourseServiceClient {
     );
   }
 
+  /** Short-lived service-to-service token (course-service verifies the signature). */
+  private signInternalToken(): string {
+    const secret = this.configService.get<string>(
+      'JWT_SECRET',
+      'change_me_super_long_random_secret_at_least_32_chars',
+    );
+    return jwt.sign(
+      {
+        sub: 'system:assignment-service',
+        email: 'internal@studevo.local',
+        role: 'ADMIN',
+        name: 'Assignment Service',
+      },
+      secret,
+      { expiresIn: '2m' },
+    );
+  }
+
   async getCourse(courseId: string): Promise<CourseClientDto> {
     const url = `${this.courseServiceUrl}/courses/${courseId}`;
     this.logger.log(`[SYNC CALL] Requesting course details from: ${url} (Timeout: ${this.timeoutMs}ms)`);
 
     try {
       const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${this.signInternalToken()}` },
         signal: AbortSignal.timeout(this.timeoutMs),
       });
 
