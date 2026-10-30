@@ -695,6 +695,39 @@ body {
   box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.18);
 }
 
+.assignment-hint {
+  background: #f9fafb;
+  border: 1px solid var(--clean-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assignment-hint-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--clean-text);
+}
+
+.format-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.format-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #3538cd;
+}
+
 .message-row {
   padding: 12px 14px;
   border: 1px solid var(--clean-border);

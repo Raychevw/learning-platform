@@ -21,7 +21,6 @@ import {
   WebinarChatMessage,
   ScheduleEntryEntity,
   WebinarAttendanceEntity,
-  SemesterEntity,
 } from '../infrastructure/database/entities/CatalogEntities.js';
 import { WebinarEventsService } from './webinar-events.service.js';
 
@@ -76,7 +75,6 @@ export class CatalogService {
     @InjectRepository(ScheduleEntryEntity) private readonly schedule: Repository<ScheduleEntryEntity>,
     @InjectRepository(WebinarAttendanceEntity)
     private readonly attendance: Repository<WebinarAttendanceEntity>,
-    @InjectRepository(SemesterEntity) private readonly semesters: Repository<SemesterEntity>,
     private readonly dataSource: DataSource,
     private readonly events: WebinarEventsService,
     @Inject(STORAGE_SERVICE_TOKEN) private readonly storage: IStorageService,
@@ -498,67 +496,6 @@ export class CatalogService {
     await assertCourseOwner(this.courses, entry.courseId, user);
     await this.schedule.remove(entry);
     return { ok: true, id };
-  }
-
-  // ----------------------------------------------------------------- semesters
-  async listSemesters() {
-    return this.semesters.find({ order: { startDate: 'DESC' } });
-  }
-
-  async createSemester(dto: {
-    name: string;
-    number: number;
-    startDate: string;
-    endDate: string;
-    isActive?: boolean;
-  }) {
-    if (!dto.name?.trim()) throw new BadRequestException('Вкажіть назву семестру');
-    const start = new Date(dto.startDate);
-    const end = new Date(dto.endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      throw new BadRequestException('Некоректні дати семестру');
-    }
-    if (end.getTime() <= start.getTime()) {
-      throw new BadRequestException('Дата завершення має бути пізніше за початок');
-    }
-    const number = Number(dto.number);
-    if (!Number.isInteger(number) || number < 1 || number > 12) {
-      throw new BadRequestException('Номер семестру має бути від 1 до 12');
-    }
-
-    if (dto.isActive) {
-      await this.semesters
-        .createQueryBuilder()
-        .update(SemesterEntity)
-        .set({ isActive: false })
-        .execute();
-    }
-
-    return this.semesters.save(
-      this.semesters.create({
-        id: newId('sem'),
-        name: dto.name.trim(),
-        number,
-        startDate: start,
-        endDate: end,
-        isActive: Boolean(dto.isActive),
-      }),
-    );
-  }
-
-  async activateSemester(id: string) {
-    const semester = await this.semesters.findOneBy({ id });
-    if (!semester) throw new NotFoundException('Семестр не знайдено');
-
-    await this.dataSource.transaction(async (em) => {
-      await em
-        .createQueryBuilder()
-        .update(SemesterEntity)
-        .set({ isActive: false })
-        .execute();
-      await em.update(SemesterEntity, { id }, { isActive: true });
-    });
-    return { id, isActive: true };
   }
 
   // ----------------------------------------------------------------- attendance

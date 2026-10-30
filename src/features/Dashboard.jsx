@@ -53,7 +53,6 @@ export default function Dashboard({
   allEnrollments = [],
   analytics = null,
   announcements = [],
-  activeSemester = null,
   myGroup = null,
   semester = 1,
   ungradedSubmissions,
@@ -149,63 +148,6 @@ export default function Dashboard({
         },
       ];
 
-  const courseByTitle = new Map(courses.map((course) => [course.title, course]));
-
-  const teacherMap = new Map();
-  const ensureTeacher = (name) => {
-    const key = name || 'Не вказано';
-    if (!teacherMap.has(key)) {
-      teacherMap.set(key, { name: key, courses: new Set(), grades: 0, total: 0, debts: 0, pending: 0 });
-    }
-    return teacherMap.get(key);
-  };
-
-  for (const grade of grades) {
-    const course = courseByTitle.get(grade.courseTitle);
-    const entry = ensureTeacher(course?.instructor);
-    if (course) entry.courses.add(course.id);
-    entry.grades += 1;
-    entry.total += Number(grade.finalScore) || 0;
-    if (Number(grade.finalScore) < 60) entry.debts += 1;
-  }
-  for (const submission of ungradedSubmissions) {
-    const course = courseByTitle.get(submission.courseTitle);
-    ensureTeacher(course?.instructor).pending += 1;
-  }
-  const teacherStats = Array.from(teacherMap.values())
-    .map((entry) => ({
-      ...entry,
-      coursesCount: entry.courses.size,
-      avgScore: entry.grades ? Math.round((entry.total / entry.grades) * 10) / 10 : null,
-    }))
-    .sort((a, b) => b.grades - a.grades);
-
-  const semesterMap = new Map();
-  const ensureSemester = (number) => {
-    const key = number || '—';
-    if (!semesterMap.has(key)) {
-      semesterMap.set(key, { semester: key, grades: 0, total: 0, debts: 0, pending: 0 });
-    }
-    return semesterMap.get(key);
-  };
-  for (const grade of grades) {
-    const course = courseByTitle.get(grade.courseTitle);
-    const entry = ensureSemester(course?.semester);
-    entry.grades += 1;
-    entry.total += Number(grade.finalScore) || 0;
-    if (Number(grade.finalScore) < 60) entry.debts += 1;
-  }
-  for (const submission of ungradedSubmissions) {
-    const course = courseByTitle.get(submission.courseTitle);
-    ensureSemester(course?.semester).pending += 1;
-  }
-  const semesterStats = Array.from(semesterMap.values())
-    .map((entry) => ({
-      ...entry,
-      avgScore: entry.grades ? Math.round((entry.total / entry.grades) * 10) / 10 : null,
-    }))
-    .sort((a, b) => Number(b.semester) - Number(a.semester));
-
   const exportAnalytics = () => {
     if (!analytics) return;
     const rows = [
@@ -224,23 +166,6 @@ export default function Dashboard({
         student.avgScore ?? '',
         student.debts,
         student.missing,
-      ]),
-      [],
-      ['Викладач', 'Курсів', 'Середній бал', 'Борги', 'Не перевірено'],
-      ...teacherStats.map((teacher) => [
-        teacher.name,
-        teacher.coursesCount,
-        teacher.avgScore ?? '',
-        teacher.debts,
-        teacher.pending,
-      ]),
-      [],
-      ['Семестр', 'Середній бал', 'Борги', 'Не перевірено'],
-      ...semesterStats.map((semesterItem) => [
-        semesterItem.semester,
-        semesterItem.avgScore ?? '',
-        semesterItem.debts,
-        semesterItem.pending,
       ]),
     ];
     const csv =
@@ -270,7 +195,7 @@ export default function Dashboard({
                   myGroup.faculty,
                   myGroup.specialty,
                   `група ${myGroup.name}`,
-                  activeSemester?.name || `${semester} семестр`,
+                  `${semester} семестр`,
                 ]
                   .filter(Boolean)
                   .join(' • ')}`
@@ -674,72 +599,6 @@ export default function Dashboard({
             </section>
           )}
         </div>
-
-        {isAdmin && (
-          <div className="dash-grid">
-            <section className="dash-section">
-              <div className="dash-section-head">
-                <h2>Успішність викладачів</h2>
-              </div>
-              {teacherStats.length === 0 ? (
-                <p className="dash-empty">Даних ще немає.</p>
-              ) : (
-                <table className="studevo-table">
-                  <thead>
-                    <tr>
-                      <th>Викладач</th>
-                      <th>Курсів</th>
-                      <th>Сер.</th>
-                      <th>Борги</th>
-                      <th>Не перевірено</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teacherStats.map((teacher) => (
-                      <tr key={teacher.name}>
-                        <td>{teacher.name}</td>
-                        <td>{teacher.coursesCount}</td>
-                        <td>{teacher.avgScore ?? '—'}</td>
-                        <td>{teacher.debts}</td>
-                        <td>{teacher.pending}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-
-            <section className="dash-section">
-              <div className="dash-section-head">
-                <h2>Успішність за семестрами</h2>
-              </div>
-              {semesterStats.length === 0 ? (
-                <p className="dash-empty">Даних ще немає.</p>
-              ) : (
-                <table className="studevo-table">
-                  <thead>
-                    <tr>
-                      <th>Семестр</th>
-                      <th>Сер. бал</th>
-                      <th>Борги</th>
-                      <th>Не перевірено</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {semesterStats.map((semesterItem) => (
-                      <tr key={semesterItem.semester}>
-                        <td>{semesterItem.semester}</td>
-                        <td>{semesterItem.avgScore ?? '—'}</td>
-                        <td>{semesterItem.debts}</td>
-                        <td>{semesterItem.pending}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          </div>
-        )}
       </div>
     </div>
   );

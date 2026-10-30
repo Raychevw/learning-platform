@@ -739,58 +739,6 @@
           "Schedule"
         ]
       }
-    },
-    "/semesters": {
-      "get": {
-        "operationId": "SemesterController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "List academic semesters",
-        "tags": [
-          "Semesters"
-        ]
-      },
-      "post": {
-        "operationId": "SemesterController_create",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Create a semester (dean only)",
-        "tags": [
-          "Semesters"
-        ]
-      }
-    },
-    "/semesters/{id}/activate": {
-      "patch": {
-        "operationId": "SemesterController_activate",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Make a semester the active one (dean only)",
-        "tags": [
-          "Semesters"
-        ]
-      }
     }
   },
   "info": {

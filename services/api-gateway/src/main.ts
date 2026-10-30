@@ -354,7 +354,7 @@ mountProxy('/api/audit', AUDIT_SERVICE_URL, '/api/audit', '/audit');
 mountProxy('/api/messages', COMMUNICATION_SERVICE_URL, '/api/messages', '/messages');
 mountProxy('/api/announcements', COMMUNICATION_SERVICE_URL, '/api/announcements', '/announcements');
 mountProxy('/api/config', COURSE_SERVICE_URL, '/api/config', '/config');
-mountProxy('/api/semesters', COURSE_SERVICE_URL, '/api/semesters', '/semesters');
+
 
 // ----------------------------------------------------------------- fallbacks
 app.use('/api', (req: Request, res: Response) => {

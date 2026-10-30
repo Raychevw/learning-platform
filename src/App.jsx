@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import './styles/clean.css';
 import { api, getToken, requestBlob } from './api/client.js';
@@ -7,7 +7,6 @@ import WebinarsPage from './features/WebinarsPage.jsx';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
 import {
-  LECTURE_SLIDES,
   INITIAL_COURSES,
   INITIAL_ASSIGNMENTS,
   INITIAL_GRADES,
@@ -80,14 +79,6 @@ export default function App() {
   const [schedule, setSchedule] = useState([]);
   const [allEnrollments, setAllEnrollments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
-  const [semesters, setSemesters] = useState([]);
-  const [newSemesterForm, setNewSemesterForm] = useState({
-    name: '',
-    number: 1,
-    startDate: '',
-    endDate: '',
-    isActive: false,
-  });
   const [directory, setDirectory] = useState([]);
   const [inboxMessages, setInboxMessages] = useState([]);
   const [sentMessages, setSentMessages] = useState([]);
@@ -134,7 +125,6 @@ export default function App() {
         inboxRes,
         sentRes,
         unreadRes,
-        semestersRes,
       ] = await Promise.allSettled([
           api.get(`/api/catalog?userId=${userId}`),
           api.get('/api/assignments-full'),
@@ -150,7 +140,6 @@ export default function App() {
           api.get('/api/messages/inbox'),
           api.get('/api/messages/sent'),
           api.get('/api/messages/unread'),
-          api.get('/api/semesters'),
         ]);
       if (isCancelled) return;
 
@@ -173,7 +162,6 @@ export default function App() {
       if (unreadRes.status === 'fulfilled' && unreadRes.value) {
         setUnreadMessages(Number(unreadRes.value.unread) || 0);
       }
-      apply(semestersRes, setSemesters);
     };
 
     load();
@@ -181,9 +169,6 @@ export default function App() {
       isCancelled = true;
     };
   }, [currentUser]);
-
-  // Присутність у кімнаті вебінару (онлайн/офлайн) приходить по SSE.
-  const [presenceMap, setPresenceMap] = useState({});
 
   // Real-time webinar events across devices (SSE through the API Gateway).
   // BroadcastChannel ниже остаётся как fallback для вкладок одного браузера.
@@ -195,19 +180,6 @@ export default function App() {
 
     const applyEvent = (event) => {
       if (!event || event.type === 'ping') return;
-
-      if (event.type === 'signal') {
-        rtcSignalRef.current?.(event);
-        return;
-      }
-
-      if (event.type === 'presence' && event.webinarId) {
-        setPresenceMap((prev) => ({
-          ...prev,
-          [event.webinarId]: Array.isArray(event.presence) ? event.presence : [],
-        }));
-        return;
-      }
 
       if (event.type === 'chat' && event.webinarId && event.message) {
         setWebinars((prev) =>
@@ -513,176 +485,12 @@ export default function App() {
   });
   const [gradingResult, setGradingResult] = useState(null);
 
-  // Webinars & Zoom Room State
-  const [activeWebinarId, setActiveWebinarId] = useState('web-1');
-  const [chatInput, setChatInput] = useState('');
   const [newWebinarForm, setNewWebinarForm] = useState({
     courseId: 'c-1',
     title: '',
     scheduledAt: getDefaultWebinarDate(),
     meetingUrl: '',
   });
-  const [streamSource, setStreamSource] = useState('slides'); // 'slides' | 'camera' | 'screen'
-  const [activeSlideIdx, setActiveSlideIdx] = useState(0);
-  const [isMicMuted, setIsMicMuted] = useState(false);
-  const [isHandRaised, setIsHandRaised] = useState(false);
-  const [streamSeconds, setStreamSeconds] = useState(845); // 14:05 initial live timer
-  const [zoomViewMode, setZoomViewMode] = useState('speaker'); // 'speaker' | 'gallery'
-  const [zoomSideTab, setZoomSideTab] = useState('chat'); // 'chat' | 'participants' | 'none'
-  const videoStreamRef = useRef(null);
-
-  // WebRTC broadcast: teacher -> enrolled students (real participants only)
-  const [courseEnrollments, setCourseEnrollments] = useState([]);
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [remoteMediaKind, setRemoteMediaKind] = useState(null);
-  const [rtcStatus, setRtcStatus] = useState('idle'); // idle | connecting | live
-  const [remoteHands, setRemoteHands] = useState({});
-  const [iceServers, setIceServers] = useState([{ urls: 'stun:stun.l.google.com:19302' }]);
-  const [attendance, setAttendance] = useState([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const recorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
-  const remoteVideoRef = useRef(null);
-  const peersRef = useRef(new Map());
-  const pendingIceRef = useRef(new Map());
-  const rtcSignalRef = useRef(null);
-
-  const mediaStreamObjRef = useRef(null);
-
-  const activeWebinar = useMemo(
-    () => webinars.find((w) => w.id === activeWebinarId) || webinars[0] || null,
-    [webinars, activeWebinarId]
-  );
-
-  const zoomAttendees = useMemo(() => {
-    const list = [];
-    if (!activeWebinar) return list;
-
-    const isTeacher = userRole === 'teacher';
-    const presence = presenceMap[activeWebinar.id] || [];
-    const isOnline = (userId) => presence.some((entry) => entry.userId === userId);
-
-    // 1. Преподаватель: текущий пользователь, если он ведёт занятие; иначе — из вебинара.
-    if (isTeacher && currentUser) {
-      list.push({
-        id: currentUser.id,
-        name: `${currentUser.name} (Ви)`,
-        role: 'teacher',
-        isHost: true,
-        isMe: true,
-        online: true,
-        isSpeaking: activeWebinar.status === 'LIVE',
-        mic: !isMicMuted,
-        camera: streamSource === 'camera',
-        hand: false,
-      });
-    } else {
-      list.push({
-        id: `instructor:${activeWebinar.id}`,
-        name: activeWebinar.instructor || 'Викладач',
-        role: 'teacher',
-        isHost: true,
-        isMe: false,
-        online: presence.some((entry) => entry.role === 'teacher'),
-        isSpeaking: activeWebinar.status === 'LIVE',
-        mic: true,
-        camera: false,
-        hand: false,
-      });
-    }
-
-    // 2. Текущий студент/админ.
-    if (!isTeacher && currentUser) {
-      list.push({
-        id: currentUser.id,
-        name: `${currentUser.name} (Ви)`,
-        role: userRole,
-        isHost: false,
-        isMe: true,
-        online: true,
-        isSpeaking: false,
-        mic: !isMicMuted,
-        camera: false,
-        hand: isHandRaised,
-      });
-    }
-
-    // 3. Только реальные зачисления на курс (user ↔ group).
-    const seen = new Set(list.map((a) => a.id));
-    courseEnrollments.forEach((enrollment) => {
-      if (!enrollment?.userId || seen.has(enrollment.userId)) return;
-      if (enrollment.userId === currentUser?.id) return;
-      seen.add(enrollment.userId);
-      list.push({
-        id: enrollment.userId,
-        name: enrollment.studentName || enrollment.userId,
-        group: enrollment.groupName || '',
-        role: 'student',
-        isHost: false,
-        isMe: false,
-        online: isOnline(enrollment.userId),
-        isSpeaking: false,
-        mic: false,
-        camera: false,
-        hand: Boolean(remoteHands[enrollment.userId]),
-      });
-    });
-
-    return list;
-  }, [
-    activeWebinar,
-    userRole,
-    currentUser,
-    isMicMuted,
-    streamSource,
-    isHandRaised,
-    courseEnrollments,
-    remoteHands,
-    presenceMap,
-  ]);
-
-  const onlineAttendeesCount = zoomAttendees.filter((attendee) => attendee.online).length;
-
-  // ICE-сервери (STUN/TURN) з конфігурації сервера.
-  useEffect(() => {
-    if (!currentUser) return undefined;
-    let cancelled = false;
-    api
-      .get('/api/config/ice')
-      .then((config) => {
-        if (!cancelled && Array.isArray(config?.iceServers) && config.iceServers.length > 0) {
-          setIceServers(config.iceServers);
-        }
-      })
-      .catch(() => {
-        /* залишаємо STUN за замовчуванням */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser]);
-
-  // Відвідуваність конференції для викладача/декана.
-  useEffect(() => {
-    if (!currentUser || !activeWebinar?.id || (userRole !== 'teacher' && userRole !== 'admin')) {
-      return undefined;
-    }
-    let cancelled = false;
-    const load = () => {
-      api
-        .get(`/api/webinars/${activeWebinar.id}/attendance`)
-        .then((list) => {
-          if (!cancelled && Array.isArray(list)) setAttendance(list);
-        })
-        .catch(() => undefined);
-    };
-    load();
-    const timer = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [currentUser, activeWebinar?.id, userRole]);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedCourseId) || null,
@@ -1308,479 +1116,6 @@ export default function App() {
   };
 
   // ========================================================
-  // 4. WEBINARS, LIVE BROADCAST (WebRTC) & LIVE CHAT
-  // ========================================================
-  const stopRecordingIfActive = () => {
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      try {
-        recorderRef.current.stop();
-      } catch {
-        /* уже зупинено */
-      }
-    }
-  };
-
-  const stopHardwareStream = () => {
-    stopRecordingIfActive();
-    if (mediaStreamObjRef.current) {
-      mediaStreamObjRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamObjRef.current = null;
-    }
-    if (videoStreamRef.current) {
-      videoStreamRef.current.srcObject = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopHardwareStream();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (activeWebinar?.status !== 'LIVE') return;
-    const interval = setInterval(() => {
-      setStreamSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [activeWebinar?.status]);
-
-  // Реальный ростер курса: только зачисленные пользователи.
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentUser || !activeWebinar?.courseId) return undefined;
-
-    api
-      .get(`/api/enrollments?courseId=${encodeURIComponent(activeWebinar.courseId)}`)
-      .then((list) => {
-        if (!cancelled) setCourseEnrollments(Array.isArray(list) ? list : []);
-      })
-      .catch(() => {
-        if (!cancelled) setCourseEnrollments([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser, activeWebinar?.courseId]);
-
-  // ---------------- WebRTC (teacher broadcast -> enrolled students)
-  const sendSignal = (to, signalType, payload) => {
-    if (!activeWebinar) return Promise.resolve(null);
-    return api
-      .post(`/api/webinars/${activeWebinar.id}/signal`, { to: to || null, signalType, payload })
-      .catch(() => null);
-  };
-
-  const closePeer = (peerId) => {
-    const pc = peersRef.current.get(peerId);
-    if (pc) {
-      try {
-        pc.close();
-      } catch {
-        /* уже закрыт */
-      }
-      peersRef.current.delete(peerId);
-    }
-    pendingIceRef.current.delete(peerId);
-  };
-
-  const closeAllPeers = () => {
-    for (const peerId of Array.from(peersRef.current.keys())) closePeer(peerId);
-  };
-
-  const createPeer = (peerId, isOfferer, stream) => {
-    closePeer(peerId);
-    const pc = new RTCPeerConnection({ iceServers });
-    peersRef.current.set(peerId, pc);
-
-    if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) void sendSignal(peerId, 'ice', event.candidate.toJSON());
-    };
-
-    pc.ontrack = (event) => {
-      const [incoming] = event.streams;
-      if (incoming) {
-        setRemoteStream(incoming);
-        setRtcStatus('live');
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-        closePeer(peerId);
-      }
-    };
-
-    if (isOfferer) {
-      void (async () => {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendSignal(peerId, 'offer', { sdp: pc.localDescription });
-      })();
-    }
-    return pc;
-  };
-
-  const startBroadcast = async (stream, kind) => {
-    // Студенты получают media-start и сами присылают join — так подключаются и опоздавшие.
-    await sendSignal(null, 'media-start', { kind });
-  };
-
-  const stopBroadcast = async () => {
-    closeAllPeers();
-    await sendSignal(null, 'media-stop', {});
-  };
-
-  const handleToggleRecording = () => {
-    if (userRole !== 'teacher' || !activeWebinar) return;
-
-    if (isRecording) {
-      stopRecordingIfActive();
-      return;
-    }
-
-    const stream = mediaStreamObjRef.current;
-    if (!stream) {
-      showNotification('Спочатку увімкніть камеру або демонстрацію екрана.', true);
-      return;
-    }
-
-    try {
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : 'video/webm';
-      const recorder = new MediaRecorder(stream, { mimeType });
-      recordedChunksRef.current = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
-      };
-
-      recorder.onstop = async () => {
-        setIsRecording(false);
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        recordedChunksRef.current = [];
-        if (blob.size === 0) return;
-
-        const file = new File([blob], `lecture-${Date.now()}.webm`, { type: 'video/webm' });
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await syncBackend(`/webinars/${activeWebinar.id}/recording`, 'POST', formData);
-        if (res) {
-          setWebinars((prev) =>
-            prev.map((webinar) =>
-              webinar.id === activeWebinar.id
-                ? { ...webinar, recordingAvailable: true, recordingUrl: res.recordingUrl }
-                : webinar
-            )
-          );
-          showNotification('Запис лекції збережено.');
-        }
-      };
-
-      recorder.start(2000);
-      recorderRef.current = recorder;
-      setIsRecording(true);
-      showNotification('Запис лекції розпочато.');
-    } catch {
-      showNotification('Не вдалося запустити запис лекції.', true);
-    }
-  };
-
-  const handleDownloadRecording = async () => {
-    if (!activeWebinar?.recordingAvailable) return;
-    try {
-      const blob = await requestBlob(`/api/webinars/${activeWebinar.id}/recording`);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `lecture-${activeWebinar.id}.webm`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      showNotification(err.message || 'Не вдалося завантажити запис.', true);
-    }
-  };
-
-  const handleRtcSignal = (event) => {
-    if (!activeWebinar || event.webinarId !== activeWebinar.id) return;
-    if (event.from === currentUser?.id) return;
-
-    const isTeacher = userRole === 'teacher';
-    const myId = currentUser?.id;
-
-    if (isTeacher) {
-      if (event.signalType === 'join' && mediaStreamObjRef.current) {
-        createPeer(event.from, true, mediaStreamObjRef.current);
-        return;
-      }
-      if (event.signalType === 'answer' && event.to === myId) {
-        const pc = peersRef.current.get(event.from);
-        if (pc) {
-          pc.setRemoteDescription(new RTCSessionDescription(event.payload.sdp)).catch(() => undefined);
-        }
-        return;
-      }
-      if (event.signalType === 'ice' && event.to === myId) {
-        const pc = peersRef.current.get(event.from);
-        if (pc) pc.addIceCandidate(new RTCIceCandidate(event.payload)).catch(() => undefined);
-        return;
-      }
-      if (event.signalType === 'hand') {
-        setRemoteHands((prev) => ({ ...prev, [event.from]: Boolean(event.payload?.raised) }));
-      }
-      return;
-    }
-
-    // Студент принимает поток преподавателя.
-    if (event.to && event.to !== myId) return;
-
-    if (event.signalType === 'media-start') {
-      setRemoteMediaKind(event.payload?.kind || 'camera');
-      setRtcStatus('connecting');
-      void sendSignal(null, 'join', {});
-      return;
-    }
-
-    if (event.signalType === 'media-stop') {
-      closeAllPeers();
-      setRemoteStream(null);
-      setRemoteMediaKind(null);
-      setRtcStatus('idle');
-      return;
-    }
-
-    if (event.signalType === 'offer') {
-      const pc = createPeer(event.from, false, null);
-      pc.setRemoteDescription(new RTCSessionDescription(event.payload.sdp))
-        .then(async () => {
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await sendSignal(event.from, 'answer', { sdp: pc.localDescription });
-          const queued = pendingIceRef.current.get(event.from) || [];
-          queued.forEach((candidate) => {
-            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => undefined);
-          });
-          pendingIceRef.current.delete(event.from);
-          setRtcStatus('connecting');
-        })
-        .catch(() => undefined);
-      return;
-    }
-
-    if (event.signalType === 'ice') {
-      const pc = peersRef.current.get(event.from);
-      if (pc?.remoteDescription) {
-        pc.addIceCandidate(new RTCIceCandidate(event.payload)).catch(() => undefined);
-      } else {
-        const queued = pendingIceRef.current.get(event.from) || [];
-        queued.push(event.payload);
-        pendingIceRef.current.set(event.from, queued);
-      }
-      return;
-    }
-
-    if (event.signalType === 'hand') {
-      setRemoteHands((prev) => ({ ...prev, [event.from]: Boolean(event.payload?.raised) }));
-    }
-  };
-
-  useEffect(() => {
-    // Ссылка нужна, чтобы SSE-поток не переподключался на каждый рендер.
-    // eslint-disable-next-line react-hooks/immutability
-    rtcSignalRef.current = handleRtcSignal;
-  }, [handleRtcSignal]);
-
-  // Presence: входимо в кімнату, підтримуємо heartbeat і виходимо при зміні вебінару.
-  const activeWebinarIdForJoin = activeWebinar?.id;
-  useEffect(() => {
-    if (!currentUser || !activeWebinarIdForJoin) return undefined;
-
-    const signal = (signalType) =>
-      api
-        .post(`/api/webinars/${activeWebinarIdForJoin}/signal`, {
-          to: null,
-          signalType,
-          payload: {},
-        })
-        .catch(() => null);
-
-    const timer = setTimeout(() => {
-      void signal('join');
-    }, 400);
-    const heartbeat = setInterval(() => {
-      void signal('join');
-    }, 45000);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(heartbeat);
-      void signal('leave');
-    };
-  }, [currentUser, activeWebinarIdForJoin, userRole]);
-
-  // Отключаем peer-соединения при смене вебинара/выходе.
-  useEffect(() => {
-    const peers = peersRef.current;
-    const pendingIce = pendingIceRef.current;
-    return () => {
-      for (const pc of peers.values()) {
-        try {
-          pc.close();
-        } catch {
-          /* ignore */
-        }
-      }
-      peers.clear();
-      pendingIce.clear();
-    };
-  }, [activeWebinar?.id]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
-  useEffect(() => {
-    if (videoStreamRef.current && mediaStreamObjRef.current && (streamSource === 'camera' || streamSource === 'screen')) {
-      videoStreamRef.current.srcObject = mediaStreamObjRef.current;
-    }
-  }, [streamSource, activeWebinarId]);
-
-  const formatStreamTimer = (totalSec) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
-
-  const handleToggleCameraStream = async () => {
-    if (userRole !== 'teacher') {
-      showNotification('Керувати трансляцією з камери може лише викладач.', true);
-      return;
-    }
-
-    // If camera is currently active, turn it off and return to slides
-    if (streamSource === 'camera') {
-      await stopBroadcast();
-      stopHardwareStream();
-      setStreamSource('slides');
-      showNotification('Камеру вимкнено. Перемкнено на слайди лекції.');
-      return;
-    }
-
-    try {
-      stopHardwareStream();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true,
-      });
-      // apply current mic state
-      stream.getAudioTracks().forEach((t) => {
-        t.enabled = !isMicMuted;
-      });
-      mediaStreamObjRef.current = stream;
-      setStreamSource('camera');
-      if (activeWebinar && activeWebinar.status !== 'LIVE') {
-        handleChangeWebinarStatus(activeWebinar.id, 'LIVE');
-      }
-      if (videoStreamRef.current) {
-        videoStreamRef.current.srcObject = stream;
-      }
-      await startBroadcast(stream, 'camera');
-      showNotification('Камеру увімкнено. Потік доступний студентам курсу.');
-    } catch (err) {
-      console.warn('Camera error:', err);
-      setStreamSource('slides');
-      showNotification('Не вдалося отримати доступ до камери або його скасовано.', true);
-    }
-  };
-
-  const handleToggleScreenShare = async () => {
-    if (userRole !== 'teacher') {
-      showNotification('Демонстрацію екрана лектора може запускати лише викладач.', true);
-      return;
-    }
-
-    // If screen share is active, stop it and return to slides
-    if (streamSource === 'screen') {
-      await stopBroadcast();
-      stopHardwareStream();
-      setStreamSource('slides');
-      showNotification('Демонстрацію екрана вимкнено.');
-      return;
-    }
-
-    try {
-      stopHardwareStream();
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always' },
-        audio: false,
-      });
-      stream.getVideoTracks()[0].onended = () => {
-        void stopBroadcast();
-        stopHardwareStream();
-        setStreamSource('slides');
-        showNotification('Демонстрацію екрана завершено.');
-      };
-      mediaStreamObjRef.current = stream;
-      setStreamSource('screen');
-      if (activeWebinar && activeWebinar.status !== 'LIVE') {
-        handleChangeWebinarStatus(activeWebinar.id, 'LIVE');
-      }
-      if (videoStreamRef.current) {
-        videoStreamRef.current.srcObject = stream;
-      }
-      await startBroadcast(stream, 'screen');
-      showNotification('Демонстрацію екрана запущено для студентів курсу.');
-    } catch {
-      setStreamSource('slides');
-      showNotification('Демонстрацію екрана скасовано.', true);
-    }
-  };
-
-  const handleToggleMic = () => {
-    const nextMuted = !isMicMuted;
-    setIsMicMuted(nextMuted);
-    if (mediaStreamObjRef.current) {
-      mediaStreamObjRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !nextMuted;
-      });
-    }
-    showNotification(nextMuted ? 'Мікрофон вимкнено.' : 'Мікрофон увімкнено.');
-  };
-
-  const handleSwitchToSlides = () => {
-    void stopBroadcast();
-    stopHardwareStream();
-    setStreamSource('slides');
-    showNotification('Увімкнено режим демонстрації слайдів лекції.');
-  };
-
-  const handleToggleFullscreen = (e) => {
-    const stageEl = e.currentTarget.closest('.stream-stage-viewport');
-    if (!stageEl) return;
-    if (!document.fullscreenElement) {
-      stageEl.requestFullscreen?.().catch(() => {});
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-    }
-  };
-
-  const handleToggleRaiseHand = () => {
-    const nextState = !isHandRaised;
-    setIsHandRaised(nextState);
-    if (activeWebinar) {
-      void sendSignal(null, 'hand', { raised: nextState });
-    }
-    showNotification(nextState ? 'Руку піднято. Викладач отримав сигнал.' : 'Руку опущено.');
-  };
-
   const handleScheduleWebinar = async (e) => {
     e.preventDefault();
     if (!newWebinarForm.title.trim()) return;
@@ -1828,7 +1163,6 @@ export default function App() {
       }
       return updated;
     });
-    setActiveWebinarId(createdWeb.id);
     setNewWebinarForm((prev) => ({ ...prev, title: '', scheduledAt: getDefaultWebinarDate() }));
     appendEvent('course', 'Заплановано онлайн-заняття', `«${createdWeb.title}» (${createdWeb.courseTitle})`);
     showNotification(`Онлайн-заняття «${createdWeb.title}» додано до розкладу.`);
@@ -1859,23 +1193,10 @@ export default function App() {
       }
       return updated;
     });
-    if (activeWebinarId === webinarId) {
-      setWebinars((current) => {
-        const remaining = current.filter((w) => w.id !== webinarId);
-        setActiveWebinarId(remaining[0]?.id || null);
-        return current;
-      });
-    }
     showNotification('Онлайн-заняття видалено з розкладу.');
   };
 
   const handleChangeWebinarStatus = async (webinarId, newStatus) => {
-    if (newStatus === 'FINISHED') {
-      stopHardwareStream();
-      setStreamSource('slides');
-    } else if (newStatus === 'LIVE') {
-      setStreamSeconds(0);
-    }
     await syncBackend(`/webinars/${webinarId}/status`, 'PATCH', { status: newStatus });
     setWebinars((prev) =>
       prev.map((w) => (w.id === webinarId ? { ...w, status: newStatus } : w))
@@ -1890,35 +1211,6 @@ export default function App() {
     showNotification(newStatus === 'LIVE' ? 'Прямий ефір розпочато!' : 'Трансляцію завершено.');
   };
 
-  const handleSendWebinarChat = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !activeWebinar) return;
-    const msg = {
-      id: newId('msg'),
-      senderName: currentUser?.name || 'Користувач',
-      senderRole: userRole,
-      text: chatInput.trim(),
-      time: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    await syncBackend(`/webinars/${activeWebinar.id}/chat`, 'POST', msg);
-
-    setWebinars((prev) =>
-      prev.map((w) => (w.id === activeWebinar.id ? { ...w, chat: [...(w.chat || []), msg] } : w))
-    );
-    try {
-      const bc = new BroadcastChannel('studevo_live_webinar_bus');
-      bc.postMessage({ type: 'CHAT_MESSAGE', payload: { webinarId: activeWebinar.id, message: msg } });
-      bc.close();
-    } catch {
-      /* BroadcastChannel недоступен в этом окружении */
-    }
-    setChatInput('');
-  };
-
-  // ========================================================
-  // 5. ADMIN: ACADEMIC GROUPS & COURSES
-  // ========================================================
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -2061,37 +1353,6 @@ export default function App() {
       prev.map((item) => (item.id === message.id ? { ...item, unread: false, readAt: res.readAt } : item))
     );
     setUnreadMessages((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleCreateSemester = async (e) => {
-    e.preventDefault();
-    if (!newSemesterForm.name.trim() || !newSemesterForm.startDate || !newSemesterForm.endDate) return;
-
-    const res = await syncBackend('/semesters', 'POST', {
-      name: newSemesterForm.name.trim(),
-      number: Number(newSemesterForm.number),
-      startDate: new Date(newSemesterForm.startDate).toISOString(),
-      endDate: new Date(newSemesterForm.endDate).toISOString(),
-      isActive: newSemesterForm.isActive,
-    });
-    if (!res) return;
-
-    if (res.isActive) {
-      setSemesters((prev) => [res, ...prev.map((item) => ({ ...item, isActive: false }))]);
-    } else {
-      setSemesters((prev) => [res, ...prev]);
-    }
-    setNewSemesterForm({ name: '', number: 1, startDate: '', endDate: '', isActive: false });
-    showNotification('Семестр створено.');
-  };
-
-  const handleActivateSemester = async (semesterId) => {
-    const res = await syncBackend(`/semesters/${semesterId}/activate`, 'PATCH');
-    if (!res) return;
-    setSemesters((prev) =>
-      prev.map((semester) => ({ ...semester, isActive: semester.id === semesterId }))
-    );
-    showNotification('Активний семестр оновлено.');
   };
 
   const handleAssignCurator = async (groupId, curatorId) => {
@@ -2406,7 +1667,7 @@ export default function App() {
     (max, course) => Math.max(max, Number(course.semester) || 1),
     1
   );
-  const activeSemester = semesters.find((semester) => semester.isActive) || null;
+
 
   const handleOpenAssignment = (assignmentId) => {
     if (!assignmentId) {
@@ -2423,8 +1684,14 @@ export default function App() {
     setActiveMenu('grades');
   };
 
-  // Вбудована WebRTC-кімната вимкнена: заняття відкриваються за зовнішнім посиланням (Meet/Zoom).
-  const USE_BUILTIN_CONFERENCE = false;
+  const submissionTarget =
+    assignments.find((assignment) => assignment.id === submissionForm.assignmentId) || assignments[0] || null;
+  const mySubmission = submissionTarget
+    ? (submissionTarget.submissions || []).find((submission) => submission.studentId === currentUser?.id)
+    : null;
+  const allowedSubmissionFormats =
+    submissionTarget?.allowedFormats?.length ? submissionTarget.allowedFormats : ['pdf', 'docx'];
+  const acceptForSubmission = allowedSubmissionFormats.map((format) => `.${format}`).join(',');
 
   // Role-specific navigation menu
   const roleMenus =
@@ -2653,8 +1920,6 @@ export default function App() {
             allEnrollments={allEnrollments}
             analytics={analytics}
             announcements={announcements}
-            semesters={semesters}
-            activeSemester={activeSemester}
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
@@ -2954,6 +2219,37 @@ export default function App() {
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '14.5px', color: 'var(--studevo-red-dark)' }}>
                   Відправлення виконаної роботи на перевірку
                 </h3>
+                {submissionTarget && (
+                  <div className="assignment-hint">
+                    <div className="assignment-hint-title">{submissionTarget.title}</div>
+                    <div className="dash-hint">
+                      {submissionTarget.courseTitle} • {submissionTarget.type || 'Завдання'} • до{' '}
+                      {new Date(submissionTarget.deadline).toLocaleString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      • макс {submissionTarget.maxScore}
+                    </div>
+                    <div className="format-badges">
+                      {allowedSubmissionFormats.map((format) => (
+                        <span key={format} className="format-badge">
+                          {format.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                    {mySubmission && (
+                      <span className={`dash-status ${mySubmission.status === 'GRADED' ? 'done' : 'pending'}`}>
+                        {mySubmission.status === 'GRADED'
+                          ? `Оцінено ${mySubmission.score}/${submissionTarget.maxScore}`
+                          : 'Здано, очікує перевірки'}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <form onSubmit={handleStudentSubmit}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr', gap: '14px', marginBottom: '12px' }}>
                     <div className="form-group-field" style={{ marginBottom: 0 }}>
@@ -2988,7 +2284,7 @@ export default function App() {
                         <input
                           key={submissionForm.fileName || 'empty'}
                           type="file"
-                          accept=".pdf,.zip,.doc,.docx,.odt,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp"
+                          accept={acceptForSubmission}
                           style={{ display: 'none' }}
                           onChange={handleFileInputChange}
                         />
@@ -3349,711 +2645,6 @@ export default function App() {
           />
         )}
 
-        {USE_BUILTIN_CONFERENCE && activeMenu === 'webinars' && (
-          <div>
-            <div className="section-header-row">
-              <h2 className="section-title">Онлайн-заняття та консультації</h2>
-            </div>
-
-            {userRole === 'teacher' && (
-              <div className="studevo-card" style={{ marginBottom: '18px' }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Запланувати онлайн-заняття
-                </h3>
-                <form onSubmit={handleScheduleWebinar}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.8fr 1fr auto', gap: '12px', alignItems: 'end' }}>
-                    <div className="form-group-field" style={{ marginBottom: 0 }}>
-                      <label>Дисципліна</label>
-                      <select
-                        className="input-studevo-control"
-                        value={newWebinarForm.courseId}
-                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, courseId: e.target.value })}
-                      >
-                        {courses.map((c) => (
-                          <option key={c.id} value={c.id}>{c.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group-field" style={{ marginBottom: 0 }}>
-                      <label>Тема заняття</label>
-                      <input
-                        type="text"
-                        className="input-studevo-control"
-                        placeholder="напр.: Лекція 5: Архітектура розподілених систем"
-                        value={newWebinarForm.title}
-                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, title: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="form-group-field" style={{ marginBottom: 0 }}>
-                      <label>Дата та час</label>
-                      <input
-                        type="datetime-local"
-                        className="input-studevo-control"
-                        value={newWebinarForm.scheduledAt}
-                        onChange={(e) => setNewWebinarForm({ ...newWebinarForm, scheduledAt: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn-studevo-primary">
-                      Додати в розклад
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* TOP SESSION SELECTOR STRIP */}
-            <div className="webinar-selector-strip">
-              {webinars.map((w) => (
-                <div
-                  key={w.id}
-                  onClick={() => setActiveWebinarId(w.id)}
-                  style={{
-                    padding: '13px 15px',
-                    borderRadius: '12px',
-                    border: activeWebinar?.id === w.id ? '2px solid var(--studevo-red)' : '1px solid var(--studevo-border)',
-                    background: activeWebinar?.id === w.id ? 'var(--studevo-red-light)' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    boxShadow: 'var(--studevo-shadow-sm)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span
-                      className="webinar-live-badge"
-                      style={{
-                        background: w.status === 'LIVE' ? '#ffe3e3' : w.status === 'FINISHED' ? '#e9ecef' : '#e7f5ff',
-                        color: w.status === 'LIVE' ? '#c92a2a' : w.status === 'FINISHED' ? '#495057' : '#1971c2',
-                      }}
-                    >
-                      {w.status === 'LIVE' ? '● В ефірі' : w.status === 'FINISHED' ? 'Завершено' : 'Заплановано'}
-                    </span>
-                    <span style={{ fontSize: '11px', color: '#6c757d' }}>
-                      {new Date(w.scheduledAt).toLocaleString('uk-UA', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-
-                  <div style={{ fontWeight: 700, fontSize: '13.5px', marginBottom: '4px', lineHeight: 1.35 }}>
-                    {w.title}
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: '#6c757d', marginBottom: userRole === 'teacher' ? '10px' : 0 }}>
-                    {w.courseTitle} • {w.instructor}
-                  </div>
-
-                  {userRole === 'teacher' && (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn-studevo-primary"
-                        style={{ padding: '4px 10px', fontSize: '11px' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveWebinarId(w.id);
-                          handleChangeWebinarStatus(w.id, 'LIVE');
-                        }}
-                      >
-                        Увімкнути ефір
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-studevo-secondary"
-                        style={{ padding: '4px 10px', fontSize: '11px' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleChangeWebinarStatus(w.id, 'FINISHED');
-                        }}
-                      >
-                        Завершити
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-studevo-secondary"
-                        style={{ padding: '4px 10px', fontSize: '11px', color: '#c92a2a', borderColor: '#ffc9c9' }}
-                        title="Видалити заняття"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteWebinar(w.id);
-                        }}
-                      >
-                        🗑️ Видалити
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* ZOOM-LIKE LIVE CONFERENCE ROOM */}
-            {activeWebinar && (
-              <div className="zoom-room-container">
-                {/* ZOOM ROOM MAIN STAGE + OPTIONAL SIDE PANEL */}
-                <div className="zoom-room-main">
-                  <div className="zoom-stage-area">
-                    {/* Top Floating Information Bar */}
-                    <div className="zoom-top-info-bar">
-                      <div className="zoom-meeting-title-pill">
-                        <span style={{ color: activeWebinar.status === 'LIVE' ? '#00d26a' : '#ff4d4f', fontSize: '10px' }}>
-                          ●
-                        </span>
-                        <span>{activeWebinar.title}</span>
-                        {activeWebinar.status === 'LIVE' && (
-                          <span style={{ color: '#00d26a', fontWeight: 700, marginLeft: '4px' }}>
-                            {formatStreamTimer(streamSeconds)}
-                          </span>
-                        )}
-                        <span style={{ color: '#cbd5e1', marginLeft: '8px', fontSize: '11px', fontWeight: 500 }}>
-                          {onlineAttendeesCount} онлайн • {zoomAttendees.length} учасників
-                        </span>
-                        {userRole !== 'teacher' && remoteStream && (
-                          <span style={{ color: '#38bdf8', marginLeft: '8px', fontSize: '11px', fontWeight: 600 }}>
-                            {remoteMediaKind === 'screen' ? 'Демонстрація екрана' : 'Відео викладача'}
-                          </span>
-                        )}
-                        {userRole !== 'teacher' && !remoteStream && rtcStatus === 'connecting' && (
-                          <span style={{ color: '#fbbf24', marginLeft: '8px', fontSize: '11px', fontWeight: 600 }}>
-                            Підключення до трансляції…
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="zoom-view-switch-btns">
-                        <button
-                          type="button"
-                          className={`zoom-view-btn ${zoomViewMode === 'speaker' ? 'active' : ''}`}
-                          onClick={() => setZoomViewMode('speaker')}
-                        >
-                          Спікер
-                        </button>
-                        <button
-                          type="button"
-                          className={`zoom-view-btn ${zoomViewMode === 'gallery' ? 'active' : ''}`}
-                          onClick={() => setZoomViewMode('gallery')}
-                        >
-                          Галерея (Сітка)
-                        </button>
-                        {activeWebinar.recordingAvailable && (
-                          <button
-                            type="button"
-                            className="zoom-view-btn"
-                            onClick={handleDownloadRecording}
-                            title="Завантажити запис лекції"
-                          >
-                            Запис лекції
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="zoom-view-btn"
-                          onClick={handleToggleFullscreen}
-                          title="На весь екран"
-                        >
-                          ⛶
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Hardware Video Stream Element (Camera or Screen Share) */}
-                    {(streamSource === 'camera' || streamSource === 'screen') && activeWebinar.status === 'LIVE' && (
-                      <video
-                        ref={videoStreamRef}
-                        className="stream-video-element"
-                        autoPlay
-                        playsInline
-                        muted
-                      />
-                    )}
-
-                    {/* Удалённый поток преподавателя (WebRTC) для студентов */}
-                    {userRole !== 'teacher' && remoteStream && activeWebinar.status === 'LIVE' && (
-                      <video
-                        ref={remoteVideoRef}
-                        className="stream-video-element"
-                        autoPlay
-                        playsInline
-                      />
-                    )}
-
-                    {/* View 1: GALLERY VIEW (Zoom Grid of video tiles) */}
-                    {zoomViewMode === 'gallery' && (
-                      <div className="zoom-gallery-grid">
-                        {zoomAttendees.map((att) => {
-                          const isHostAndLive = att.isHost && activeWebinar.status === 'LIVE';
-                          const initials = att.name
-                            .replace(/\(.*\)/g, '')
-                            .trim()
-                            .split(' ')
-                            .map((p) => p[0])
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .join('')
-                            .toUpperCase() || 'ST';
-                          return (
-                            <div
-                              key={att.id}
-                              className={`zoom-participant-tile ${att.isSpeaking ? 'active-speaker' : ''} ${att.isMe ? 'is-me' : ''}`}
-                            >
-                              {/* If teacher has camera on and we're on camera stream, show video on their tile */}
-                              {isHostAndLive && streamSource === 'camera' ? (
-                                <video
-                                  ref={(el) => {
-                                    if (el && mediaStreamObjRef.current) el.srcObject = mediaStreamObjRef.current;
-                                  }}
-                                  className="zoom-tile-video"
-                                  autoPlay
-                                  playsInline
-                                  muted
-                                />
-                              ) : (
-                                <div className="zoom-tile-avatar">
-                                  {initials}
-                                </div>
-                              )}
-
-                              <div className="zoom-tile-indicators">
-                                {att.hand && <span className="zoom-hand-badge">✋ Рука</span>}
-                                <span style={{ fontSize: '12px' }}>{att.mic ? '🎙️' : '🔇'}</span>
-                              </div>
-
-                              <div className="zoom-tile-name-tag">
-                                <span className={`presence-dot ${att.online ? 'online' : ''}`} />
-                                <span>{att.name}</span>
-                                {att.isHost && <span style={{ color: '#2d8cff', fontWeight: 700 }}>(Організатор)</span>}
-                                {att.group && <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '4px' }}>[{att.group}]</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* View 2: SPEAKER / SPOTLIGHT VIEW */}
-                    {zoomViewMode === 'speaker' && (
-                      <div className="zoom-speaker-view">
-                        {/* Top Participants Ribbon */}
-                        <div className="zoom-participants-ribbon">
-                          {zoomAttendees.map((att) => {
-                            const ribbonInitials = att.name
-                              .replace(/\(.*\)/g, '')
-                              .trim()
-                              .split(' ')
-                              .map((p) => p[0])
-                              .filter(Boolean)
-                              .slice(0, 2)
-                              .join('')
-                              .toUpperCase() || 'ST';
-                            const shortFirstName = att.name.replace(/\(.*\)/g, '').trim().split(' ')[0];
-                            return (
-                              <div key={att.id} className="zoom-ribbon-tile">
-                                <div
-                                  style={{
-                                    width: '38px',
-                                    height: '38px',
-                                    borderRadius: '50%',
-                                    background: att.isHost ? '#2d8cff' : '#495057',
-                                    color: '#fff',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 700,
-                                    fontSize: '13px',
-                                  }}
-                                >
-                                  {ribbonInitials}
-                                </div>
-                                <div
-                                  style={{
-                                    position: 'absolute',
-                                    bottom: '4px',
-                                    left: '6px',
-                                    right: '6px',
-                                    fontSize: '10px',
-                                    color: '#ffffff',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    background: 'rgba(0,0,0,0.6)',
-                                    padding: '1px 4px',
-                                    borderRadius: '3px',
-                                  }}
-                                >
-                                  <span className={`presence-dot ${att.online ? 'online' : ''}`} />
-                                  {shortFirstName} {att.mic ? '🎙️' : '🔇'}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Main Spotlight Center (Active Presentation or Stream or Waiting Screen) */}
-                        <div className="zoom-main-spotlight">
-                          {activeWebinar.status === 'LIVE' ? (
-                            streamSource === 'slides' ? (
-                              <div className="stream-slide-canvas" style={{ width: '92%', height: '88%', margin: 0 }}>
-                                <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                      {LECTURE_SLIDES[activeSlideIdx].tag}
-                                    </span>
-                                    <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                                      {activeWebinar.courseTitle}
-                                    </span>
-                                  </div>
-
-                                  <h3 style={{ margin: '0 0 12px 0', fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>
-                                    {LECTURE_SLIDES[activeSlideIdx].title}
-                                  </h3>
-
-                                  <ul style={{ margin: '0 0 16px 0', paddingLeft: '20px', color: '#e2e8f0', fontSize: '13.5px', lineHeight: 1.55 }}>
-                                    {LECTURE_SLIDES[activeSlideIdx].points.map((pt, idx) => (
-                                      <li key={idx} style={{ marginBottom: '5px' }}>{pt}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-
-                                <pre
-                                  style={{
-                                    margin: 0,
-                                    padding: '12px 16px',
-                                    borderRadius: '10px',
-                                    background: 'rgba(2, 6, 23, 0.88)',
-                                    border: '1px solid rgba(56, 189, 248, 0.28)',
-                                    color: '#7dd3fc',
-                                    fontSize: '12.5px',
-                                    fontFamily: 'Consolas, Monaco, monospace',
-                                    overflowX: 'auto',
-                                  }}
-                                >
-                                  {LECTURE_SLIDES[activeSlideIdx].code}
-                                </pre>
-                              </div>
-                            ) : null
-                          ) : (
-                            <div style={{ textAlign: 'center', color: '#ffffff', padding: '20px' }}>
-                              <div style={{ fontSize: '48px', marginBottom: '10px' }}>👨‍🏫</div>
-                              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px' }}>{activeWebinar.title}</h3>
-                              <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 16px 0' }}>
-                                Викладач: {activeWebinar.instructor}
-                              </p>
-                              {userRole === 'teacher' ? (
-                                <button
-                                  type="button"
-                                  className="btn-studevo-primary"
-                                  style={{ padding: '10px 22px', fontSize: '13px' }}
-                                  onClick={() => handleChangeWebinarStatus(activeWebinar.id, 'LIVE')}
-                                >
-                                  ▶ Розпочати конференцію Zoom
-                                </button>
-                              ) : (
-                                <div style={{ color: '#cbd5e1', fontSize: '13px' }}>
-                                  Очікування, поки організатор розпочне конференцію...
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* RIGHT SIDE PANEL: CHAT OR PARTICIPANTS */}
-                  {zoomSideTab !== 'none' && (
-                    <aside className="zoom-side-panel">
-                      <div className="zoom-side-header">
-                        <span>{zoomSideTab === 'chat' ? 'Чат конференції' : 'Учасники'}</span>
-                        <button
-                          type="button"
-                          style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '16px' }}
-                          onClick={() => setZoomSideTab('none')}
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      <div className="zoom-side-tabs">
-                        <button
-                          type="button"
-                          className={`zoom-side-tab-btn ${zoomSideTab === 'chat' ? 'active' : ''}`}
-                          onClick={() => setZoomSideTab('chat')}
-                        >
-                          💬 Чат ({(activeWebinar.chat || []).length})
-                        </button>
-                        <button
-                          type="button"
-                          className={`zoom-side-tab-btn ${zoomSideTab === 'participants' ? 'active' : ''}`}
-                          onClick={() => setZoomSideTab('participants')}
-                        >
-                          👥 Учасники ({zoomAttendees.length})
-                        </button>
-                      </div>
-
-                      {zoomSideTab === 'participants' && (
-                        <div className="zoom-participants-list">
-                          {zoomAttendees.map((att) => (
-                            <div key={att.id} className="zoom-participant-row">
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <strong>{att.name}</strong>
-                                {att.isHost && (
-                                  <span style={{ fontSize: '11px', color: '#2d8cff', fontWeight: 600 }}>
-                                    (Організатор)
-                                  </span>
-                                )}
-                                {att.group && (
-                                  <span style={{ fontSize: '11px', color: '#888', background: '#f1f3f5', padding: '1px 6px', borderRadius: '4px' }}>
-                                    {att.group}
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                {att.hand && <span>✋</span>}
-                                <span>{att.camera ? '📷' : '🚫'}</span>
-                                <span>{att.mic ? '🎙️' : '🔇'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {zoomSideTab === 'chat' && (
-                        <div className="zoom-chat-body">
-                          <div className="zoom-chat-scroll">
-                            {(activeWebinar.chat || []).map((m) => (
-                              <div key={m.id} className="zoom-msg-box">
-                                <div className="zoom-msg-author">
-                                  <span>{m.senderName}</span>
-                                  <span style={{ fontSize: '10px', color: '#888' }}>{m.time}</span>
-                                </div>
-                                <div style={{ color: '#e0e0e0', marginTop: '2px' }}>{m.text}</div>
-                              </div>
-                            ))}
-                          </div>
-
-                          <form onSubmit={handleSendWebinarChat} className="zoom-chat-form">
-                            <input
-                              type="text"
-                              className="zoom-chat-input"
-                              placeholder="Надіслати всім..."
-                              value={chatInput}
-                              onChange={(e) => setChatInput(e.target.value)}
-                            />
-                            <button type="submit" className="btn-studevo-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                              Надіслати
-                            </button>
-                          </form>
-                        </div>
-                      )}
-                    </aside>
-                  )}
-                </div>
-
-                {/* AUTHENTIC ZOOM BOTTOM TOOLBAR */}
-                <div className="zoom-toolbar">
-                  {/* Left: Audio & Video controls */}
-                  <div className="zoom-tool-group">
-                    <button
-                      type="button"
-                      className={`zoom-tool-btn ${isMicMuted ? 'is-danger' : 'is-active'}`}
-                      onClick={handleToggleMic}
-                      title={isMicMuted ? 'Увімкнути мікрофон' : 'Вимкнути мікрофон'}
-                    >
-                      <span style={{ fontSize: '18px' }}>{isMicMuted ? '🔇' : '🎙️'}</span>
-                      <span>{isMicMuted ? 'Вимкнено' : 'Увімкнено'}</span>
-                    </button>
-
-                    {userRole === 'teacher' ? (
-                      <button
-                        type="button"
-                        className={`zoom-tool-btn ${streamSource === 'camera' ? 'is-active' : ''}`}
-                        onClick={handleToggleCameraStream}
-                        title={streamSource === 'camera' ? 'Зупинити відео' : 'Увімкнути відео'}
-                      >
-                        <span style={{ fontSize: '18px' }}>{streamSource === 'camera' ? '📹' : '📷'}</span>
-                        <span>{streamSource === 'camera' ? 'Зупинити' : 'Відео'}</span>
-                      </button>
-                    ) : (
-                      <div className="zoom-tool-btn" style={{ opacity: 0.6, cursor: 'default' }} title="Трансляцію веде викладач">
-                        <span style={{ fontSize: '18px' }}>👁️</span>
-                        <span>Слухач</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Center: Meeting Controls & Interactions */}
-                  <div className="zoom-tool-group">
-                    <button
-                      type="button"
-                      className={`zoom-tool-btn ${zoomSideTab === 'participants' ? 'is-active' : ''}`}
-                      onClick={() => setZoomSideTab(zoomSideTab === 'participants' ? 'none' : 'participants')}
-                    >
-                      <span style={{ fontSize: '18px' }}>👥</span>
-                      <span>Учасники ({zoomAttendees.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`zoom-tool-btn ${zoomSideTab === 'chat' ? 'is-active' : ''}`}
-                      onClick={() => setZoomSideTab(zoomSideTab === 'chat' ? 'none' : 'chat')}
-                    >
-                      <span style={{ fontSize: '18px' }}>💬</span>
-                      <span>Чат</span>
-                    </button>
-
-                    {userRole === 'teacher' && (
-                      <>
-                        <button
-                          type="button"
-                          className={`zoom-tool-btn share-btn ${streamSource === 'screen' ? 'is-active' : ''}`}
-                          onClick={handleToggleScreenShare}
-                        >
-                          <span style={{ fontSize: '18px' }}>🖥️</span>
-                          <span>{streamSource === 'screen' ? 'Зупинити екран' : 'Поділитись'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          className={`zoom-tool-btn ${isRecording ? 'is-active' : ''}`}
-                          onClick={handleToggleRecording}
-                          title={isRecording ? 'Зупинити запис' : 'Записати лекцію'}
-                        >
-                          <span style={{ fontSize: '16px', color: isRecording ? '#ff4d4f' : undefined }}>●</span>
-                          <span>{isRecording ? 'Зупинити запис' : 'Запис'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          className={`zoom-tool-btn ${streamSource === 'slides' ? 'is-active' : ''}`}
-                          onClick={handleSwitchToSlides}
-                        >
-                          <span style={{ fontSize: '18px' }}>📊</span>
-                          <span>Слайди</span>
-                        </button>
-
-                        {streamSource === 'slides' && (
-                          <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                            <button
-                              type="button"
-                              className="zoom-tool-btn"
-                              style={{ minWidth: '40px' }}
-                              onClick={() => setActiveSlideIdx((prev) => (prev > 0 ? prev - 1 : LECTURE_SLIDES.length - 1))}
-                            >
-                              ◀
-                            </button>
-                            <span style={{ fontSize: '11px', color: '#aaa' }}>{activeSlideIdx + 1}/{LECTURE_SLIDES.length}</span>
-                            <button
-                              type="button"
-                              className="zoom-tool-btn"
-                              style={{ minWidth: '40px' }}
-                              onClick={() => setActiveSlideIdx((prev) => (prev + 1) % LECTURE_SLIDES.length)}
-                            >
-                              ▶
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {userRole === 'student' && (
-                      <button
-                        type="button"
-                        className={`zoom-tool-btn ${isHandRaised ? 'is-active' : ''}`}
-                        onClick={handleToggleRaiseHand}
-                      >
-                        <span style={{ fontSize: '18px' }}>✋</span>
-                        <span>{isHandRaised ? 'Опустити руку' : 'Підняти руку'}</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Right: End Meeting Button */}
-                  <div className="zoom-tool-group">
-                    {userRole === 'teacher' && activeWebinar.status === 'LIVE' ? (
-                      <button
-                        type="button"
-                        className="zoom-end-btn"
-                        onClick={() => handleChangeWebinarStatus(activeWebinar.id, 'FINISHED')}
-                      >
-                        Завершити для всіх
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="zoom-end-btn"
-                        style={{ background: '#495057' }}
-                        onClick={() => setZoomSideTab('none')}
-                      >
-                        Вийти
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(userRole === 'teacher' || userRole === 'admin') && (
-              <div className="studevo-card" style={{ marginTop: '16px' }}>
-                <div className="dash-section-head">
-                  <h3 style={{ margin: 0, fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                    Відвідуваність заняття
-                  </h3>
-                  <span className="dash-hint">
-                    {attendance.filter((row) => row.online).length} онлайн • {attendance.length} записів
-                  </span>
-                </div>
-                <table className="studevo-table">
-                  <thead>
-                    <tr>
-                      <th>Учасник</th>
-                      <th>Роль</th>
-                      <th>Вхід</th>
-                      <th>Вихід</th>
-                      <th>Тривалість</th>
-                      <th>Статус</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendance.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
-                          Ще немає записів
-                        </td>
-                      </tr>
-                    ) : (
-                      attendance.map((row) => {
-                        const minutes = Math.floor((row.durationSeconds || 0) / 60);
-                        const seconds = (row.durationSeconds || 0) % 60;
-                        return (
-                          <tr key={row.id}>
-                            <td>{row.userName}</td>
-                            <td>{row.role === 'teacher' ? 'Викладач' : 'Студент'}</td>
-                            <td>{new Date(row.joinedAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>
-                              {row.leftAt
-                                ? new Date(row.leftAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-                                : '—'}
-                            </td>
-                            <td>{`${minutes} хв ${String(seconds).padStart(2, '0')} с`}</td>
-                            <td>
-                              <span className={`dash-status ${row.online ? 'done' : 'pending'}`}>
-                                {row.online ? 'Онлайн' : 'Вийшов'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 6. ADMIN: ACADEMIC GROUPS */}
         {activeMenu === 'groups' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">
@@ -4179,122 +2770,6 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            <div className="studevo-card" style={{ marginTop: '20px' }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                Семестри
-              </h3>
-              <table className="studevo-table" style={{ marginBottom: '14px' }}>
-                <thead>
-                  <tr>
-                    <th>Семестр</th>
-                    <th>Номер</th>
-                    <th>Початок</th>
-                    <th>Завершення</th>
-                    <th>Статус</th>
-                    <th>Дія</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {semesters.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
-                        Семестрів ще немає
-                      </td>
-                    </tr>
-                  ) : (
-                    semesters.map((semester) => (
-                      <tr key={semester.id}>
-                        <td><strong>{semester.name}</strong></td>
-                        <td>{semester.number}</td>
-                        <td>{new Date(semester.startDate).toLocaleDateString('uk-UA')}</td>
-                        <td>{new Date(semester.endDate).toLocaleDateString('uk-UA')}</td>
-                        <td>
-                          <span className={`dash-status ${semester.isActive ? 'done' : 'pending'}`}>
-                            {semester.isActive ? 'Активний' : 'Закритий'}
-                          </span>
-                        </td>
-                        <td>
-                          {!semester.isActive && (
-                            <button
-                              type="button"
-                              className="btn-studevo-outline"
-                              style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                              onClick={() => handleActivateSemester(semester.id)}
-                            >
-                              Зробити активним
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-
-              <form onSubmit={handleCreateSemester}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.6fr 1fr 1fr 0.8fr', gap: '10px' }}>
-                  <div className="form-group-field">
-                    <label>Назва</label>
-                    <input
-                      type="text"
-                      className="input-studevo-control"
-                      value={newSemesterForm.name}
-                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, name: e.target.value })}
-                      placeholder="Осінній семестр 2027/2028"
-                      required
-                    />
-                  </div>
-                  <div className="form-group-field">
-                    <label>Номер</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="12"
-                      className="input-studevo-control"
-                      value={newSemesterForm.number}
-                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, number: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="form-group-field">
-                    <label>Початок</label>
-                    <input
-                      type="date"
-                      className="input-studevo-control"
-                      value={newSemesterForm.startDate}
-                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, startDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group-field">
-                    <label>Завершення</label>
-                    <input
-                      type="date"
-                      className="input-studevo-control"
-                      value={newSemesterForm.endDate}
-                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, endDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group-field">
-                    <label>Активний</label>
-                    <select
-                      className="input-studevo-control"
-                      value={newSemesterForm.isActive ? 'yes' : 'no'}
-                      onChange={(e) =>
-                        setNewSemesterForm({ ...newSemesterForm, isActive: e.target.value === 'yes' })
-                      }
-                    >
-                      <option value="no">Ні</option>
-                      <option value="yes">Так</option>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" className="btn-studevo-primary" style={{ marginTop: '12px' }}>
-                  Створити семестр
-                </button>
-              </form>
             </div>
 
             <div className="studevo-card" style={{ marginTop: '20px' }}>
