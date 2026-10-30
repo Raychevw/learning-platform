@@ -118,6 +118,9 @@ export class AcademicGroupEntity {
   @Column({ length: 64, default: 'ФІОТ' })
   faculty!: string;
 
+  @Column({ length: 255, default: '' })
+  specialty!: string;
+
   @Column({ type: 'int', default: 1 })
   studyYear!: number;
 

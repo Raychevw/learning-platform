@@ -391,6 +391,75 @@
           "Webinars"
         ]
       }
+    },
+    "/schedule": {
+      "get": {
+        "operationId": "ScheduleController_list",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "courseId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Weekly schedule for a group or a course",
+        "tags": [
+          "Schedule"
+        ]
+      },
+      "post": {
+        "operationId": "ScheduleController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Add a schedule entry (pair) for a group",
+        "tags": [
+          "Schedule"
+        ]
+      }
+    },
+    "/schedule/{id}": {
+      "delete": {
+        "operationId": "ScheduleController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a schedule entry",
+        "tags": [
+          "Schedule"
+        ]
+      }
     }
   },
   "info": {

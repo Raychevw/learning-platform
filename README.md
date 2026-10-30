@@ -61,6 +61,8 @@
   соединения; signaling идёт через `POST /api/webinars/:id/signal`.
 - **Только реальные участники** — ростер вебинара строится из пользователей и зачислений
   (`GET /api/enrollments?courseId=`), без выдуманных студентов и счётчиков.
+- **Особистий кабінет студента** — профіль (факультет, спеціальність, група, семестр), розклад,
+  предмети, завдання зі статусами, оцінки/борги та онлайн-заняття з реальних даних.
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -199,6 +201,8 @@ POST /api/auth/login
 | GET | `/api/webinars/stream` | SSE-поток: чат, статус эфира, новые вебинары, WebRTC-сигналы |
 | POST | `/api/webinars/:id/signal` | WebRTC signaling: `offer`, `answer`, `ice`, `join`, `hand`, `media-start/stop` |
 | GET | `/api/enrollments?courseId=` | реальный ростер курса (для участников вебинара) |
+| GET | `/api/schedule?groupId=&courseId=` | розклад занять групи/курсу |
+| POST/DELETE | `/api/schedule`, `/api/schedule/:id` | керування розкладом (teacher/admin) |
 
 Полные спецификации: `contracts/*.json` (генерируются из Swagger) и `contracts/events-schema.json`.
 

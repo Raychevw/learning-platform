@@ -338,6 +338,7 @@ mountProxy('/api/auth', AUTH_SERVICE_URL, '/api/auth', '/auth');
 mountProxy('/api/courses', COURSE_SERVICE_URL, '/api/courses', '/courses');
 mountProxy('/api/catalog', COURSE_SERVICE_URL, '/api/catalog', '/catalog');
 mountProxy('/api/webinars', COURSE_SERVICE_URL, '/api/webinars', '/webinars');
+mountProxy('/api/schedule', COURSE_SERVICE_URL, '/api/schedule', '/schedule');
 // Assignment service
 mountProxy('/api/assignments', ASSIGNMENT_SERVICE_URL, '/api/assignments', '/assignments');
 mountProxy('/api/grading', ASSIGNMENT_SERVICE_URL, '/api/grading', '/grading');

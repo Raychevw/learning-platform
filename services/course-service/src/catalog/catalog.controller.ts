@@ -152,3 +152,44 @@ export class WebinarController {
     return this.catalog.deleteWebinar(id);
   }
 }
+
+@ApiTags('Schedule')
+@Controller('schedule')
+export class ScheduleController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Weekly schedule for a group or a course' })
+  list(@Query('groupId') groupId?: string, @Query('courseId') courseId?: string) {
+    return this.catalog.listSchedule({ groupId, courseId });
+  }
+
+  @Post()
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a schedule entry (pair) for a group' })
+  create(
+    @Body()
+    dto: {
+      courseId: string;
+      groupId: string;
+      weekday: number;
+      startTime: string;
+      endTime: string;
+      room?: string;
+      lessonType?: string;
+      teacherName?: string;
+      onlineUrl?: string;
+    },
+  ) {
+    return this.catalog.createSchedule(dto);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a schedule entry' })
+  remove(@Param('id') id: string) {
+    return this.catalog.deleteSchedule(id);
+  }
+}

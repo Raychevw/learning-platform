@@ -24,6 +24,17 @@ function courseProgress(course) {
   return Math.round((lessons.filter((lesson) => lesson.completed).length / lessons.length) * 100);
 }
 
+const WEEKDAYS = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота', 'Неділя'];
+
+function assignmentStatus(assignment, userId) {
+  const submission = (assignment.submissions || []).find((item) => item.studentId === userId);
+  if (submission?.status === 'GRADED') return { label: `Оцінено ${submission.score ?? ''}`.trim(), tone: 'done' };
+  if (submission) return { label: 'Здано', tone: 'done' };
+  const days = daysUntil(assignment.deadline);
+  if (days !== null && days < 0) return { label: 'Прострочено', tone: 'overdue' };
+  return { label: 'До здачі', tone: 'pending' };
+}
+
 function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -38,6 +49,9 @@ export default function Dashboard({
   grades,
   webinars,
   academicGroups,
+  schedule = [],
+  myGroup = null,
+  semester = 1,
   ungradedSubmissions,
   averageStudentGrade,
   getEctsLetter,
@@ -78,7 +92,8 @@ export default function Dashboard({
   const showWebinars = userRole !== 'admin';
   const liveWebinars = showWebinars ? webinars.filter((webinar) => webinar.status === 'LIVE') : [];
   const nextWebinars = showWebinars ? webinars.filter((webinar) => webinar.status !== 'FINISHED').slice(0, 3) : [];
-  const recentGrades = grades.slice(0, 4);
+  const recentGrades = grades.slice(0, 6);
+  const debts = grades.filter((grade) => Number(grade.finalScore) < 60).length;
 
   const roleLabel = isStudent ? 'Студент' : isTeacher ? 'Викладач' : 'Адміністратор';
 
@@ -89,7 +104,13 @@ export default function Dashboard({
           <h1>Панель</h1>
           <p>
             {currentUser?.name || ''}
-            {currentUser?.dept ? ` • ${currentUser.dept}` : ''}
+            {isStudent && myGroup
+              ? ` • ${[myGroup.faculty, myGroup.specialty, `група ${myGroup.name}`, `${semester} семестр`]
+                  .filter(Boolean)
+                  .join(' • ')}`
+              : currentUser?.dept
+                ? ` • ${currentUser.dept}`
+                : ''}
           </p>
         </div>
         <span className="role-chip">{roleLabel}</span>
@@ -127,6 +148,44 @@ export default function Dashboard({
           </b>
         </div>
       </div>
+
+      {schedule.length > 0 && (
+        <section className="dash-section">
+          <div className="dash-section-head">
+            <h2>Розклад занять</h2>
+            <span className="dash-hint">{myGroup ? `Група ${myGroup.name}` : 'Поточний тиждень'}</span>
+          </div>
+          <div className="schedule-grid">
+            {WEEKDAYS.map((label, index) => {
+              const items = schedule.filter((entry) => Number(entry.weekday) === index + 1);
+              if (items.length === 0) return null;
+              return (
+                <div key={label} className="schedule-day">
+                  <div className="schedule-day-name">{label}</div>
+                  {items.map((entry) => (
+                    <div key={entry.id} className="schedule-item">
+                      <div className="schedule-time">
+                        {entry.startTime}–{entry.endTime}
+                      </div>
+                      <div className="schedule-course">{entry.courseTitle}</div>
+                      <div className="schedule-meta">
+                        {entry.lessonType}
+                        {entry.room ? ` • ауд. ${entry.room}` : ''}
+                        {entry.teacherName ? ` • ${entry.teacherName}` : ''}
+                      </div>
+                      {entry.onlineUrl && (
+                        <a className="schedule-link" href={entry.onlineUrl} target="_blank" rel="noreferrer">
+                          Приєднатися онлайн
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <div className="dash-grid">
         <section className="dash-section">
@@ -174,6 +233,39 @@ export default function Dashboard({
               })}
             </div>
           )}
+
+          {isStudent && assignments.length > 0 && (
+            <div className="dash-subsection">
+              <div className="dash-section-head">
+                <h2>Мої завдання</h2>
+                <button type="button" className="link-btn" onClick={() => onOpenAssignment(assignments[0]?.id)}>
+                  Усі
+                </button>
+              </div>
+              <ul className="dash-list">
+                {assignments.slice(0, 8).map((assignment) => {
+                  const status = assignmentStatus(assignment, currentUser?.id);
+                  return (
+                    <li key={assignment.id}>
+                      <button
+                        type="button"
+                        className="dash-item dash-item-btn"
+                        onClick={() => onOpenAssignment(assignment.id)}
+                      >
+                        <span className="dash-item-main">
+                          <span className="dash-item-title">{assignment.title}</span>
+                          <span className="dash-item-sub">
+                            {assignment.type || 'Завдання'} • {assignment.courseTitle} • {formatDate(assignment.deadline)}
+                          </span>
+                        </span>
+                        <span className={`dash-status ${status.tone}`}>{status.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </section>
 
         <div className="dash-column">
@@ -217,7 +309,10 @@ export default function Dashboard({
           {isStudent ? (
             <section className="dash-section">
               <div className="dash-section-head">
-                <h2>Останні оцінки</h2>
+                <h2>Оцінки та успішність</h2>
+                <span className="dash-hint">
+                  Сер. {averageStudentGrade} • Борги: {debts}
+                </span>
               </div>
               {recentGrades.length === 0 ? (
                 <p className="dash-empty">Оцінок ще немає.</p>
@@ -225,11 +320,13 @@ export default function Dashboard({
                 <ul className="dash-list">
                   {recentGrades.map((grade) => (
                     <li key={grade.id} className="dash-item">
-                      <span className="dash-item-date">{grade.finalScore}</span>
+                      <span className="dash-item-date">
+                        {grade.finalScore}/{grade.maxScore}
+                      </span>
                       <span className="dash-item-main">
                         <span className="dash-item-title">{grade.assignmentTitle}</span>
                         <span className="dash-item-sub">
-                          {grade.courseTitle} • {grade.ruleDesc}
+                          {grade.courseTitle} • ECTS {getEctsLetter(grade.finalScore)} • {grade.ruleDesc}
                         </span>
                       </span>
                     </li>

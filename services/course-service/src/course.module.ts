@@ -8,6 +8,7 @@ import {
   LessonEntity,
   LessonCompletionEntity,
   WebinarEntity,
+  ScheduleEntryEntity,
 } from './infrastructure/database/entities/CatalogEntities.js';
 import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
 import { InMemoryCourseRepository } from './infrastructure/database/repositories/InMemoryCourseRepository.js';
@@ -19,16 +20,24 @@ import { PublishCourseUseCase } from './application/course/PublishCourseUseCase.
 import { GetCourseUseCase, ListCoursesUseCase } from './application/course/GetCourseUseCase.js';
 import { CourseController } from './presentation/controllers/CourseController.js';
 import { CatalogService } from './catalog/catalog.service.js';
-import { CatalogController, WebinarController } from './catalog/catalog.controller.js';
-import { CatalogSeeder } from './catalog/catalog.seeder.js';
+import { CatalogController, WebinarController, ScheduleController } from './catalog/catalog.controller.js';
+import { CatalogSeeder, ScheduleSeeder } from './catalog/catalog.seeder.js';
 import { WebinarEventsService } from './catalog/webinar-events.service.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
+import { Schedule1730000000001 } from './database/migrations/1730000000001-schedule.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
-const ALL_ENTITIES = [CourseEntity, CourseModuleEntity, LessonEntity, LessonCompletionEntity, WebinarEntity];
+const ALL_ENTITIES = [
+  CourseEntity,
+  CourseModuleEntity,
+  LessonEntity,
+  LessonCompletionEntity,
+  WebinarEntity,
+  ScheduleEntryEntity,
+];
 
 const dynamicImports: any[] = [
   ConfigModule.forRoot({
@@ -48,7 +57,7 @@ if (usePostgres) {
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'course_db'),
         entities: ALL_ENTITIES,
-        migrations: [Init1730000000000],
+        migrations: [Init1730000000000, Schedule1730000000001],
         migrationsRun: true,
         synchronize: false,
         retryAttempts: 2,
@@ -61,8 +70,8 @@ if (usePostgres) {
 }
 
 // Catalog (modules, lessons, progress) and webinars require PostgreSQL
-const catalogControllers = usePostgres ? [CatalogController, WebinarController] : [];
-const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, WebinarEventsService] : [];
+const catalogControllers = usePostgres ? [CatalogController, WebinarController, ScheduleController] : [];
+const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, ScheduleSeeder, WebinarEventsService] : [];
 
 @Module({
   imports: dynamicImports,

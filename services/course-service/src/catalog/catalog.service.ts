@@ -8,6 +8,7 @@ import {
   LessonCompletionEntity,
   WebinarEntity,
   WebinarChatMessage,
+  ScheduleEntryEntity,
 } from '../infrastructure/database/entities/CatalogEntities.js';
 import { WebinarEventsService } from './webinar-events.service.js';
 
@@ -35,6 +36,7 @@ export class CatalogService {
     @InjectRepository(LessonEntity) private readonly lessons: Repository<LessonEntity>,
     @InjectRepository(LessonCompletionEntity) private readonly completions: Repository<LessonCompletionEntity>,
     @InjectRepository(WebinarEntity) private readonly webinars: Repository<WebinarEntity>,
+    @InjectRepository(ScheduleEntryEntity) private readonly schedule: Repository<ScheduleEntryEntity>,
     private readonly dataSource: DataSource,
     private readonly events: WebinarEventsService,
   ) {}
@@ -237,6 +239,88 @@ export class CatalogService {
     await this.webinars.save(webinar);
     this.events.emit({ type: 'chat', webinarId: id, message });
     return message;
+  }
+
+  // ----------------------------------------------------------------- schedule
+  async listSchedule(filters: { groupId?: string; courseId?: string }) {
+    const where: Record<string, string> = {};
+    if (filters.groupId) where.groupId = filters.groupId;
+    if (filters.courseId) where.courseId = filters.courseId;
+
+    const entries = await this.schedule.find({
+      where,
+      order: { weekday: 'ASC', startTime: 'ASC' },
+    });
+    if (entries.length === 0) return [];
+
+    const courseIds = Array.from(new Set(entries.map((e) => e.courseId)));
+    const courses = await this.courses.find({ where: { id: In(courseIds) } });
+
+    return entries.map((entry) => {
+      const course = courses.find((c) => c.id === entry.courseId);
+      return {
+        id: entry.id,
+        courseId: entry.courseId,
+        courseTitle: course?.title || '',
+        groupId: entry.groupId,
+        weekday: entry.weekday,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        room: entry.room,
+        lessonType: entry.lessonType,
+        teacherName: entry.teacherName || course?.instructor || '',
+        onlineUrl: entry.onlineUrl,
+      };
+    });
+  }
+
+  async createSchedule(dto: {
+    courseId: string;
+    groupId: string;
+    weekday: number;
+    startTime: string;
+    endTime: string;
+    room?: string;
+    lessonType?: string;
+    teacherName?: string;
+    onlineUrl?: string;
+  }) {
+    if (!dto.courseId || !dto.groupId) {
+      throw new BadRequestException('courseId та groupId є обовʼязковими');
+    }
+    const weekday = Number(dto.weekday);
+    if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+      throw new BadRequestException('weekday має бути від 1 до 7');
+    }
+    if (!/^\d{2}:\d{2}$/.test(dto.startTime) || !/^\d{2}:\d{2}$/.test(dto.endTime)) {
+      throw new BadRequestException('Час має бути у форматі HH:MM');
+    }
+    const course = await this.courses.findOneBy({ id: dto.courseId });
+    if (!course) throw new NotFoundException(`Course ${dto.courseId} not found`);
+
+    const entry = await this.schedule.save(
+      this.schedule.create({
+        id: newId('sch'),
+        courseId: dto.courseId,
+        groupId: dto.groupId,
+        weekday,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        room: dto.room || '',
+        lessonType: dto.lessonType || 'Лекція',
+        teacherName: dto.teacherName || course.instructor || '',
+        onlineUrl: dto.onlineUrl || '',
+      }),
+    );
+
+    return { ...entry, courseTitle: course.title };
+  }
+
+  async deleteSchedule(id: string) {
+    const entry = await this.schedule.findOneBy({ id });
+    if (!entry) throw new NotFoundException(`Schedule entry ${id} not found`);
+    await this.schedule.remove(entry);
+    return { ok: true, id };
   }
 
   /** Релей WebRTC-сигналинга: сервер не хранит SDP, только пересылает участникам. */

@@ -101,3 +101,48 @@ export class WebinarEntity {
   @Column({ type: 'jsonb', default: () => "'[]'" })
   chat!: WebinarChatMessage[];
 }
+
+/** Розклад занять: одна пара (лекція/практика/лабораторна) для групи. */
+@Entity('schedule_entries')
+@Index(['groupId', 'weekday', 'startTime'])
+export class ScheduleEntryEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 64 })
+  courseId!: string;
+
+  @ManyToOne(() => CourseEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'courseId' })
+  course?: CourseEntity;
+
+  @Column({ type: 'varchar', length: 64 })
+  groupId!: string;
+
+  /** 1 = понеділок ... 7 = неділя */
+  @Column({ type: 'int' })
+  weekday!: number;
+
+  @Column({ type: 'varchar', length: 5 })
+  startTime!: string;
+
+  @Column({ type: 'varchar', length: 5 })
+  endTime!: string;
+
+  @Column({ type: 'varchar', length: 64, default: '' })
+  room!: string;
+
+  /** Лекція | Практика | Лабораторна */
+  @Column({ type: 'varchar', length: 32, default: 'Лекція' })
+  lessonType!: string;
+
+  @Column({ type: 'varchar', length: 255, default: '' })
+  teacherName!: string;
+
+  @Column({ type: 'varchar', length: 512, default: '' })
+  onlineUrl!: string;
+
+  @Column({ type: 'timestamp with time zone', default: () => 'now()' })
+  createdAt!: Date;
+}

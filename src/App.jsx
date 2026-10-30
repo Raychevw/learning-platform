@@ -76,6 +76,7 @@ export default function App() {
   const [grades, setGrades] = useState(INITIAL_GRADES);
   const [academicGroups, setAcademicGroups] = useState(INITIAL_GROUPS);
   const [webinars, setWebinars] = useState(INITIAL_WEBINARS);
+  const [schedule, setSchedule] = useState([]);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [eventsFeed, setEventsFeed] = useState(INITIAL_EVENTS);
 
@@ -86,12 +87,13 @@ export default function App() {
 
     const load = async () => {
       const userId = encodeURIComponent(currentUser.id);
-      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes] = await Promise.allSettled([
+      const [catalog, assignmentsRes, gradesRes, groupsRes, webinarsRes, scheduleRes] = await Promise.allSettled([
         api.get(`/api/catalog?userId=${userId}`),
         api.get('/api/assignments-full'),
         api.get('/api/grades'),
         api.get('/api/groups'),
         api.get('/api/webinars'),
+        api.get('/api/schedule'),
       ]);
       if (isCancelled) return;
 
@@ -103,6 +105,7 @@ export default function App() {
       apply(gradesRes, setGrades);
       apply(groupsRes, setAcademicGroups);
       apply(webinarsRes, setWebinars);
+      apply(scheduleRes, setSchedule);
     };
 
     load();
@@ -1831,6 +1834,14 @@ export default function App() {
     );
   }
 
+  const myGroup =
+    academicGroups.find((group) => (group.enrolledUserIds || []).includes(currentUser?.id)) || null;
+
+  const currentSemester = courses.reduce(
+    (max, course) => Math.max(max, Number(course.semester) || 1),
+    1
+  );
+
   const handleOpenAssignment = (assignmentId) => {
     if (!assignmentId) {
       setActiveMenu(userRole === 'student' ? 'assignments' : 'grades');
@@ -2026,6 +2037,9 @@ export default function App() {
             grades={grades}
             webinars={webinars}
             academicGroups={academicGroups}
+            schedule={schedule}
+            myGroup={myGroup}
+            semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
             averageStudentGrade={averageStudentGrade}
             getEctsLetter={getEctsLetter}

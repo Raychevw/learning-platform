@@ -6,6 +6,7 @@ import {
   LessonEntity,
   LessonCompletionEntity,
   WebinarEntity,
+  ScheduleEntryEntity,
 } from '../infrastructure/database/entities/CatalogEntities.js';
 
 type SeedLesson = { id: string; title: string; type: string; content: string; completedBy?: string[] };
@@ -209,5 +210,46 @@ export class CatalogSeeder implements OnApplicationBootstrap {
       }
     });
     this.logger.log(`Seeded course_db with ${COURSES.length} courses and ${WEBINARS.length} webinars`);
+  }
+}
+
+/** Демо-розклад для першої групи; не дублюється, якщо записи вже є. */
+@Injectable()
+export class ScheduleSeeder implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ScheduleSeeder.name);
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onApplicationBootstrap() {
+    if (process.env.SEED_DEMO_DATA === 'false') return;
+
+    const repo = this.dataSource.getRepository(ScheduleEntryEntity);
+    if ((await repo.count()) > 0) return;
+
+    const courses = await this.dataSource.getRepository(CourseEntity).find({ order: { createdAt: 'ASC' } });
+    if (courses.length === 0) return;
+
+    const slots = [
+      { course: courses[0], weekday: 1, startTime: '09:00', endTime: '10:30', room: 'А-301', lessonType: 'Лекція' },
+      { course: courses[1] ?? courses[0], weekday: 2, startTime: '11:00', endTime: '12:30', room: 'Б-210', lessonType: 'Практика' },
+      { course: courses[0], weekday: 3, startTime: '09:00', endTime: '10:30', room: 'А-305', lessonType: 'Лабораторна' },
+      { course: courses[2] ?? courses[0], weekday: 4, startTime: '13:00', endTime: '14:30', room: 'В-102', lessonType: 'Лекція' },
+    ];
+
+    const rows = slots.map((slot, index) => ({
+      id: `sch-seed-${index + 1}`,
+      courseId: slot.course.id,
+      groupId: 'g-1',
+      weekday: slot.weekday,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      room: slot.room,
+      lessonType: slot.lessonType,
+      teacherName: slot.course.instructor || '',
+      onlineUrl: '',
+    }));
+
+    await repo.save(rows);
+    this.logger.log(`Seeded ${rows.length} schedule entries for group g-1`);
   }
 }

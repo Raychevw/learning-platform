@@ -262,6 +262,21 @@ async function main() {
       }
 
       try {
+        const scheduleRes = await fetch(`${gatewayUrl}/api/schedule`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        const schedule = await scheduleRes.json().catch(() => null);
+        if (scheduleRes.ok && Array.isArray(schedule)) {
+          ok('GET /api/schedule возвращает расписание', `${schedule.length} pair(s)`);
+        } else {
+          fail('Расписание недоступно', `status=${scheduleRes.status}`);
+        }
+      } catch (err) {
+        fail('Расписание недоступно', err.message);
+      }
+
+      try {
         const signalRes = await fetch(`${gatewayUrl}/api/webinars/web-1/signal`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
