@@ -106,6 +106,84 @@
         ]
       }
     },
+    "/messages/read-all": {
+      "patch": {
+        "operationId": "MessagesController_markAllRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark every incoming message as read",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/thread/{userId}": {
+      "get": {
+        "operationId": "MessagesController_thread",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Conversation with another user",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
+    "/messages/thread/{userId}/read": {
+      "patch": {
+        "operationId": "MessagesController_markThreadRead",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a whole conversation as read",
+        "tags": [
+          "Messages"
+        ]
+      }
+    },
     "/messages/{id}/read": {
       "patch": {
         "operationId": "MessagesController_markRead",

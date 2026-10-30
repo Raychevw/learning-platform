@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import './styles/clean.css';
-import { api, getToken, requestBlob } from './api/client.js';
+import { api, getToken, request, requestBlob } from './api/client.js';
 import Dashboard from './features/Dashboard.jsx';
 import WebinarsPage from './features/WebinarsPage.jsx';
 import { useAuth } from './auth/useAuth.js';
@@ -33,6 +33,17 @@ function getDefaultWebinarDate() {
   d.setSeconds(0);
   const offset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+}
+
+/** Ініціали для аватарів у повідомленнях. */
+function initialsOf(name) {
+  return String(name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 }
 
 /** Українське відмінювання для кількості навчальних матеріалів. */
@@ -77,7 +88,7 @@ const UK_MONTHS = [
 ];
 
 export default function App() {
-  const { user: currentUser, booting, login, logout } = useAuth();
+  const { user: currentUser, booting, login, logout, refreshProfile } = useAuth();
 
   // Login Form States
   const [loginInput, setLoginInput] = useState('');
@@ -101,8 +112,11 @@ export default function App() {
   const [inboxMessages, setInboxMessages] = useState([]);
   const [sentMessages, setSentMessages] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
-  const [messageTab, setMessageTab] = useState('inbox');
   const [composeForm, setComposeForm] = useState({ recipientId: '', subject: '', body: '' });
+  const [messagePeer, setMessagePeer] = useState(null);
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [replyBody, setReplyBody] = useState('');
+  const [threadLoading, setThreadLoading] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
@@ -342,6 +356,26 @@ export default function App() {
     password: '123456',
     role: 'STUDENT',
   });
+  const [profileForm, setProfileForm] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', repeat: '' });
+  const [editingUser, setEditingUser] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({
+    fullName: '',
+    email: '',
+    username: '',
+    department: '',
+    role: 'STUDENT',
+    status: 'ACTIVE',
+    password: '',
+  });
+
+  const profileValues = profileForm || {
+    fullName: currentUser?.name || '',
+    email: currentUser?.email || '',
+    username: currentUser?.username || '',
+    department: currentUser?.dept || '',
+  };
+
   const [enrollUserId, setEnrollUserId] = useState('');
   const [enrollName, setEnrollName] = useState('');
 
@@ -563,7 +597,7 @@ export default function App() {
    */
   const syncBackend = async (path, method = 'POST', body = null) => {
     try {
-      return await api.request(path.startsWith('/api') ? path : `/api${path}`, { method, body });
+      return await request(path.startsWith('/api') ? path : `/api${path}`, { method, body });
     } catch (err) {
       showNotification(err.message || 'Не вдалося зберегти зміни на сервері.', true);
       return null;
@@ -1359,18 +1393,74 @@ export default function App() {
     if (!res) return;
 
     setSentMessages((prev) => [res, ...prev]);
+    if (messagePeer?.id === recipient.id) {
+      setThreadMessages((prev) => [...prev, res]);
+    }
     setComposeForm({ recipientId: '', subject: '', body: '' });
     showNotification('Повідомлення надіслано.');
   };
 
-  const handleOpenMessage = async (message) => {
-    if (!message.unread) return;
-    const res = await syncBackend(`/messages/${message.id}/read`, 'PATCH');
+  const handleOpenThread = async (peer) => {
+    setMessagePeer(peer);
+    setReplyBody('');
+    setThreadLoading(true);
+    try {
+      const res = await api.get(`/api/messages/thread/${encodeURIComponent(peer.id)}`);
+      const messages = Array.isArray(res) ? res : [];
+      setThreadMessages(messages);
+
+      const unreadInThread = messages.filter(
+        (message) => message.recipientId === currentUser?.id && !message.readAt
+      );
+      if (unreadInThread.length > 0) {
+        await api.patch(`/api/messages/thread/${encodeURIComponent(peer.id)}/read`);
+        const unreadIds = new Set(unreadInThread.map((message) => message.id));
+        setInboxMessages((prev) =>
+          prev.map((message) =>
+            unreadIds.has(message.id)
+              ? { ...message, unread: false, readAt: new Date().toISOString() }
+              : message
+          )
+        );
+        setUnreadMessages((prev) => Math.max(0, prev - unreadIds.size));
+      }
+    } catch (err) {
+      showNotification(err.message || 'Не вдалося завантажити діалог.', true);
+    } finally {
+      setThreadLoading(false);
+    }
+  };
+
+  const handleSendReply = async (e) => {
+    e.preventDefault();
+    if (!messagePeer || !replyBody.trim()) return;
+
+    const res = await syncBackend('/messages', 'POST', {
+      recipientId: messagePeer.id,
+      recipientName: messagePeer.name,
+      subject: '',
+      body: replyBody.trim(),
+    });
     if (!res) return;
+
+    setThreadMessages((prev) => [...prev, res]);
+    setSentMessages((prev) => [res, ...prev]);
+    setReplyBody('');
+    showNotification('Відповідь надіслано.');
+  };
+
+  const handleMarkAllRead = async () => {
+    const res = await syncBackend('/messages/read-all', 'PATCH');
+    if (!res) return;
+    const now = new Date().toISOString();
     setInboxMessages((prev) =>
-      prev.map((item) => (item.id === message.id ? { ...item, unread: false, readAt: res.readAt } : item))
+      prev.map((message) => ({ ...message, unread: false, readAt: message.readAt || now }))
     );
-    setUnreadMessages((prev) => Math.max(0, prev - 1));
+    setThreadMessages((prev) =>
+      prev.map((message) => ({ ...message, unread: false, readAt: message.readAt || now }))
+    );
+    setUnreadMessages(0);
+    showNotification('Усі повідомлення позначено прочитаними.');
   };
 
   const handleAssignCurator = async (groupId, curatorId) => {
@@ -1421,6 +1511,80 @@ export default function App() {
     setSystemUsers((prev) => [...prev, res]);
     setNewUserForm({ fullName: '', email: '', username: '', password: '123456', role: 'STUDENT' });
     showNotification(`Користувача «${res.fullName}» створено.`);
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    const res = await syncBackend('/auth/me', 'PATCH', {
+      fullName: profileValues.fullName.trim(),
+      email: profileValues.email.trim(),
+      username: profileValues.username.trim(),
+      department: profileValues.department.trim(),
+    });
+    if (!res) return;
+
+    try {
+      await refreshProfile();
+    } catch {
+      /* профиль обновится при следующей загрузке */
+    }
+    setProfileForm(null);
+    setSystemUsers((prev) => prev.map((user) => (user.id === res.id ? res : user)));
+    showNotification('Профіль оновлено.');
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.next !== passwordForm.repeat) {
+      showNotification('Новий пароль і підтвердження не збігаються.', true);
+      return;
+    }
+    const res = await syncBackend('/auth/change-password', 'POST', {
+      currentPassword: passwordForm.current,
+      newPassword: passwordForm.next,
+    });
+    if (!res) return;
+    setPasswordForm({ current: '', next: '', repeat: '' });
+    showNotification('Пароль успішно змінено.');
+  };
+
+  const handleStartEditUser = (user) => {
+    setEditingUser(user);
+    setEditUserForm({
+      fullName: user.fullName || '',
+      email: user.email || '',
+      username: user.username || '',
+      department: user.department || '',
+      role: user.role || 'STUDENT',
+      status: user.status || 'ACTIVE',
+      password: '',
+    });
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const res = await syncBackend(`/auth/users/${editingUser.id}`, 'PATCH', {
+      fullName: editUserForm.fullName.trim(),
+      email: editUserForm.email.trim(),
+      username: editUserForm.username.trim(),
+      department: editUserForm.department.trim(),
+      role: editUserForm.role,
+      status: editUserForm.status,
+    });
+    if (!res) return;
+
+    if (editUserForm.password.trim()) {
+      const passwordRes = await syncBackend(`/auth/users/${editingUser.id}/password`, 'POST', {
+        password: editUserForm.password.trim(),
+      });
+      if (!passwordRes) return;
+    }
+
+    setSystemUsers((prev) => prev.map((user) => (user.id === res.id ? res : user)));
+    setEditingUser(null);
+    showNotification(`Дані користувача «${res.fullName}» оновлено.`);
   };
 
   const handleTransferUser = async (userId, groupId) => {
@@ -1714,6 +1878,34 @@ export default function App() {
     submissionTarget?.allowedFormats?.length ? submissionTarget.allowedFormats : ['pdf', 'docx'];
   const acceptForSubmission = allowedSubmissionFormats.map((format) => `.${format}`).join(',');
 
+  const conversations = (() => {
+    if (!currentUser) return [];
+    const map = new Map();
+    for (const message of [...inboxMessages, ...sentMessages]) {
+      const incoming = message.senderId !== currentUser.id;
+      const peerId = incoming ? message.senderId : message.recipientId;
+      if (!peerId) continue;
+      const peerName = incoming ? message.senderName : message.recipientName;
+      const timestamp = new Date(message.createdAt).getTime();
+      const existing = map.get(peerId) || {
+        id: peerId,
+        name: peerName || 'Користувач',
+        last: '',
+        timestamp: 0,
+        unread: 0,
+      };
+      if (timestamp >= existing.timestamp) {
+        existing.last = message.body;
+        existing.timestamp = timestamp;
+        existing.name = peerName || existing.name;
+      }
+      if (incoming && !message.readAt) existing.unread += 1;
+      map.set(peerId, existing);
+    }
+    return [...map.values()].sort((a, b) => b.timestamp - a.timestamp);
+  })();
+
+
   // Role-specific navigation menu
   const roleMenus =
     userRole === 'student'
@@ -1725,6 +1917,7 @@ export default function App() {
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
           { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
+          { id: 'profile', label: 'Мій профіль', icon: 'user' },
         ]
       : userRole === 'teacher'
       ? [
@@ -1736,6 +1929,7 @@ export default function App() {
           { id: 'webinars', label: 'Онлайн-заняття', icon: 'video' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
           { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
+          { id: 'profile', label: 'Мій профіль', icon: 'user' },
         ]
       : [
           { id: 'dashboard', label: 'Панель', icon: 'grid' },
@@ -1744,6 +1938,7 @@ export default function App() {
           { id: 'schedule', label: 'Розклад', icon: 'calendar' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
           { id: 'announcements', label: 'Оголошення', icon: 'megaphone' },
+          { id: 'profile', label: 'Мій профіль', icon: 'user' },
           { id: 'audit', label: 'Журнал', icon: 'shield' },
         ];
 
@@ -1847,6 +2042,12 @@ export default function App() {
                       <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
                     </svg>
                   )}
+                  {item.icon === 'user' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  )}
                   <span>{item.label}</span>
                   {item.id === 'messages' && unreadMessages > 0 && (
                     <span
@@ -1944,6 +2145,7 @@ export default function App() {
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
+            unreadMessages={unreadMessages}
             averageStudentGrade={averageStudentGrade}
             getEctsLetter={getEctsLetter}
             onOpenCourse={(courseId) => setSelectedCourseId(courseId)}
@@ -1952,6 +2154,7 @@ export default function App() {
             onOpenWebinars={() => setActiveMenu('webinars')}
             onOpenGroups={() => setActiveMenu('groups')}
             onOpenAnnouncements={() => setActiveMenu('announcements')}
+            onOpenMessages={() => setActiveMenu('messages')}
           />
         )}
 
@@ -2852,6 +3055,7 @@ export default function App() {
                     <th>Роль</th>
                     <th>Статус</th>
                     <th>Група</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2896,12 +3100,22 @@ export default function App() {
                             ))}
                           </select>
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-studevo-outline"
+                            style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                            onClick={() => handleStartEditUser(user)}
+                          >
+                            Редагувати
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
                   {systemUsers.length === 0 && (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', color: '#868e96' }}>
+                      <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
                         Користувачів не знайдено
                       </td>
                     </tr>
@@ -3270,6 +3484,140 @@ export default function App() {
           </div>
         )}
 
+        {/* 9. PROFILE */}
+        {activeMenu === 'profile' && (
+          <div>
+            <div className="section-header-row">
+              <h2 className="section-title">Мій профіль</h2>
+            </div>
+
+            <div className="profile-layout">
+              <section className="studevo-card profile-summary">
+                <div className="profile-avatar">{currentUser.initials}</div>
+                <div className="profile-name">{currentUser.name}</div>
+                <span className="profile-role">
+                  {userRole === 'student' ? 'Студент' : userRole === 'teacher' ? 'Викладач' : 'Деканат'}
+                </span>
+                <div className="profile-facts">
+                  <div>
+                    <span>Email</span>
+                    <strong>{currentUser.email || '—'}</strong>
+                  </div>
+                  <div>
+                    <span>Логін</span>
+                    <strong>{currentUser.username || '—'}</strong>
+                  </div>
+                  <div>
+                    <span>Підрозділ</span>
+                    <strong>{currentUser.dept || '—'}</strong>
+                  </div>
+                  {userRole === 'student' && (
+                    <div>
+                      <span>Група</span>
+                      <strong>{myGroup?.name || '—'}</strong>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <div className="profile-forms">
+                <section className="studevo-card">
+                  <h3 className="profile-section-title">Особисті дані</h3>
+                  <form onSubmit={handleSaveProfile}>
+                    <div className="profile-form-grid">
+                      <div className="form-group-field">
+                        <label>ПІБ</label>
+                        <input
+                          type="text"
+                          className="input-studevo-control"
+                          value={profileValues.fullName}
+                          onChange={(e) => setProfileForm({ ...profileValues, fullName: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label>Email</label>
+                        <input
+                          type="email"
+                          className="input-studevo-control"
+                          value={profileValues.email}
+                          onChange={(e) => setProfileForm({ ...profileValues, email: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label>Логін</label>
+                        <input
+                          type="text"
+                          className="input-studevo-control"
+                          value={profileValues.username}
+                          onChange={(e) => setProfileForm({ ...profileValues, username: e.target.value })}
+                          placeholder="латиниця, цифри, . _ -"
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label>Кафедра / підрозділ</label>
+                        <input
+                          type="text"
+                          className="input-studevo-control"
+                          value={profileValues.department}
+                          onChange={(e) => setProfileForm({ ...profileValues, department: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn-studevo-primary">
+                      Зберегти зміни
+                    </button>
+                  </form>
+                </section>
+
+                <section className="studevo-card">
+                  <h3 className="profile-section-title">Зміна пароля</h3>
+                  <form onSubmit={handleChangePassword}>
+                    <div className="profile-form-grid">
+                      <div className="form-group-field">
+                        <label>Поточний пароль</label>
+                        <input
+                          type="password"
+                          className="input-studevo-control"
+                          value={passwordForm.current}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label>Новий пароль</label>
+                        <input
+                          type="password"
+                          className="input-studevo-control"
+                          value={passwordForm.next}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, next: e.target.value })}
+                          minLength={6}
+                          required
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label>Повторіть новий пароль</label>
+                        <input
+                          type="password"
+                          className="input-studevo-control"
+                          value={passwordForm.repeat}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, repeat: e.target.value })}
+                          minLength={6}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn-studevo-outline">
+                      Змінити пароль
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 9. MESSAGES (student / teacher / dean) */}
         {activeMenu === 'messages' && (
           <div>
@@ -3335,56 +3683,116 @@ export default function App() {
               </form>
             </div>
 
-            <div className="studevo-card">
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+            <div className="studevo-card messenger-card">
+              <div className="messenger-toolbar">
+                <div>
+                  <strong>Діалоги</strong>
+                  <span className="dash-hint" style={{ marginLeft: '8px' }}>
+                    {conversations.length} · непрочитаних {unreadMessages}
+                  </span>
+                </div>
                 <button
                   type="button"
-                  className={messageTab === 'inbox' ? 'btn-studevo-primary' : 'btn-studevo-outline'}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => setMessageTab('inbox')}
+                  className="btn-studevo-outline"
+                  style={{ padding: '5px 12px', fontSize: '11.5px' }}
+                  onClick={handleMarkAllRead}
+                  disabled={unreadMessages === 0}
                 >
-                  Вхідні ({inboxMessages.length})
-                </button>
-                <button
-                  type="button"
-                  className={messageTab === 'sent' ? 'btn-studevo-primary' : 'btn-studevo-outline'}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => setMessageTab('sent')}
-                >
-                  Надіслані ({sentMessages.length})
+                  Позначити всі прочитаними
                 </button>
               </div>
 
-              {(messageTab === 'inbox' ? inboxMessages : sentMessages).length === 0 ? (
-                <p className="dash-empty">Повідомлень немає.</p>
-              ) : (
-                (messageTab === 'inbox' ? inboxMessages : sentMessages).map((message) => (
-                  <div
-                    key={message.id}
-                    className={`message-row ${message.unread ? 'unread' : ''}`}
-                    onClick={() => messageTab === 'inbox' && handleOpenMessage(message)}
-                  >
-                    <div className="message-head">
-                      <strong>
-                        {messageTab === 'inbox'
-                          ? message.senderName
-                          : `До: ${message.recipientName}`}
-                      </strong>
-                      <span className="dash-hint">
-                        {new Date(message.createdAt).toLocaleString('uk-UA', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
+              <div className="messenger">
+                <aside className="messenger-list">
+                  {conversations.length === 0 ? (
+                    <p className="dash-empty" style={{ padding: '18px' }}>
+                      Ще немає діалогів. Напишіть перше повідомлення вище.
+                    </p>
+                  ) : (
+                    conversations.map((conversation) => (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        className={`conversation-item ${messagePeer?.id === conversation.id ? 'active' : ''}`}
+                        onClick={() => handleOpenThread(conversation)}
+                      >
+                        <span className="conversation-avatar">{initialsOf(conversation.name)}</span>
+                        <span className="conversation-main">
+                          <span className="conversation-name">{conversation.name}</span>
+                          <span className="conversation-last">{conversation.last}</span>
+                        </span>
+                        <span className="conversation-side">
+                          {new Date(conversation.timestamp).toLocaleDateString('uk-UA', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })}
+                          {conversation.unread > 0 && (
+                            <span className="conversation-badge">{conversation.unread}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </aside>
+
+                <section className="messenger-thread">
+                  {!messagePeer ? (
+                    <div className="messenger-empty">
+                      <div className="messenger-empty-icon">✉</div>
+                      <div>Оберіть діалог зі списку, щоб прочитати листування.</div>
                     </div>
-                    {message.subject ? <div className="message-subject">{message.subject}</div> : null}
-                    <div className="message-body">{message.body}</div>
-                  </div>
-                ))
-              )}
+                  ) : (
+                    <>
+                      <div className="thread-head">
+                        <span className="conversation-avatar">{initialsOf(messagePeer.name)}</span>
+                        <strong>{messagePeer.name}</strong>
+                      </div>
+
+                      <div className="thread-scroll">
+                        {threadLoading ? (
+                          <p className="dash-empty">Завантаження діалогу…</p>
+                        ) : threadMessages.length === 0 ? (
+                          <p className="dash-empty">Повідомлень у цьому діалозі ще немає.</p>
+                        ) : (
+                          threadMessages.map((message) => {
+                            const mine = message.senderId === currentUser?.id;
+                            return (
+                              <div key={message.id} className={`chat-row ${mine ? 'mine' : 'theirs'}`}>
+                                <div className={`chat-bubble ${mine ? 'mine' : 'theirs'}`}>
+                                  {message.subject ? <div className="chat-subject">{message.subject}</div> : null}
+                                  <div>{message.body}</div>
+                                  <div className="chat-time">
+                                    {new Date(message.createdAt).toLocaleString('uk-UA', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <form className="thread-compose" onSubmit={handleSendReply}>
+                        <input
+                          type="text"
+                          className="input-studevo-control"
+                          placeholder="Написати відповідь…"
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          required
+                        />
+                        <button type="submit" className="btn-studevo-primary">
+                          Надіслати
+                        </button>
+                      </form>
+                    </>
+                  )}
+                </section>
+              </div>
             </div>
           </div>
         )}
@@ -3668,6 +4076,112 @@ export default function App() {
       {/* ========================================================
           MODAL 1: COURSE DETAILS, LESSONS & BUILDER
           ======================================================== */}
+      {editingUser && (
+        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
+          <div className="modal-window user-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>Редагування користувача</h3>
+                <div className="course-view-header-sub">{editingUser.email}</div>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setEditingUser(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSaveUser}>
+              <div className="modal-body">
+                <div className="profile-form-grid">
+                  <div className="form-group-field">
+                    <label>ПІБ</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={editUserForm.fullName}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      className="input-studevo-control"
+                      value={editUserForm.email}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Логін</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={editUserForm.username}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Кафедра / підрозділ</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={editUserForm.department}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, department: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Роль</label>
+                    <select
+                      className="input-studevo-control"
+                      value={editUserForm.role}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
+                    >
+                      <option value="STUDENT">Студент</option>
+                      <option value="TEACHER">Викладач</option>
+                      <option value="ADMIN">Деканат</option>
+                    </select>
+                  </div>
+                  <div className="form-group-field">
+                    <label>Статус</label>
+                    <select
+                      className="input-studevo-control"
+                      value={editUserForm.status}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, status: e.target.value })}
+                    >
+                      <option value="ACTIVE">Активний</option>
+                      <option value="EXPELLED">Відрахований</option>
+                      <option value="ACADEMIC_LEAVE">Академвідпустка</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group-field">
+                  <label>Новий пароль (необов’язково)</label>
+                  <input
+                    type="text"
+                    className="input-studevo-control"
+                    value={editUserForm.password}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })}
+                    placeholder="Залиште порожнім, щоб не змінювати"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-studevo-secondary" onClick={() => setEditingUser(null)}>
+                  Скасувати
+                </button>
+                <button type="submit" className="btn-studevo-primary">
+                  Зберегти
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {selectedCourse && (
         <div className="modal-overlay" onClick={() => setSelectedCourseId(null)}>
           <div className="modal-window modal-wide" onClick={(e) => e.stopPropagation()}>

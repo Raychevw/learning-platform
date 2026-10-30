@@ -75,8 +75,12 @@
   експорт звіту CSV.
 - **Власність курсів** — викладач бачить і редагує лише свої дисципліни; декан призначає
   відповідального викладача (`PATCH /api/catalog/:courseId/owner`).
-- **Повідомлення** — окремий `communication-service`: студент ↔ викладач ↔ деканат,
-  вхідні/надіслані, непрочитані, довідник користувачів.
+- **Повідомлення** — окремий `communication-service`: діалоги студент ↔ викладач ↔ деканат,
+  непрочитані, позначка «прочитано», відповідь у потоці, довідник користувачів.
+- **Мій профіль** — кожен користувач редагує ПІБ, email, логін і підрозділ та змінює пароль
+  (`PATCH /api/auth/me`, `POST /api/auth/change-password`).
+- **Керування користувачами** — деканат створює акаунти, редагує дані, роль і статус навчання
+  та скидає пароль (`PATCH /api/auth/users/:id`, `POST /api/auth/users/:id/password`).
 - **Оголошення** — деканат/викладач публікує для всіх, студентів, викладачів або окремої
   групи; показуються на панелі та окремій сторінці.
 - **Керування розкладом** — викладач/декан додає та видаляє пари (день, час, аудиторія,
@@ -238,7 +242,13 @@ POST /api/auth/login
 | GET | `/api/auth/directory` | довідник користувачів для вибору отримувача |
 | GET/POST | `/api/messages/inbox`, `/api/messages` | вхідні та надсилання повідомлень |
 | GET | `/api/messages/sent`, `/api/messages/unread` | надіслані та кількість непрочитаних |
-| PATCH | `/api/messages/:id/read` | позначити прочитаним |
+| GET | `/api/messages/thread/:userId` | повний діалог з користувачем |
+| PATCH | `/api/messages/:id/read`, `/api/messages/thread/:userId/read` | позначити прочитаним |
+| PATCH | `/api/messages/read-all` | позначити всі вхідні прочитаними |
+| PATCH | `/api/auth/me` | оновити власний профіль |
+| POST | `/api/auth/change-password` | змінити власний пароль |
+| PATCH | `/api/auth/users/:id` | редагувати користувача (admin) |
+| POST | `/api/auth/users/:id/password` | скинути пароль користувача (admin) |
 | GET/POST | `/api/announcements` | оголошення (перегляд / публікація teacher, admin) |
 | DELETE | `/api/announcements/:id` | видалити оголошення (автор або admin) |
 | POST/DELETE | `/api/schedule`, `/api/schedule/:id` | керування розкладом (teacher/admin) |

@@ -53,6 +53,33 @@ export class MessagesService {
     return rows.map((row) => this.toDto(row));
   }
 
+  /** Повний діалог між поточним користувачем та співрозмовником. */
+  async thread(userId: string, otherId: string) {
+    const rows = await this.messages
+      .createQueryBuilder('m')
+      .where(
+        '(m.senderId = :userId AND m.recipientId = :otherId) OR (m.senderId = :otherId AND m.recipientId = :userId)',
+        { userId, otherId },
+      )
+      .orderBy('m.createdAt', 'ASC')
+      .take(300)
+      .getMany();
+    return rows.map((row) => this.toDto(row));
+  }
+
+  async markAllRead(userId: string) {
+    await this.messages.update({ recipientId: userId, readAt: IsNull() }, { readAt: new Date() });
+    return { ok: true };
+  }
+
+  async markThreadRead(userId: string, otherId: string) {
+    await this.messages.update(
+      { recipientId: userId, senderId: otherId, readAt: IsNull() },
+      { readAt: new Date() },
+    );
+    return { ok: true };
+  }
+
   async unreadCount(userId: string) {
     const unread = await this.messages.count({ where: { recipientId: userId, readAt: IsNull() } });
     return { unread };

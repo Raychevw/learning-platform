@@ -35,6 +35,23 @@ function assignmentStatus(assignment, userId) {
   return { label: 'До здачі', tone: 'pending' };
 }
 
+/** Українське відмінювання для повідомлень і робіт. */
+function plural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+function worksLabel(count) {
+  return `${count} ${plural(count, 'робота очікує', 'роботи очікують', 'робіт очікують')} перевірки`;
+}
+
+function messagesLabel(count) {
+  return `${count} ${plural(count, 'непрочитане повідомлення', 'непрочитані повідомлення', 'непрочитаних повідомлень')}`;
+}
+
 function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -56,6 +73,7 @@ export default function Dashboard({
   myGroup = null,
   semester = 1,
   ungradedSubmissions,
+  unreadMessages = 0,
   averageStudentGrade,
   getEctsLetter,
   onOpenCourse,
@@ -64,6 +82,7 @@ export default function Dashboard({
   onOpenWebinars,
   onOpenGroups,
   onOpenAnnouncements,
+  onOpenMessages,
 }) {
   const isStudent = userRole === 'student';
   const isTeacher = userRole === 'teacher';
@@ -126,6 +145,43 @@ export default function Dashboard({
   const nextWebinars = showWebinars ? webinars.filter((webinar) => webinar.status !== 'FINISHED').slice(0, 3) : [];
   const recentGrades = grades.slice(0, 6);
   const debts = grades.filter((grade) => Number(grade.finalScore) < 60).length;
+
+  const notifications = [];
+  if (unreadMessages > 0) {
+    notifications.push({
+      id: 'messages',
+      tone: 'info',
+      icon: '✉',
+      title: messagesLabel(unreadMessages),
+      subtitle: 'Відкрийте, щоб відповісти',
+      action: onOpenMessages,
+    });
+  }
+  if (!isStudent && ungradedSubmissions.length > 0) {
+    notifications.push({
+      id: 'ungraded',
+      tone: 'warning',
+      icon: '⏳',
+      title: worksLabel(ungradedSubmissions.length),
+      subtitle: 'Перейдіть до оцінювання',
+      action: onOpenGrades,
+    });
+  }
+  if (isStudent) {
+    for (const assignment of upcoming.slice(0, 2)) {
+      notifications.push({
+        id: `deadline-${assignment.id}`,
+        tone: assignment.days !== null && assignment.days <= 2 ? 'urgent' : 'info',
+        icon: '⏰',
+        title: assignment.title,
+        subtitle:
+          assignment.days !== null && assignment.days >= 0
+            ? `Дедлайн через ${assignment.days} дн.`
+            : 'Дедлайн наближається',
+        action: () => onOpenAssignment(assignment.id),
+      });
+    }
+  }
 
   const totals = analytics?.totals || {};
   const groupStats = analytics?.groupStats || [];
@@ -233,6 +289,31 @@ export default function Dashboard({
           </div>
         ))}
       </div>
+
+      {notifications.length > 0 && (
+        <section className="dash-section">
+          <div className="dash-section-head">
+            <h2>Сповіщення</h2>
+          </div>
+          <div className="notif-list">
+            {notifications.slice(0, 5).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`notif-item ${item.tone}`}
+                onClick={item.action}
+              >
+                <span className="notif-icon">{item.icon}</span>
+                <span className="notif-main">
+                  <span className="notif-title">{item.title}</span>
+                  <span className="notif-subtitle">{item.subtitle}</span>
+                </span>
+                <span className="notif-arrow">→</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {announcements.length > 0 && (
         <section className="dash-section">
@@ -568,7 +649,7 @@ export default function Dashboard({
                     <li key={item.courseTitle} className="dash-item">
                       <span className="dash-item-main">
                         <span className="dash-item-title">{item.courseTitle}</span>
-                        <span className="dash-item-sub">{item.pending} робіт очікують перевірки</span>
+                        <span className="dash-item-sub">{worksLabel(item.pending)}</span>
                       </span>
                     </li>
                   ))}

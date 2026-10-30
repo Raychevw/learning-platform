@@ -71,10 +71,17 @@ export function useAuth() {
     return mapped;
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const profile = await api.me();
+    const mapped = mapUser(profile);
+    setUser(mapped);
+    return mapped;
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
   }, []);
 
-  return { user, booting, login, logout };
+  return { user, booting, login, logout, refreshProfile };
 }

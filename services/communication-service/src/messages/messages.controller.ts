@@ -35,6 +35,24 @@ export class MessagesController {
     return this.messages.unreadCount(req.user.userId);
   }
 
+  @Patch('read-all')
+  @ApiOperation({ summary: 'Mark every incoming message as read' })
+  markAllRead(@Req() req: { user: AuthUser }) {
+    return this.messages.markAllRead(req.user.userId);
+  }
+
+  @Get('thread/:userId')
+  @ApiOperation({ summary: 'Conversation with another user' })
+  thread(@Param('userId') otherId: string, @Req() req: { user: AuthUser }) {
+    return this.messages.thread(req.user.userId, otherId);
+  }
+
+  @Patch('thread/:userId/read')
+  @ApiOperation({ summary: 'Mark a whole conversation as read' })
+  markThreadRead(@Param('userId') otherId: string, @Req() req: { user: AuthUser }) {
+    return this.messages.markThreadRead(req.user.userId, otherId);
+  }
+
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark a message as read' })
   markRead(@Param('id') id: string, @Req() req: { user: AuthUser }) {

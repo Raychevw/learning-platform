@@ -49,6 +49,102 @@
         "tags": [
           "Auth & Identity"
         ]
+      },
+      "patch": {
+        "operationId": "AuthController_updateMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Оновити власний профіль",
+        "tags": [
+          "Auth & Identity"
+        ]
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Змінити власний пароль",
+        "tags": [
+          "Auth & Identity"
+        ]
+      }
+    },
+    "/auth/users/{id}": {
+      "patch": {
+        "operationId": "AuthController_updateUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Редагувати користувача (лише адміністратор)",
+        "tags": [
+          "Auth & Identity"
+        ]
+      }
+    },
+    "/auth/users/{id}/password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Скинути пароль користувача (лише адміністратор)",
+        "tags": [
+          "Auth & Identity"
+        ]
       }
     },
     "/auth/users/{id}/status": {
