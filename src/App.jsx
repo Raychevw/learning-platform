@@ -415,6 +415,7 @@ export default function App() {
     videoUrl: '',
     file: null,
   });
+  const [editingLesson, setEditingLesson] = useState(null);
 
   // Group Management Modal State (Admin)
   const [managingGroupId, setManagingGroupId] = useState(null);
@@ -908,6 +909,49 @@ export default function App() {
       file: null,
     }));
     showNotification(`Матеріал «${newLesson.title}» додано до курсу.`);
+  };
+
+  const handleUpdateLesson = async (e) => {
+    e.preventDefault();
+    if (!editingLesson || !selectedCourse) return;
+
+    let res;
+    if (editingLesson.file) {
+      const formData = new FormData();
+      formData.append('title', editingLesson.title);
+      formData.append('type', editingLesson.type);
+      formData.append('content', editingLesson.content || '');
+      formData.append('linkUrl', editingLesson.linkUrl || '');
+      formData.append('videoUrl', editingLesson.videoUrl || '');
+      formData.append('file', editingLesson.file);
+      res = await syncBackend(`/catalog/lessons/${editingLesson.id}/file`, 'PATCH', formData);
+    } else {
+      res = await syncBackend(`/catalog/lessons/${editingLesson.id}`, 'PATCH', {
+        title: editingLesson.title,
+        type: editingLesson.type,
+        content: editingLesson.content || '',
+        linkUrl: editingLesson.linkUrl || '',
+        videoUrl: editingLesson.videoUrl || '',
+      });
+    }
+    if (!res) return;
+
+    setCourses((prev) =>
+      prev.map((course) => {
+        if (course.id !== selectedCourse.id) return course;
+        return {
+          ...course,
+          modules: course.modules.map((mod) => ({
+            ...mod,
+            lessons: mod.lessons.map((lesson) =>
+              lesson.id === editingLesson.id ? { ...lesson, ...res } : lesson
+            ),
+          })),
+        };
+      })
+    );
+    setEditingLesson(null);
+    showNotification('Матеріал оновлено.');
   };
 
   // ========================================================
@@ -4821,20 +4865,108 @@ export default function App() {
                                 </span>
                               </div>
 
-                              <button
-                                type="button"
-                                className={l.completed ? 'btn-studevo-secondary' : 'btn-studevo-outline'}
-                                style={{ padding: '3px 9px', fontSize: '11px' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleLessonCompleted(selectedCourse.id, l.id);
-                                }}
-                              >
-                                {l.completed ? 'Пройдено' : 'Відмітити як пройдене'}
-                              </button>
+                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                {userRole === 'teacher' && (
+                                  <button
+                                    type="button"
+                                    className="btn-studevo-outline"
+                                    style={{ padding: '3px 9px', fontSize: '11px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingLesson({ ...l, file: null });
+                                    }}
+                                  >
+                                    Редагувати
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className={l.completed ? 'btn-studevo-secondary' : 'btn-studevo-outline'}
+                                  style={{ padding: '3px 9px', fontSize: '11px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleLessonCompleted(selectedCourse.id, l.id);
+                                  }}
+                                >
+                                  {l.completed ? 'Пройдено' : 'Відмітити як пройдене'}
+                                </button>
+                              </div>
                             </div>
 
-                            {isSelected && (
+                            {editingLesson?.id === l.id ? (
+                              <form className="lesson-edit-form" onSubmit={handleUpdateLesson}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                  <input
+                                    type="text"
+                                    className="input-studevo-control"
+                                    value={editingLesson.title}
+                                    onChange={(e) => setEditingLesson({ ...editingLesson, title: e.target.value })}
+                                    required
+                                  />
+                                  <select
+                                    className="input-studevo-control"
+                                    value={editingLesson.type}
+                                    onChange={(e) => setEditingLesson({ ...editingLesson, type: e.target.value })}
+                                  >
+                                    <option value="Лекція">Лекція</option>
+                                    <option value="Відео">Відео</option>
+                                    <option value="Методичка">Методичка</option>
+                                    <option value="Презентація">Презентація</option>
+                                  </select>
+                                </div>
+                                <textarea
+                                  rows="3"
+                                  className="input-studevo-control"
+                                  style={{ marginBottom: '8px' }}
+                                  value={editingLesson.content || ''}
+                                  onChange={(e) => setEditingLesson({ ...editingLesson, content: e.target.value })}
+                                />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                  <input
+                                    type="url"
+                                    className="input-studevo-control"
+                                    placeholder="Посилання на матеріал"
+                                    value={editingLesson.linkUrl || ''}
+                                    onChange={(e) => setEditingLesson({ ...editingLesson, linkUrl: e.target.value })}
+                                  />
+                                  <input
+                                    type="url"
+                                    className="input-studevo-control"
+                                    placeholder="Посилання на відео"
+                                    value={editingLesson.videoUrl || ''}
+                                    onChange={(e) => setEditingLesson({ ...editingLesson, videoUrl: e.target.value })}
+                                  />
+                                </div>
+                                <label className="file-dropzone-box" style={{ marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '11.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {editingLesson.file
+                                      ? editingLesson.file.name
+                                      : l.fileName
+                                        ? `Поточний файл: ${l.fileName} (оберіть новий для заміни)`
+                                        : 'Файл не прикріплено'}
+                                  </span>
+                                  <span className="btn-studevo-outline" style={{ padding: '3px 8px', fontSize: '11px' }}>
+                                    Обрати файл
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.txt,.md,.mp4,.webm,.png,.jpg,.jpeg"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) =>
+                                      setEditingLesson({ ...editingLesson, file: e.target.files?.[0] || null })
+                                    }
+                                  />
+                                </label>
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button type="button" className="btn-studevo-secondary" onClick={() => setEditingLesson(null)}>
+                                    Скасувати
+                                  </button>
+                                  <button type="submit" className="btn-studevo-primary">
+                                    Зберегти зміни
+                                  </button>
+                                </div>
+                              </form>
+                            ) : isSelected && (
                               <div className="lesson-viewer-box">
                                 <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--studevo-red-dark)', marginBottom: '6px', textTransform: 'uppercase' }}>
                                   {l.type}:

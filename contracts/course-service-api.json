@@ -333,6 +333,28 @@
       }
     },
     "/catalog/lessons/{lessonId}/file": {
+      "patch": {
+        "operationId": "CatalogController_updateLessonWithFile",
+        "parameters": [
+          {
+            "name": "lessonId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Edit a learning material and replace its file",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      },
       "get": {
         "operationId": "CatalogController_downloadLesson",
         "parameters": [

@@ -120,6 +120,20 @@ export class CatalogController {
     return this.catalog.updateLesson(lessonId, dto || {}, req.user);
   }
 
+  @Patch('lessons/:lessonId/file')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('file', materialMulterOptions))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Edit a learning material and replace its file' })
+  updateLessonWithFile(
+    @Param('lessonId') lessonId: string,
+    @Body() dto: { title?: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.catalog.updateLesson(lessonId, dto || {}, req.user, file || null);
+  }
+
   @Get('lessons/:lessonId/file')
   @ApiOperation({ summary: 'Download an uploaded learning material' })
   async downloadLesson(

@@ -604,6 +604,14 @@ body {
   text-decoration: underline;
 }
 
+.lesson-edit-form {
+  background: #ffffff;
+  border: 1px solid var(--clean-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
 .lesson-materials {
   display: flex;
   flex-wrap: wrap;
