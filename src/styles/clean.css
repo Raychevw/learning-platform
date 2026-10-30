@@ -623,6 +623,21 @@ body {
   text-decoration: underline;
 }
 
+.presence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.presence-dot.online {
+  background: #12b76a;
+  box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.18);
+}
+
 .message-row {
   padding: 12px 14px;
   border: 1px solid var(--clean-border);

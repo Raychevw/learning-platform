@@ -482,6 +482,18 @@ export class CatalogService {
     const webinar = await this.webinars.findOneBy({ id: webinarId });
     if (!webinar) throw new NotFoundException(`Webinar ${webinarId} not found`);
 
+    if (dto.signalType === 'join') {
+      const presence = this.events.touch(webinarId, {
+        userId: user.userId,
+        name: user.name || user.userId,
+        role: (user.role || '').toLowerCase(),
+      });
+      this.events.emit({ type: 'presence', webinarId, presence });
+    } else if (dto.signalType === 'leave') {
+      const presence = this.events.leave(webinarId, user.userId);
+      this.events.emit({ type: 'presence', webinarId, presence });
+    }
+
     this.events.emit({
       type: 'signal',
       webinarId,

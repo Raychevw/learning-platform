@@ -170,6 +170,9 @@ export default function App() {
     };
   }, [currentUser]);
 
+  // Присутність у кімнаті вебінару (онлайн/офлайн) приходить по SSE.
+  const [presenceMap, setPresenceMap] = useState({});
+
   // Real-time webinar events across devices (SSE through the API Gateway).
   // BroadcastChannel ниже остаётся как fallback для вкладок одного браузера.
   useEffect(() => {
@@ -183,6 +186,14 @@ export default function App() {
 
       if (event.type === 'signal') {
         rtcSignalRef.current?.(event);
+        return;
+      }
+
+      if (event.type === 'presence' && event.webinarId) {
+        setPresenceMap((prev) => ({
+          ...prev,
+          [event.webinarId]: Array.isArray(event.presence) ? event.presence : [],
+        }));
         return;
       }
 
@@ -529,6 +540,8 @@ export default function App() {
     if (!activeWebinar) return list;
 
     const isTeacher = userRole === 'teacher';
+    const presence = presenceMap[activeWebinar.id] || [];
+    const isOnline = (userId) => presence.some((entry) => entry.userId === userId);
 
     // 1. Преподаватель: текущий пользователь, если он ведёт занятие; иначе — из вебинара.
     if (isTeacher && currentUser) {
@@ -538,6 +551,7 @@ export default function App() {
         role: 'teacher',
         isHost: true,
         isMe: true,
+        online: true,
         isSpeaking: activeWebinar.status === 'LIVE',
         mic: !isMicMuted,
         camera: streamSource === 'camera',
@@ -550,6 +564,7 @@ export default function App() {
         role: 'teacher',
         isHost: true,
         isMe: false,
+        online: presence.some((entry) => entry.role === 'teacher'),
         isSpeaking: activeWebinar.status === 'LIVE',
         mic: true,
         camera: false,
@@ -565,6 +580,7 @@ export default function App() {
         role: userRole,
         isHost: false,
         isMe: true,
+        online: true,
         isSpeaking: false,
         mic: !isMicMuted,
         camera: false,
@@ -585,6 +601,7 @@ export default function App() {
         role: 'student',
         isHost: false,
         isMe: false,
+        online: isOnline(enrollment.userId),
         isSpeaking: false,
         mic: false,
         camera: false,
@@ -602,7 +619,10 @@ export default function App() {
     isHandRaised,
     courseEnrollments,
     remoteHands,
+    presenceMap,
   ]);
+
+  const onlineAttendeesCount = zoomAttendees.filter((attendee) => attendee.online).length;
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedCourseId) || null,
@@ -1391,16 +1411,32 @@ export default function App() {
     rtcSignalRef.current = handleRtcSignal;
   }, [handleRtcSignal]);
 
-  // Students ask the teacher for a stream when they open a live webinar.
+  // Presence: входимо в кімнату, підтримуємо heartbeat і виходимо при зміні вебінару.
   const activeWebinarIdForJoin = activeWebinar?.id;
   useEffect(() => {
-    if (!currentUser || !activeWebinarIdForJoin || userRole === 'teacher') return undefined;
-    const timer = setTimeout(() => {
+    if (!currentUser || !activeWebinarIdForJoin) return undefined;
+
+    const signal = (signalType) =>
       api
-        .post(`/api/webinars/${activeWebinarIdForJoin}/signal`, { to: null, signalType: 'join', payload: {} })
+        .post(`/api/webinars/${activeWebinarIdForJoin}/signal`, {
+          to: null,
+          signalType,
+          payload: {},
+        })
         .catch(() => null);
-    }, 800);
-    return () => clearTimeout(timer);
+
+    const timer = setTimeout(() => {
+      void signal('join');
+    }, 400);
+    const heartbeat = setInterval(() => {
+      void signal('join');
+    }, 45000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      void signal('leave');
+    };
   }, [currentUser, activeWebinarIdForJoin, userRole]);
 
   // Отключаем peer-соединения при смене вебинара/выходе.
@@ -3223,7 +3259,7 @@ export default function App() {
                           </span>
                         )}
                         <span style={{ color: '#cbd5e1', marginLeft: '8px', fontSize: '11px', fontWeight: 500 }}>
-                          {zoomAttendees.length} учасників
+                          {onlineAttendeesCount} онлайн • {zoomAttendees.length} учасників
                         </span>
                         {userRole !== 'teacher' && remoteStream && (
                           <span style={{ color: '#38bdf8', marginLeft: '8px', fontSize: '11px', fontWeight: 600 }}>
@@ -3326,6 +3362,7 @@ export default function App() {
                               </div>
 
                               <div className="zoom-tile-name-tag">
+                                <span className={`presence-dot ${att.online ? 'online' : ''}`} />
                                 <span>{att.name}</span>
                                 {att.isHost && <span style={{ color: '#2d8cff', fontWeight: 700 }}>(Організатор)</span>}
                                 {att.group && <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '4px' }}>[{att.group}]</span>}
@@ -3386,6 +3423,7 @@ export default function App() {
                                     borderRadius: '3px',
                                   }}
                                 >
+                                  <span className={`presence-dot ${att.online ? 'online' : ''}`} />
                                   {shortFirstName} {att.mic ? '🎙️' : '🔇'}
                                 </div>
                               </div>
