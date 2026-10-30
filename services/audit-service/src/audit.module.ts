@@ -7,6 +7,7 @@ import { AuditService } from './audit/audit.service.js';
 import { AuditController } from './audit/audit.controller.js';
 import { AuthGuard } from './audit/audit.guard.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
+import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
 
 @Module({
   imports: [
@@ -21,7 +22,9 @@ import { HealthController } from './presentation/controllers/HealthController.js
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'audit_db'),
         entities: [AuditLogEntity],
-        synchronize: true,
+        migrations: [Init1730000000000],
+        migrationsRun: true,
+        synchronize: false,
         retryAttempts: 5,
         retryDelay: 1500,
       }),

@@ -22,6 +22,8 @@
     "test": "vitest run services/",
     "test:services": "vitest run services/",
     "verify:lab3": "node scripts/verify-lab3.js",
+    "db:baseline": "node scripts/db-baseline.js",
+    "db:baseline:docker": "node scripts/db-baseline.js --docker",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",

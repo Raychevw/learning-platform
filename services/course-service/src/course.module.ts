@@ -24,6 +24,7 @@ import { CatalogSeeder } from './catalog/catalog.seeder.js';
 import { WebinarEventsService } from './catalog/webinar-events.service.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { AuthGuard } from './auth/auth.guard.js';
+import { Init1730000000000 } from './database/migrations/1730000000000-init.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
@@ -47,7 +48,9 @@ if (usePostgres) {
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'course_db'),
         entities: ALL_ENTITIES,
-        synchronize: true,
+        migrations: [Init1730000000000],
+        migrationsRun: true,
+        synchronize: false,
         retryAttempts: 2,
         retryDelay: 1000,
       }),
