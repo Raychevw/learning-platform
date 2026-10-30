@@ -33,6 +33,17 @@ export class SubmissionEntity {
   @Column({ length: 32, default: '' })
   fileSize!: string;
 
+  /** Storage key of the uploaded artifact (null for legacy submissions without a file). */
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  fileKey!: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  mimeType!: string | null;
+
+  /** True when the work was submitted after the assignment deadline. */
+  @Column({ name: 'is_late', type: 'boolean', default: false })
+  isLate!: boolean;
+
   @Column({ type: 'text', default: '' })
   comment!: string;
 
@@ -86,6 +97,9 @@ export class GradeEntity {
   @Column({ length: 32, default: 'STANDARD' })
   rule!: string;
 
+  @Column({ name: 'is_late', type: 'boolean', default: false })
+  isLate!: boolean;
+
   @Column({ type: 'jsonb', default: () => "'{}'" })
   criteriaScores!: Record<string, number>;
 
@@ -116,6 +130,28 @@ export class AcademicGroupEntity {
 
   @Column({ type: 'jsonb', default: () => "'[]'" })
   studentsList!: string[];
+
+  @Column({ type: 'timestamp with time zone', default: () => 'now()' })
+  createdAt!: Date;
+}
+
+/**
+ * Student ↔ academic group mapping (one active group per student).
+ * Replaces the old free-text `studentsList` for authorization/attribution.
+ */
+@Entity('enrollments')
+export class EnrollmentEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Column({ name: 'user_id', type: 'varchar', length: 64, unique: true })
+  userId!: string;
+
+  @Column({ name: 'group_id', type: 'varchar', length: 64 })
+  groupId!: string;
+
+  @Column({ name: 'student_name', type: 'varchar', length: 255, default: '' })
+  studentName!: string;
 
   @Column({ type: 'timestamp with time zone', default: () => 'now()' })
   createdAt!: Date;

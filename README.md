@@ -50,6 +50,9 @@
   (`Caching/LoggingCourseServiceDecorator`), Repository, DI.
 - **Событийная интеграция** — публикация курса (`course.published`) через Redis Pub/Sub, идемпотентный consumer.
 - **Graceful degradation** — синхронный вызов Course Service из Assignment Service имеет таймаут 2s и fallback.
+- **Реальные файлы** — сдачи сохраняются в S3/MinIO или на диск (`STORAGE_DRIVER`), скачивание только для владельца/преподавателя.
+- **Дедлайны и рубрики** — сервер фиксирует просрочку, автоматически применяет штраф 20%, проверяет каждый балл по критериям.
+- **Зачисления** — связь `user ↔ group` в БД определяет группу студента в сдаче (без хардкода).
 
 ---
 
@@ -153,7 +156,10 @@ POST /api/auth/login
 | POST | `/api/catalog/modules/:moduleId/lessons` | добавить урок |
 | POST | `/api/catalog/lessons/:id/toggle` | отметить урок пройденным |
 | GET/POST | `/api/assignments-full` | задания со сдачами / создать |
-| POST | `/api/assignments/:id/submit` | сдать работу |
+| POST | `/api/assignments/:id/submit` | сдать работу (JSON, без файла) |
+| POST | `/api/assignments/:id/submit-file` | сдать работу с файлом (`multipart/form-data`, поле `file`, до 25 МБ) |
+| GET | `/api/submissions/:id/file` | скачать файл сдачи (владелец, teacher, admin) |
+| GET/POST/DELETE | `/api/enrollments`, `/api/groups/:id/enroll`, `/api/groups/:id/enroll/:userId` | зачисления (admin) |
 | POST | `/api/grading/grade` | оценить (Strategy) |
 | GET | `/api/grades` | журнал (студент — только свои) |
 | GET/POST | `/api/groups` | группы |
@@ -218,11 +224,24 @@ archive/backend-monolith ранее существовавший модульн�
 | `SEED_DEMO_DATA` | создавать демо-данные | `true` |
 | `DEMO_PASSWORD` | пароль демо-аккаунтов | `123456` |
 | `REDIS_HOST` / `REDIS_PORT` | брокер событий | `localhost:6379` |
+| `STORAGE_DRIVER` | `local` (диск) или `s3` (MinIO) | `local` |
+| `STORAGE_LOCAL_DIR` | каталог локального хранилища | `./storage/uploads` |
+| `ALLOW_LATE_SUBMISSION` | принимать работы после дедлайна | `true` |
 | `S3_*` | MinIO / S3 | `localhost:9000`, bucket `lms-files` |
 
 `VITE_API_BASE` обычно пустой: фронт ходит на относительный `/api` (Vite proxy в dev, nginx в prod).
 
 ---
+
+## Текущие ограничения
+
+- **Миграции**: сервисы используют `synchronize: true` (удобно для учебной среды). Для production
+  нужно перейти на TypeORM migrations и `synchronize: false`.
+- **Real-time**: чат вебинара и «поднятая рука» синхронизируются между вкладками через
+  `BroadcastChannel`; между устройствами нужен WebSocket/SSE + Redis-адаптер и WebRTC-сигналинг.
+- **Аудит** ведётся в интерфейсе администратора локально; серверного audit-сервиса пока нет.
+- **Загрузка файлов** работает для сдач; материалы уроков пока без вложений.
+- **Фронтенд**: `App.jsx` остаётся крупным файлом (без роутера и feature-разбиения).
 
 ## Устранение неполадок
 

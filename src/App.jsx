@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
-import { api } from './api/client.js';
+import { api, requestBlob } from './api/client.js';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
 import {
@@ -197,8 +197,9 @@ export default function App() {
   const [submissionForm, setSubmissionForm] = useState({
     assignmentId: 'asg-2',
     comment: 'Виконано згідно з методичними вказівками. Посилання на репозиторій додано.',
-    fileName: 'Звіт_Лабораторна4_Петренко_ІПЗ412.pdf',
-    fileSize: '1.8 МБ',
+    fileName: '',
+    fileSize: '',
+    file: null,
   });
 
   // Teacher Grading States
@@ -225,7 +226,7 @@ export default function App() {
   }, [allSubmissionsList, selectedSubmissionId]);
 
   const [grading, setGrading] = useState({
-    rule: 'STANDARD',
+    rule: 'AUTO',
     criteriaScores: {
       clean_arch: 32,
       patterns: 34,
@@ -630,14 +631,25 @@ export default function App() {
     setNewAssignment((prev) => ({ ...prev, title: '', description: '' }));
   };
 
+  const formatBytes = (bytes) => {
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} МБ`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+    return `${bytes} Б`;
+  };
+
   const handleFileInputChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    if (file.size > 25 * 1024 * 1024) {
+      showNotification('Файл перевищує 25 МБ. Оберіть менший файл.', true);
+      e.target.value = '';
+      return;
+    }
     setSubmissionForm((prev) => ({
       ...prev,
+      file,
       fileName: file.name,
-      fileSize: `${sizeMb === '0.00' ? '0.15' : sizeMb} МБ`,
+      fileSize: formatBytes(file.size),
     }));
   };
 
@@ -646,39 +658,63 @@ export default function App() {
     const targetAsg = assignments.find((a) => a.id === submissionForm.assignmentId) || assignments[0];
     if (!targetAsg) return;
 
-    const newSub = {
-      id: newId('sub'),
-      studentId: currentUser?.id || 'usr-student',
-      studentName: currentUser?.name || 'Олександр Петренко',
-      group: 'ІПЗ-412',
-      submittedAt: new Date().toISOString(),
-      fileName: submissionForm.fileName.trim() || 'Звіт_Лабораторна.pdf',
-      fileSize: submissionForm.fileSize || '1.2 МБ',
-      comment: submissionForm.comment.trim(),
-      status: 'READY_FOR_GRADING',
-      score: null,
-    };
-
-    const res = await syncBackend(`/assignments/${targetAsg.id}/submit`, 'POST', newSub);
-    if (res && res.id) {
-      newSub.id = res.id;
+    const file = submissionForm.file;
+    const comment = submissionForm.comment.trim();
+    if (!file && !comment) {
+      showNotification('Додайте файл звіту або коментар із посиланням на репозиторій.', true);
+      return;
     }
+
+    let res;
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (comment) formData.append('comment', comment);
+      res = await syncBackend(`/assignments/${targetAsg.id}/submit-file`, 'POST', formData);
+    } else {
+      res = await syncBackend(`/assignments/${targetAsg.id}/submit`, 'POST', { comment });
+    }
+
+    if (!res || !res.id) return; // ошибка уже показана пользователю
 
     setAssignments((prev) =>
       prev.map((a) => {
         if (a.id !== targetAsg.id) return a;
-        const filtered = (a.submissions || []).filter((s) => s.studentId !== newSub.studentId);
-        return {
-          ...a,
-          submissions: [newSub, ...filtered],
-        };
+        const filtered = (a.submissions || []).filter((s) => s.studentId !== res.studentId);
+        return { ...a, submissions: [res, ...filtered] };
       })
     );
 
-    setSelectedSubmissionId(newSub.id);
+    setSelectedSubmissionId(res.id);
+    setSubmissionForm((prev) => ({ ...prev, file: null, fileName: '', fileSize: '' }));
     appendAuditLog('Здача роботи на перевірку', targetAsg.title, 'ALLOWED');
-    appendEvent('course', 'Здано роботу', `${newSub.studentName}: «${newSub.fileName}»`);
-    showNotification(`Роботу «${newSub.fileName}» надіслано викладачу на перевірку.`);
+    appendEvent('course', 'Здано роботу', `${res.studentName}: «${res.fileName || 'без файлу'}»`);
+    showNotification(
+      res.isLate
+        ? 'Роботу надіслано після дедлайну — під час оцінювання буде застосовано штраф 20%.'
+        : `Роботу «${res.fileName || 'без файлу'}» надіслано викладачу на перевірку.`,
+      Boolean(res.isLate),
+    );
+  };
+
+  const handleDownloadSubmission = async (sub) => {
+    if (!sub?.hasFile) {
+      showNotification('До цієї роботи не прикріплено файл.', true);
+      return;
+    }
+    try {
+      const blob = await requestBlob(`/api/submissions/${sub.id}/file`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = sub.fileName || 'submission';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showNotification(err.message || 'Не вдалося завантажити файл.', true);
+    }
   };
 
   // ========================================================
@@ -703,16 +739,22 @@ export default function App() {
     return Object.values(grading.criteriaScores).reduce((acc, val) => acc + (Number(val) || 0), 0);
   }, [grading.criteriaScores]);
 
+  // AUTO = штраф за просрочку применяется сервером автоматически.
+  const effectiveRule = useMemo(() => {
+    if (grading.rule !== 'AUTO') return grading.rule;
+    return currentGradingSub?.isLate ? 'LATE_PENALTY' : 'STANDARD';
+  }, [grading.rule, currentGradingSub]);
+
   const liveFinalScore = useMemo(() => {
     const maxPossible = currentGradingSub?.maxScore || 100;
-    if (grading.rule === 'LATE_PENALTY') {
+    if (effectiveRule === 'LATE_PENALTY') {
       return Math.round(liveRawScore * 0.8 * 10) / 10;
     }
-    if (grading.rule === 'EXCELLENCE_BONUS') {
+    if (effectiveRule === 'EXCELLENCE_BONUS') {
       return liveRawScore >= 90 ? Math.min(maxPossible, liveRawScore + 5) : liveRawScore;
     }
     return Math.min(maxPossible, liveRawScore);
-  }, [liveRawScore, grading.rule, currentGradingSub]);
+  }, [liveRawScore, effectiveRule, currentGradingSub]);
 
   const handleGradeWithStrategy = async (e) => {
     e.preventDefault();
@@ -723,9 +765,9 @@ export default function App() {
     const maxScore = targetSub ? targetSub.maxScore : 100;
 
     let ruleDesc = 'Стандартний розрахунок';
-    if (grading.rule === 'LATE_PENALTY') {
-      ruleDesc = 'Зниження на 20% (пізня здача)';
-    } else if (grading.rule === 'EXCELLENCE_BONUS') {
+    if (effectiveRule === 'LATE_PENALTY') {
+      ruleDesc = targetSub?.isLate ? 'Зниження на 20% (пізня здача)' : 'Зниження на 20% (за рішенням викладача)';
+    } else if (effectiveRule === 'EXCELLENCE_BONUS') {
       ruleDesc = 'Заохочувальний бонус (+5 балів)';
     }
 
@@ -742,14 +784,15 @@ export default function App() {
       rawScore: liveRawScore,
       finalScore: liveFinalScore,
       maxScore,
-      rule: grading.rule,
+      rule: effectiveRule,
       ruleDesc,
+      isLate: Boolean(targetSub?.isLate),
       feedback: grading.feedback,
     };
 
     const res = await syncBackend('/grading/grade', 'POST', {
       submissionId: targetSub?.id || 'sub-1',
-      rule: grading.rule,
+      rule: grading.rule === 'AUTO' ? undefined : grading.rule,
       criteriaScores: grading.criteriaScores,
       feedback: grading.feedback,
     });
@@ -1762,10 +1805,25 @@ export default function App() {
                       {sub.studentName} <span style={{ color: 'var(--studevo-red-dark)' }}>({sub.group})</span> — {sub.assignmentTitle}
                     </div>
                     <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
-                      Прикріплений файл: <strong>{sub.fileName}</strong> ({sub.fileSize || '1.4 МБ'}) • Коментар: «{sub.comment}»
+                      Прикріплений файл: <strong>{sub.fileName || '—'}</strong> ({sub.fileSize || '—'}) • Коментар: «{sub.comment}»
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    {sub.isLate && (
+                      <span className="user-role-badge admin" style={{ background: '#fff4e6', color: '#d9480f' }}>
+                        Після дедлайну
+                      </span>
+                    )}
+                    {sub.hasFile && (
+                      <button
+                        type="button"
+                        className="btn-studevo-outline"
+                        style={{ padding: '5px 10px', fontSize: '11.5px' }}
+                        onClick={() => handleDownloadSubmission(sub)}
+                      >
+                        Завантажити файл
+                      </button>
+                    )}
                     <span className={sub.status === 'GRADED' ? 'badge-allowed' : 'user-role-badge teacher'}>
                       {sub.status === 'GRADED' ? `Оцінено: ${sub.score}/100` : 'Нова робота'}
                     </span>
@@ -2253,17 +2311,20 @@ export default function App() {
                       <label>Файл звіту (PDF, DOCX, ZIP)</label>
                       <label className="file-dropzone-box">
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <strong>{submissionForm.fileName}</strong>
-                          <span style={{ fontSize: '11px', color: '#6c757d', marginLeft: '8px' }}>
-                            ({submissionForm.fileSize})
-                          </span>
+                          <strong>{submissionForm.fileName || 'Файл не вибрано'}</strong>
+                          {submissionForm.fileSize && (
+                            <span style={{ fontSize: '11px', color: '#6c757d', marginLeft: '8px' }}>
+                              ({submissionForm.fileSize})
+                            </span>
+                          )}
                         </div>
                         <span className="btn-studevo-outline" style={{ padding: '3px 8px', fontSize: '11px', flexShrink: 0 }}>
                           Обрати файл...
                         </span>
                         <input
+                          key={submissionForm.fileName || 'empty'}
                           type="file"
-                          accept=".pdf,.zip,.rar,.doc,.docx,.png,.jpg"
+                          accept=".pdf,.zip,.doc,.docx,.odt,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp"
                           style={{ display: 'none' }}
                           onChange={handleFileInputChange}
                         />
@@ -2426,8 +2487,23 @@ export default function App() {
 
                     {currentGradingSub && (
                       <div style={{ fontSize: '11.5px', color: '#495057', marginBottom: '10px', background: 'var(--studevo-red-light)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--studevo-accent-subtle)' }}>
-                        <div><strong>Файл:</strong> {currentGradingSub.fileName} ({currentGradingSub.fileSize || '1.4 МБ'})</div>
+                        <div>
+                          <strong>Файл:</strong> {currentGradingSub.fileName || '—'} ({currentGradingSub.fileSize || '—'})
+                          {currentGradingSub.hasFile && (
+                            <button
+                              type="button"
+                              className="btn-studevo-outline"
+                              style={{ marginLeft: '10px', padding: '2px 8px', fontSize: '11px' }}
+                              onClick={() => handleDownloadSubmission(currentGradingSub)}
+                            >
+                              Завантажити
+                            </button>
+                          )}
+                        </div>
                         <div><strong>Коментар:</strong> {currentGradingSub.comment}</div>
+                        {currentGradingSub.isLate && (
+                          <div style={{ color: '#d9480f', fontWeight: 600 }}>Роботу здано після дедлайну</div>
+                        )}
                       </div>
                     )}
 
@@ -2473,6 +2549,9 @@ export default function App() {
                         value={grading.rule}
                         onChange={(e) => setGrading({ ...grading, rule: e.target.value })}
                       >
+                        <option value="AUTO">
+                          Автоматично (штраф 20%, якщо здано після дедлайну)
+                        </option>
                         <option value="STANDARD">Стандартний розрахунок за критеріями</option>
                         <option value="LATE_PENALTY">Зниження на 20% (пізня здача)</option>
                         <option value="EXCELLENCE_BONUS">Заохочувальний бонус (+5 балів)</option>
@@ -2513,10 +2592,12 @@ export default function App() {
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '11px', color: '#868e96', textTransform: 'uppercase' }}>Правило розрахунку</span>
                         <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--studevo-red-dark)' }}>
-                          {grading.rule === 'LATE_PENALTY'
+                          {effectiveRule === 'LATE_PENALTY'
                             ? 'Зниження на 20%'
-                            : grading.rule === 'EXCELLENCE_BONUS'
+                            : effectiveRule === 'EXCELLENCE_BONUS'
                             ? 'Бонус +5 балів'
+                            : grading.rule === 'AUTO'
+                            ? 'Автоматично (без штрафу)'
                             : 'Стандартний розрахунок'}
                         </div>
                       </div>
@@ -3492,11 +3573,15 @@ export default function App() {
                     <span
                       className="deadline-countdown-badge"
                       style={{
-                        backgroundColor: sub.status === 'GRADED' ? '#ebfbee' : '#e7f5ff',
-                        color: sub.status === 'GRADED' ? '#2b8a3e' : '#1864ab',
+                        backgroundColor: sub.status === 'GRADED' ? '#ebfbee' : sub.isLate ? '#fff4e6' : '#e7f5ff',
+                        color: sub.status === 'GRADED' ? '#2b8a3e' : sub.isLate ? '#d9480f' : '#1864ab',
                       }}
                     >
-                      {sub.status === 'GRADED' ? `Оцінено (${sub.score} б.)` : 'Перейти до перевірки'}
+                      {sub.status === 'GRADED'
+                        ? `Оцінено (${sub.score} б.)`
+                        : sub.isLate
+                          ? 'Після дедлайну'
+                          : 'Перейти до перевірки'}
                     </span>
                   </div>
                 </div>

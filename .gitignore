@@ -36,3 +36,6 @@ services/contracts/
 
 # Runtime PID/log files
 logs/
+
+# Uploaded files (local storage driver)
+storage/

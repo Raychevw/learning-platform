@@ -51,8 +51,11 @@ export async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true });
 
+  // FormData отправляем как есть: браузер сам выставит multipart boundary.
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+
   const headers = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json';
   const token = getToken();
   if (auth && token) headers.Authorization = `Bearer ${token}`;
 
@@ -60,7 +63,7 @@ export async function request(path, options = {}) {
     const response = await fetch(url, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
       signal: controller.signal,
     });
 
@@ -94,6 +97,35 @@ export async function request(path, options = {}) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Скачивание бинарного файла с Bearer-токеном (a href не умеет передавать заголовок). */
+export async function requestBlob(path, timeoutMs = 60000) {
+  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+  } catch {
+    throw new ApiError('Не вдалося завантажити файл: сервер недоступний.', 0, null);
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new CustomEvent('studevo:unauthorized'));
+    let message = `Не вдалося завантажити файл (${response.status})`;
+    try {
+      const data = await response.json();
+      if (data?.message) message = Array.isArray(data.message) ? data.message.join('; ') : data.message;
+    } catch {
+      /* тело не JSON */
+    }
+    throw new ApiError(message, response.status, null);
+  }
+
+  return response.blob();
 }
 
 export const api = {

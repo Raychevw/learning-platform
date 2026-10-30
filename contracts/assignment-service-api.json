@@ -204,6 +204,16 @@
       "post": {
         "operationId": "CourseworkController_createAssignment",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssignmentBodyDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -233,6 +243,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBodyDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -243,16 +263,73 @@
             "bearer": []
           }
         ],
-        "summary": "Submit an assignment work by a student",
+        "summary": "Submit an assignment work (JSON, without a file)",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
       }
     },
-    "/grading/grade": {
+    "/assignments/{id}/submit-file": {
       "post": {
-        "operationId": "CourseworkController_grade",
-        "parameters": [],
+        "operationId": "CourseworkController_submitFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Submit an assignment work with a real file upload",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
+    "/submissions/{id}/file": {
+      "get": {
+        "operationId": "CourseworkController_download",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -263,7 +340,37 @@
             "bearer": []
           }
         ],
-        "summary": "Grade a submission using Strategy pattern",
+        "summary": "Download a submitted file (owner, teacher or admin only)",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
+    "/grading/grade": {
+      "post": {
+        "operationId": "CourseworkController_grade",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Grade a submission using server-side rubric validation and Strategy pattern",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
@@ -303,7 +410,7 @@
             "bearer": []
           }
         ],
-        "summary": "List academic groups",
+        "summary": "List academic groups with enrolled user ids",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
@@ -311,6 +418,16 @@
       "post": {
         "operationId": "CourseworkController_createGroup",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupBodyDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -379,7 +496,7 @@
             "bearer": []
           }
         ],
-        "summary": "Add student to group",
+        "summary": "Add student name to the group roster",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
@@ -416,7 +533,103 @@
             "bearer": []
           }
         ],
-        "summary": "Remove student from group",
+        "summary": "Remove student name from the group roster",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
+    "/enrollments": {
+      "get": {
+        "operationId": "CourseworkController_listEnrollments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List student enrollments",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
+    "/groups/{id}/enroll": {
+      "post": {
+        "operationId": "CourseworkController_enroll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollStudentBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enroll a user into an academic group",
+        "tags": [
+          "Coursework (Assignments, Submissions, Grading, Groups)"
+        ]
+      }
+    },
+    "/groups/{id}/enroll/{userId}": {
+      "delete": {
+        "operationId": "CourseworkController_unenroll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a user from an academic group",
         "tags": [
           "Coursework (Assignments, Submissions, Grading, Groups)"
         ]
@@ -570,6 +783,26 @@
           "dueDate",
           "isCourseVerified"
         ]
+      },
+      "CreateAssignmentBodyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubmitBodyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GradeBodyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateGroupBodyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "EnrollStudentBodyDto": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

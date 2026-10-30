@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { CourseEntity } from '../infrastructure/database/entities/CourseEntity.js';
 import {
   CourseModuleEntity,
@@ -34,6 +34,7 @@ export class CatalogService {
     @InjectRepository(LessonEntity) private readonly lessons: Repository<LessonEntity>,
     @InjectRepository(LessonCompletionEntity) private readonly completions: Repository<LessonCompletionEntity>,
     @InjectRepository(WebinarEntity) private readonly webinars: Repository<WebinarEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ----------------------------------------------------------------- courses
@@ -91,22 +92,26 @@ export class CatalogService {
       cover: dto.cover || '/course-coding.jpg',
       isPublished: false,
     });
-    await this.courses.save(course);
 
-    // Every new course starts with an introductory module and lecture
-    const mod = await this.modules.save(
-      this.modules.create({ id: newId('m'), courseId: course.id, title: 'Модуль 1: Вступ та основні поняття курсу', orderIndex: 1 }),
-    );
-    await this.lessons.save(
-      this.lessons.create({
+    // Курс + вступительный модуль + лекция создаются атомарно.
+    const moduleId = newId('m');
+    await this.dataSource.transaction(async (em) => {
+      await em.save(CourseEntity, course);
+      await em.save(CourseModuleEntity, {
+        id: moduleId,
+        courseId: course.id,
+        title: 'Модуль 1: Вступ та основні поняття курсу',
+        orderIndex: 1,
+      });
+      await em.save(LessonEntity, {
         id: newId('l'),
-        moduleId: mod.id,
+        moduleId,
         title: 'Лекція 1: Вступна лекція та робоча програма',
         type: 'Лекція',
         content: course.description || 'Матеріали вступної лекції та критерії оцінювання за семестр.',
         orderIndex: 1,
-      }),
-    );
+      });
+    });
     return { id: course.id };
   }
 

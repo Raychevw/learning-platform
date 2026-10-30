@@ -1,7 +1,32 @@
-import { Controller, Get, Post, Delete, Param, Body, Req, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CourseworkService } from './coursework.service.js';
 import { Roles, UserRole, AuthUser } from '../auth/auth.guard.js';
+import { submissionMulterOptions } from './upload.config.js';
+import {
+  CreateAssignmentBodyDto,
+  SubmitBodyDto,
+  GradeBodyDto,
+  CreateGroupBodyDto,
+  EnrollStudentBodyDto,
+} from './dto.js';
 
 interface AuthRequest {
   user: AuthUser;
@@ -24,7 +49,7 @@ export class CourseworkController {
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an assignment with rubric criteria' })
-  createAssignment(@Body() dto: any) {
+  createAssignment(@Body() dto: CreateAssignmentBodyDto) {
     return this.coursework.createAssignment(dto);
   }
 
@@ -32,23 +57,59 @@ export class CourseworkController {
   @Post('assignments/:id/submit')
   @Roles(UserRole.STUDENT)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Submit an assignment work by a student' })
-  submit(@Param('id') id: string, @Body() dto: any, @Req() req: AuthRequest) {
-    return this.coursework.submitAssignment(id, {
-      ...dto,
-      // Identity always comes from the verified token, never from the request body.
-      studentId: req.user.userId,
-      studentName: req.user.name || dto?.studentName,
+  @ApiOperation({ summary: 'Submit an assignment work (JSON, without a file)' })
+  submit(@Param('id') id: string, @Body() dto: SubmitBodyDto, @Req() req: AuthRequest) {
+    return this.coursework.submitAssignment(id, dto, req.user);
+  }
+
+  @Post('assignments/:id/submit-file')
+  @Roles(UserRole.STUDENT)
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file', submissionMulterOptions))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Submit an assignment work with a real file upload' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        comment: { type: 'string' },
+      },
+    },
+  })
+  submitFile(
+    @Param('id') id: string,
+    @Body() dto: SubmitBodyDto,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthRequest,
+  ) {
+    if (!file) throw new BadRequestException('Оберіть файл для завантаження');
+    return this.coursework.submitAssignmentWithFile(id, dto, req.user, file);
+  }
+
+  @Get('submissions/:id/file')
+  @ApiOperation({ summary: 'Download a submitted file (owner, teacher or admin only)' })
+  async download(
+    @Param('id') id: string,
+    @Req() req: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, fileName, mimeType } = await this.coursework.getSubmissionFile(id, req.user);
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      'Cache-Control': 'private, no-store',
     });
+    return new StreamableFile(stream);
   }
 
   // ---------------- Grading
   @Post('grading/grade')
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Grade a submission using Strategy pattern' })
-  grade(@Body() dto: any) {
-    return this.coursework.gradeSubmission(dto);
+  @ApiOperation({ summary: 'Grade a submission using server-side rubric validation and Strategy pattern' })
+  grade(@Body() dto: GradeBodyDto, @Req() req: AuthRequest) {
+    return this.coursework.gradeSubmission(dto, req.user);
   }
 
   @Get('grades')
@@ -59,7 +120,7 @@ export class CourseworkController {
 
   // ---------------- Academic Groups
   @Get('groups')
-  @ApiOperation({ summary: 'List academic groups' })
+  @ApiOperation({ summary: 'List academic groups with enrolled user ids' })
   listGroups() {
     return this.coursework.listGroups();
   }
@@ -68,7 +129,7 @@ export class CourseworkController {
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create academic group' })
-  createGroup(@Body() dto: any) {
+  createGroup(@Body() dto: CreateGroupBodyDto) {
     return this.coursework.createGroup(dto);
   }
 
@@ -83,7 +144,7 @@ export class CourseworkController {
   @Post('groups/:id/students')
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Add student to group' })
+  @ApiOperation({ summary: 'Add student name to the group roster' })
   addStudent(@Param('id') id: string, @Body() dto: { studentName: string }) {
     return this.coursework.addStudentToGroup(id, dto.studentName);
   }
@@ -91,8 +152,32 @@ export class CourseworkController {
   @Delete('groups/:id/students/:name')
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Remove student from group' })
+  @ApiOperation({ summary: 'Remove student name from the group roster' })
   removeStudent(@Param('id') id: string, @Param('name') name: string) {
     return this.coursework.removeStudentFromGroup(id, decodeURIComponent(name));
+  }
+
+  // ---------------- Enrollments (user <-> group)
+  @Get('enrollments')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'List student enrollments' })
+  listEnrollments() {
+    return this.coursework.listEnrollments();
+  }
+
+  @Post('groups/:id/enroll')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Enroll a user into an academic group' })
+  enroll(@Param('id') id: string, @Body() dto: EnrollStudentBodyDto) {
+    return this.coursework.enrollStudent(id, dto);
+  }
+
+  @Delete('groups/:id/enroll/:userId')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a user from an academic group' })
+  unenroll(@Param('id') id: string, @Param('userId') userId: string) {
+    return this.coursework.unenrollStudent(id, userId);
   }
 }

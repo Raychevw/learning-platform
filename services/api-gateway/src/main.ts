@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Readable } from 'node:stream';
 
 // ============================================================================
 //  API Gateway — единая точка входа.
@@ -184,10 +185,21 @@ app.get('/', (_req: Request, res: Response) => {
 async function proxyRequest(targetUrl: string, req: Request, res: Response) {
   const requestId = (req as any).requestId || crypto.randomUUID();
   try {
+    const incomingContentType = String(req.headers['content-type'] || '');
+    const isMultipart = incomingContentType.startsWith('multipart/form-data');
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'X-Request-Id': requestId,
     };
+
+    // Content-Type пробрасываем как есть: для multipart там критичен boundary.
+    if (incomingContentType) headers['content-type'] = incomingContentType;
+    else headers['Content-Type'] = 'application/json';
+    // Content-Length пробрасываем только для multipart (тело не пересобирается).
+    // Для JSON тело сериализуется заново, и длина может отличаться — пусть её считает fetch.
+    if (isMultipart && req.headers['content-length']) {
+      headers['content-length'] = String(req.headers['content-length']);
+    }
 
     if (req.headers.authorization) headers.authorization = req.headers.authorization;
     for (const name of ['x-user-id', 'x-user-role', 'x-user-email', 'x-user-name']) {
@@ -195,33 +207,45 @@ async function proxyRequest(targetUrl: string, req: Request, res: Response) {
       if (value) headers[name] = String(value);
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { duplex?: 'half' } = {
       method: req.method,
       headers,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(isMultipart ? 60_000 : 15_000),
     };
 
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
+    if (isMultipart) {
+      // Стримим тело запроса вниз, не буферизуя файл в памяти gateway.
+      fetchOptions.body = Readable.toWeb(req) as unknown as ReadableStream;
+      fetchOptions.duplex = 'half';
+    } else if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
       fetchOptions.body = JSON.stringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get('content-type') || '';
     res.status(response.status);
 
-    if (contentType && contentType.includes('application/json')) {
+    if (contentType.includes('application/json')) {
       res.json(await response.json());
-    } else {
-      res.send(await response.text());
+      return;
     }
+
+    // Бинарные ответы (скачивание файлов) пробрасываем с заголовками.
+    const disposition = response.headers.get('content-disposition');
+    if (disposition) res.setHeader('Content-Disposition', disposition);
+    res.setHeader('Content-Type', contentType || 'application/octet-stream');
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
   } catch (error) {
     console.error(`[GATEWAY ERROR] ${req.method} ${targetUrl}: ${(error as Error).message} rid=${requestId}`);
-    res.status(502).json({
-      statusCode: 502,
-      error: 'Bad Gateway',
-      message: `Сервис недоступен: ${targetUrl}`,
-      requestId,
-    });
+    if (!res.headersSent) {
+      res.status(502).json({
+        statusCode: 502,
+        error: 'Bad Gateway',
+        message: `Сервис недоступен: ${targetUrl}`,
+        requestId,
+      });
+    }
   }
 }
 
@@ -243,6 +267,8 @@ mountProxy('/api/assignments', ASSIGNMENT_SERVICE_URL, '/api/assignments', '/ass
 mountProxy('/api/grading', ASSIGNMENT_SERVICE_URL, '/api/grading', '/grading');
 mountProxy('/api/grades', ASSIGNMENT_SERVICE_URL, '/api/grades', '/grades');
 mountProxy('/api/groups', ASSIGNMENT_SERVICE_URL, '/api/groups', '/groups');
+mountProxy('/api/enrollments', ASSIGNMENT_SERVICE_URL, '/api/enrollments', '/enrollments');
+mountProxy('/api/submissions', ASSIGNMENT_SERVICE_URL, '/api/submissions', '/submissions');
 mountProxy('/api/students', ASSIGNMENT_SERVICE_URL, '/api/students', '/students');
 
 // ----------------------------------------------------------------- fallbacks
@@ -250,9 +276,20 @@ app.use('/api', (req: Request, res: Response) => {
   res.status(404).json({ statusCode: 404, message: `Маршрут ${req.method} ${req.originalUrl} не найден` });
 });
 
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[GATEWAY UNHANDLED]', err.message);
+app.use((err: Error & { status?: number; type?: string }, _req: Request, res: Response, _next: NextFunction) => {
   if (res.headersSent) return;
+
+  // Битый JSON от клиента — это 400, а не 500.
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400)) {
+    res.status(400).json({ statusCode: 400, message: 'Некоректний JSON у тілі запиту' });
+    return;
+  }
+  if (err.status && err.status >= 400 && err.status < 500) {
+    res.status(err.status).json({ statusCode: err.status, message: err.message });
+    return;
+  }
+
+  console.error('[GATEWAY UNHANDLED]', err.message);
   res.status(500).json({ statusCode: 500, message: 'Внутренняя ошибка шлюза' });
 });
 

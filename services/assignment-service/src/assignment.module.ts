@@ -8,7 +8,9 @@ import {
   SubmissionEntity,
   GradeEntity,
   AcademicGroupEntity,
+  EnrollmentEntity,
 } from './infrastructure/database/entities/CourseworkEntities.js';
+import { STORAGE_SERVICE_TOKEN, createStorageService } from './infrastructure/storage/storage.service.js';
 import { StudentRepositoryImpl } from './infrastructure/database/repositories/StudentRepositoryImpl.js';
 import { AssignmentRepositoryImpl } from './infrastructure/database/repositories/AssignmentRepositoryImpl.js';
 import { InMemoryStudentRepository } from './infrastructure/database/repositories/InMemoryStudentRepository.js';
@@ -32,7 +34,14 @@ import { AuthGuard } from './auth/auth.guard.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
 
-const ALL_ENTITIES = [StudentEntity, AssignmentEntity, SubmissionEntity, GradeEntity, AcademicGroupEntity];
+const ALL_ENTITIES = [
+  StudentEntity,
+  AssignmentEntity,
+  SubmissionEntity,
+  GradeEntity,
+  AcademicGroupEntity,
+  EnrollmentEntity,
+];
 
 const dynamicImports: any[] = [
   ConfigModule.forRoot({
@@ -70,6 +79,11 @@ const courseworkProviders = usePostgres ? [CourseworkService, CourseworkSeeder] 
   controllers: [HealthController, StudentController, AssignmentController, ...courseworkControllers],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
+    {
+      provide: STORAGE_SERVICE_TOKEN,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => createStorageService(configService),
+    },
     {
       provide: STUDENT_REPOSITORY_TOKEN,
       useClass: usePostgres ? StudentRepositoryImpl : InMemoryStudentRepository,

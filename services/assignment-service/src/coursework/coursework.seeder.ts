@@ -6,6 +6,7 @@ import {
   SubmissionEntity,
   GradeEntity,
   AcademicGroupEntity,
+  EnrollmentEntity,
 } from '../infrastructure/database/entities/CourseworkEntities.js';
 
 const DEMO_ASSIGNMENTS = [
@@ -162,27 +163,48 @@ export class CourseworkSeeder implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     if (process.env.SEED_DEMO_DATA === 'false') return;
+
     const asgRepo = this.dataSource.getRepository(AssignmentEntity);
-    if ((await asgRepo.count()) > 0) return;
+    if ((await asgRepo.count()) === 0) {
+      await this.dataSource.transaction(async (em) => {
+        for (const a of DEMO_ASSIGNMENTS) {
+          await em.save(AssignmentEntity, a);
+        }
+        for (const s of DEMO_SUBMISSIONS) {
+          await em.save(SubmissionEntity, s);
+        }
+        for (const g of DEMO_GRADES) {
+          await em.save(GradeEntity, g);
+        }
+        for (const gr of DEMO_GROUPS) {
+          await em.save(AcademicGroupEntity, gr);
+        }
+        for (const st of DEMO_STUDENTS) {
+          await em.save(StudentEntity, st);
+        }
+      });
+      this.logger.log('Seeded assignment_db with assignments, submissions, grades, groups, students');
+    }
 
-    await this.dataSource.transaction(async (em) => {
-      for (const a of DEMO_ASSIGNMENTS) {
-        await em.save(AssignmentEntity, a);
-      }
-      for (const s of DEMO_SUBMISSIONS) {
-        await em.save(SubmissionEntity, s);
-      }
-      for (const g of DEMO_GRADES) {
-        await em.save(GradeEntity, g);
-      }
-      for (const gr of DEMO_GROUPS) {
-        await em.save(AcademicGroupEntity, gr);
-      }
-      for (const st of DEMO_STUDENTS) {
-        await em.save(StudentEntity, st);
-      }
-    });
+    // Зачисления сидим отдельно: существующие БД тоже должны получить связь user -> group.
+    const enrollmentRepo = this.dataSource.getRepository(EnrollmentEntity);
+    if ((await enrollmentRepo.count()) === 0) {
+      const groupRepo = this.dataSource.getRepository(AcademicGroupEntity);
+      const group =
+        (await groupRepo.findOne({ where: { name: 'ІПЗ-412' } })) ??
+        (await groupRepo.findOne({ order: { createdAt: 'ASC' } }));
 
-    this.logger.log(`Seeded assignment_db with assignments, submissions, grades, groups, students`);
+      if (group) {
+        await enrollmentRepo.save(
+          enrollmentRepo.create({
+            id: 'enr-student-1',
+            userId: 'usr-student',
+            groupId: group.id,
+            studentName: 'Олександр Петренко',
+          }),
+        );
+        this.logger.log(`Enrolled demo student into group "${group.name}"`);
+      }
+    }
   }
 }
