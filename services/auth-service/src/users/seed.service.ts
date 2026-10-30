@@ -117,6 +117,21 @@ const DEMO_USERS: Array<Partial<UserEntity> & { password: string; username: stri
   },
 ];
 
+const DEMO_PHONES: Record<string, string> = {
+  'usr-student': '+380 67 123 45 01',
+  'usr-student-2': '+380 67 123 45 02',
+  'usr-student-3': '+380 67 123 45 03',
+  'usr-student-4': '+380 67 123 45 04',
+  'usr-student-5': '+380 67 123 45 05',
+  'usr-student-6': '+380 67 123 45 06',
+  'usr-student-7': '+380 67 123 45 07',
+  'usr-student-8': '+380 67 123 45 08',
+  'usr-teacher': '+380 44 123 45 10',
+  'usr-teacher-2': '+380 44 123 45 11',
+  'usr-teacher-3': '+380 44 123 45 12',
+  'usr-admin': '+380 44 123 45 00',
+};
+
 /** Creates missing demo accounts (with hashed passwords) on start. */
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
@@ -135,10 +150,19 @@ export class SeedService implements OnApplicationBootstrap {
     let created = 0;
 
     for (const demo of DEMO_USERS) {
+      if (!demo.id) continue;
+      const demoId: string = demo.id;
       const existing = await this.users.findOne({
-        where: [{ id: demo.id }, { email: demo.email }, { username: demo.username }],
+        where: [{ id: demoId }, { email: demo.email }, { username: demo.username }],
       });
-      if (existing) continue;
+      if (existing) {
+        const phone = DEMO_PHONES[demoId];
+        if (phone && !existing.phone) {
+          existing.phone = phone;
+          await this.users.save(existing);
+        }
+        continue;
+      }
 
       const passwordHash = await bcrypt.hash(demo.password || password, 12);
       await this.users.save(
@@ -150,6 +174,7 @@ export class SeedService implements OnApplicationBootstrap {
           fullName: demo.fullName,
           role: demo.role,
           department: demo.department ?? null,
+          phone: DEMO_PHONES[demoId] ?? null,
           isActive: true,
         }),
       );

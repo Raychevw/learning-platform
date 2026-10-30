@@ -20,6 +20,7 @@ function mapUser(user) {
     name,
     role,
     dept: user?.department || '',
+    phone: user?.phone || '',
     initials,
   };
 }

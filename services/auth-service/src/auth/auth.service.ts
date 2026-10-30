@@ -96,6 +96,7 @@ export class AuthService {
     role?: UserRole;
     username?: string;
     department?: string;
+    phone?: string;
   }) {
     const email = (input.email || '').trim().toLowerCase();
     if (!email || !email.includes('@')) throw new BadRequestException('Некоректний email');
@@ -113,6 +114,7 @@ export class AuthService {
       fullName: input.fullName?.trim() || email,
       role: input.role || UserRole.STUDENT,
       department: input.department?.trim() || null,
+      phone: input.phone?.trim() || null,
       isActive: true,
       status: 'ACTIVE',
     });
@@ -131,7 +133,7 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    input: { fullName?: string; email?: string; username?: string; department?: string },
+    input: { fullName?: string; email?: string; username?: string; department?: string; phone?: string },
   ) {
     const user = await this.users.findOneBy({ id: userId });
     if (!user) throw new BadRequestException('Користувача не знайдено');
@@ -172,6 +174,10 @@ export class AuthService {
       user.department = input.department.trim() || null;
     }
 
+    if (input.phone !== undefined) {
+      user.phone = input.phone.trim() || null;
+    }
+
     const saved = await this.users.save(user);
     return toPublicUser(saved);
   }
@@ -202,6 +208,7 @@ export class AuthService {
       email?: string;
       username?: string;
       department?: string;
+      phone?: string;
       role?: UserRole;
       status?: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE';
     },
@@ -237,6 +244,9 @@ export class AuthService {
     }
     if (input.department !== undefined) {
       user.department = input.department.trim() || null;
+    }
+    if (input.phone !== undefined) {
+      user.phone = input.phone.trim() || null;
     }
     if (input.role !== undefined) {
       if (![UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN].includes(input.role)) {

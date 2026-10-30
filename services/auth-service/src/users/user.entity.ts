@@ -30,6 +30,10 @@ export class UserEntity {
   @Column({ name: 'department', type: 'varchar', length: 255, nullable: true })
   department: string | null;
 
+  /** Мобільний номер для зв'язку деканату зі студентом. */
+  @Column({ name: 'phone', type: 'varchar', length: 32, nullable: true })
+  phone: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
@@ -51,6 +55,7 @@ export interface PublicUser {
   fullName: string;
   role: UserRole;
   department: string | null;
+  phone: string | null;
   status: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE';
 }
 
@@ -62,6 +67,7 @@ export function toPublicUser(user: UserEntity): PublicUser {
     fullName: user.fullName,
     role: user.role,
     department: user.department,
+    phone: user.phone || null,
     status: user.status || 'ACTIVE',
   };
 }

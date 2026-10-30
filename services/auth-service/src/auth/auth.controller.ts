@@ -30,7 +30,7 @@ export class AuthController {
   updateMe(
     @Req() req: { user: AuthUser },
     @Body()
-    dto: { fullName?: string; email?: string; username?: string; department?: string },
+    dto: { fullName?: string; email?: string; username?: string; department?: string; phone?: string },
   ) {
     return this.authService.updateProfile(req.user.userId, dto);
   }
@@ -58,6 +58,7 @@ export class AuthController {
       email?: string;
       username?: string;
       department?: string;
+      phone?: string;
       role?: UserRole;
       status?: 'ACTIVE' | 'EXPELLED' | 'ACADEMIC_LEAVE';
     },
@@ -113,6 +114,7 @@ export class AuthController {
       role?: UserRole;
       username?: string;
       department?: string;
+      phone?: string;
     },
   ) {
     return this.authService.createUser(dto);

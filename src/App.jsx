@@ -101,6 +101,9 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentGroupFilter, setStudentGroupFilter] = useState('');
+  const [studentPage, setStudentPage] = useState(1);
 
   // Core Data States. Seed-данные используются только как offline-демо:
   // как только backend отвечает, источником истины становится PostgreSQL.
@@ -357,6 +360,7 @@ export default function App() {
     fullName: '',
     email: '',
     username: '',
+    phone: '',
     password: '123456',
     role: 'STUDENT',
   });
@@ -368,6 +372,7 @@ export default function App() {
     email: '',
     username: '',
     department: '',
+    phone: '',
     role: 'STUDENT',
     status: 'ACTIVE',
     password: '',
@@ -378,6 +383,7 @@ export default function App() {
     email: currentUser?.email || '',
     username: currentUser?.username || '',
     department: currentUser?.dept || '',
+    phone: currentUser?.phone || '',
   };
 
   const [enrollUserId, setEnrollUserId] = useState('');
@@ -422,7 +428,7 @@ export default function App() {
         }
       }
 
-      if (activeMenu === 'audit' || activeMenu === 'groups') {
+      if (['audit', 'groups', 'students', 'courses'].includes(activeMenu)) {
         try {
           const users = await api.get('/api/auth/users');
           if (!cancelled && Array.isArray(users)) setSystemUsers(users);
@@ -477,6 +483,7 @@ export default function App() {
     semester: 7,
     totalHours: 90,
     cover: '/course-coding.jpg',
+    ownerId: '',
   });
 
   // Forms: Create Assignment (Teacher)
@@ -673,11 +680,18 @@ export default function App() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourse.title.trim()) return;
+    const owner =
+      userRole === 'admin' ? systemUsers.find((user) => user.id === newCourse.ownerId) : null;
+    if (userRole === 'admin' && !owner) {
+      showNotification('Оберіть викладача, відповідального за дисципліну.', true);
+      return;
+    }
     const courseId = newId('c');
     const created = {
       id: courseId,
       title: newCourse.title.trim(),
-      instructor: currentUser?.name || 'Викладач',
+      instructor: owner?.fullName || currentUser?.name || 'Викладач',
+      ownerId: owner?.id || currentUser?.id || null,
       description: newCourse.description.trim(),
       semester: Number(newCourse.semester) || 7,
       modulesCount: 1,
@@ -713,12 +727,16 @@ export default function App() {
     if (res && res.id) {
       created.id = res.id;
     }
+    if (userRole === 'admin' && owner) {
+      await syncBackend(`/catalog/${created.id}/owner`, 'PATCH', { ownerId: owner.id });
+      created.ownerId = owner.id;
+    }
 
     setCourses((prev) => [created, ...prev]);
     appendAuditLog('Створення нової дисципліни', created.title, 'ALLOWED');
     appendEvent('course', 'Нова дисципліна', `«${created.title}» (${created.totalHours} год.) додано до каталогу.`);
     showNotification(`Дисципліну «${created.title}» створено.`);
-    setNewCourse({ title: '', description: '', semester: 7, totalHours: 90, cover: '/course-coding.jpg' });
+    setNewCourse({ title: '', description: '', semester: 7, totalHours: 90, cover: '/course-coding.jpg', ownerId: '' });
   };
 
   const handlePublishCourse = async (courseId) => {
@@ -1533,13 +1551,14 @@ export default function App() {
       fullName: newUserForm.fullName.trim(),
       email: newUserForm.email.trim(),
       username: newUserForm.username.trim() || undefined,
+      phone: newUserForm.phone.trim() || undefined,
       password: newUserForm.password,
       role: newUserForm.role,
     });
     if (!res) return;
 
     setSystemUsers((prev) => [...prev, res]);
-    setNewUserForm({ fullName: '', email: '', username: '', password: '123456', role: 'STUDENT' });
+    setNewUserForm({ fullName: '', email: '', username: '', phone: '', password: '123456', role: 'STUDENT' });
     showNotification(`Користувача «${res.fullName}» створено.`);
   };
 
@@ -1550,6 +1569,7 @@ export default function App() {
       email: profileValues.email.trim(),
       username: profileValues.username.trim(),
       department: profileValues.department.trim(),
+      phone: profileValues.phone.trim(),
     });
     if (!res) return;
 
@@ -1585,6 +1605,7 @@ export default function App() {
       email: user.email || '',
       username: user.username || '',
       department: user.department || '',
+      phone: user.phone || '',
       role: user.role || 'STUDENT',
       status: user.status || 'ACTIVE',
       password: '',
@@ -1600,6 +1621,7 @@ export default function App() {
       email: editUserForm.email.trim(),
       username: editUserForm.username.trim(),
       department: editUserForm.department.trim(),
+      phone: editUserForm.phone.trim(),
       role: editUserForm.role,
       status: editUserForm.status,
     });
@@ -1704,6 +1726,39 @@ export default function App() {
   const studentUsers = useMemo(
     () => systemUsers.filter((user) => user.role === 'STUDENT'),
     [systemUsers]
+  );
+
+  const studentDirectory = useMemo(
+    () =>
+      studentUsers.map((student) => {
+        const enrollment = allEnrollments.find((item) => item.userId === student.id);
+        const group = academicGroups.find((item) => item.id === enrollment?.groupId);
+        return {
+          ...student,
+          groupId: enrollment?.groupId || '',
+          groupName: group?.name || 'Без групи',
+        };
+      }),
+    [studentUsers, allEnrollments, academicGroups]
+  );
+
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    return studentDirectory.filter((student) => {
+      if (studentGroupFilter && student.groupId !== studentGroupFilter) return false;
+      if (!query) return true;
+      return [student.fullName, student.email, student.phone, student.username, student.groupName]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [studentDirectory, studentGroupFilter, studentSearch]);
+
+  const STUDENTS_PER_PAGE = 20;
+  const studentPageCount = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE));
+  const safeStudentPage = Math.min(studentPage, studentPageCount);
+  const pagedStudents = filteredStudents.slice(
+    (safeStudentPage - 1) * STUDENTS_PER_PAGE,
+    safeStudentPage * STUDENTS_PER_PAGE
   );
 
   const filteredAuditLogs = useMemo(() => {
@@ -1981,7 +2036,9 @@ export default function App() {
         ]
       : [
           { id: 'dashboard', label: 'Панель', icon: 'grid' },
+          { id: 'students', label: 'Студенти', icon: 'user' },
           { id: 'groups', label: 'Користувачі та групи', icon: 'users' },
+          { id: 'courses', label: 'Дисципліни', icon: 'book' },
           { id: 'grades', label: 'Відомості', icon: 'chart' },
           { id: 'schedule', label: 'Розклад', icon: 'calendar' },
           { id: 'messages', label: 'Повідомлення', icon: 'mail' },
@@ -2235,16 +2292,25 @@ export default function App() {
         {activeMenu === 'courses' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">Навчальні дисципліни та силабуси</h2>
+              <h2 className="section-title">
+                {userRole === 'admin' ? 'Дисципліни факультету' : 'Навчальні дисципліни та силабуси'}
+              </h2>
             </div>
 
-            {userRole === 'teacher' && (
+            {(userRole === 'teacher' || userRole === 'admin') && (
               <div className="studevo-card" style={{ marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
-                  Додати нову навчальну дисципліну
+                  {userRole === 'admin' ? 'Додати дисципліну факультету' : 'Додати нову навчальну дисципліну'}
                 </h3>
                 <form onSubmit={handleCreateCourse}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr', gap: '14px' }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        userRole === 'admin' ? '2fr 1.5fr 1fr 1fr 1.2fr' : '2fr 1fr 1fr 1.2fr',
+                      gap: '14px',
+                    }}
+                  >
                     <div className="form-group-field">
                       <label>Назва дисципліни</label>
                       <input
@@ -2256,6 +2322,26 @@ export default function App() {
                         required
                       />
                     </div>
+                    {userRole === 'admin' && (
+                      <div className="form-group-field">
+                        <label>Відповідальний викладач</label>
+                        <select
+                          className="input-studevo-control"
+                          value={newCourse.ownerId}
+                          onChange={(e) => setNewCourse({ ...newCourse, ownerId: e.target.value })}
+                          required
+                        >
+                          <option value="">— оберіть викладача —</option>
+                          {systemUsers
+                            .filter((user) => user.role === 'TEACHER')
+                            .map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.fullName}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="form-group-field">
                       <label>Семестр</label>
                       <input
@@ -2951,68 +3037,144 @@ export default function App() {
           />
         )}
 
+        {/* DEAN: STUDENTS DIRECTORY */}
+        {activeMenu === 'students' && userRole === 'admin' && (
+          <div>
+            <div className="section-header-row">
+              <div>
+                <h2 className="section-title">Студенти факультету</h2>
+                <p className="page-head-sub">Пошук, групи та мобільні номери для зв’язку</p>
+              </div>
+              <button type="button" className="btn-studevo-outline" onClick={() => setActiveMenu('groups')}>
+                Керування групами
+              </button>
+            </div>
+
+            <div className="studevo-card students-directory">
+              <div className="students-toolbar">
+                <input
+                  type="search"
+                  className="input-studevo-control"
+                  placeholder="Пошук за ПІБ, email, телефоном або логіном…"
+                  value={studentSearch}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setStudentPage(1);
+                  }}
+                />
+                <select
+                  className="input-studevo-control"
+                  value={studentGroupFilter}
+                  onChange={(e) => {
+                    setStudentGroupFilter(e.target.value);
+                    setStudentPage(1);
+                  }}
+                >
+                  <option value="">Усі групи</option>
+                  {academicGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="students-total">{studentsLabel(filteredStudents.length)}</span>
+              </div>
+
+              {pagedStudents.length === 0 ? (
+                <p className="dash-empty">Нічого не знайдено. Змініть пошук або фільтр групи.</p>
+              ) : (
+                <table className="studevo-table students-table">
+                  <thead>
+                    <tr>
+                      <th>ПІБ</th>
+                      <th>Група</th>
+                      <th>Мобільний</th>
+                      <th>Email</th>
+                      <th>Статус</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedStudents.map((student) => {
+                      const status = student.status || 'ACTIVE';
+                      const statusLabel =
+                        status === 'EXPELLED'
+                          ? 'Відрахований'
+                          : status === 'ACADEMIC_LEAVE'
+                            ? 'Академвідпустка'
+                            : 'Навчається';
+                      return (
+                        <tr key={student.id}>
+                          <td>
+                            <strong>{student.fullName}</strong>
+                            {student.username ? (
+                              <span className="student-username"> @{student.username}</span>
+                            ) : null}
+                          </td>
+                          <td>{student.groupName}</td>
+                          <td>
+                            {student.phone ? (
+                              <a className="student-phone" href={`tel:${student.phone.replace(/[^\d+]/g, '')}`}>
+                                {student.phone}
+                              </a>
+                            ) : (
+                              <span className="student-phone-empty">—</span>
+                            )}
+                          </td>
+                          <td>{student.email}</td>
+                          <td>
+                            <span className={`student-status-pill ${status === 'ACTIVE' ? 'is-active' : 'is-inactive'}`}>
+                              {statusLabel}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-studevo-outline"
+                              style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                              onClick={() => handleStartEditUser(student)}
+                            >
+                              Редагувати
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              {studentPageCount > 1 && (
+                <div className="students-pagination">
+                  <button
+                    type="button"
+                    className="btn-studevo-secondary"
+                    disabled={safeStudentPage === 1}
+                    onClick={() => setStudentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Назад
+                  </button>
+                  <span>
+                    Сторінка {safeStudentPage} з {studentPageCount}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-studevo-secondary"
+                    disabled={safeStudentPage === studentPageCount}
+                    onClick={() => setStudentPage((page) => Math.min(studentPageCount, page + 1))}
+                  >
+                    Далі
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeMenu === 'groups' && userRole === 'admin' && (
           <div>
             <div className="section-header-row">
-              <h2 className="section-title">Користувачі та групи факультету</h2>
-            </div>
-
-            <div className="studevo-card dean-students-card">
-              <div className="dean-students-head">
-                <div>
-                  <h3 className="dean-students-title">Студенти факультету</h3>
-                  <p className="dean-students-sub">
-                    {studentsLabel(studentUsers.length)} · натисніть на картку, щоб редагувати
-                  </p>
-                </div>
-                <span className="dean-students-count">{studentUsers.length}</span>
-              </div>
-
-              {studentUsers.length === 0 ? (
-                <p className="dash-empty">Студентів ще немає. Створіть акаунт у розділі «Користувачі» нижче.</p>
-              ) : (
-                <div className="dean-student-grid">
-                  {studentUsers.map((student) => {
-                    const enrollment = allEnrollments.find((item) => item.userId === student.id);
-                    const group = academicGroups.find((item) => item.id === enrollment?.groupId);
-                    const initials = (student.fullName || '')
-                      .split(' ')
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join('')
-                      .toUpperCase();
-                    const status = student.status || 'ACTIVE';
-                    const statusLabel =
-                      status === 'EXPELLED'
-                        ? 'Відрахований'
-                        : status === 'ACADEMIC_LEAVE'
-                          ? 'Академвідпустка'
-                          : 'Навчається';
-
-                    return (
-                      <button
-                        key={student.id}
-                        type="button"
-                        className="dean-student-card"
-                        title={`${student.fullName} · ${student.email}`}
-                        onClick={() => handleStartEditUser(student)}
-                      >
-                        <span className="dean-student-avatar">{initials}</span>
-                        <span className="dean-student-main">
-                          <span className="dean-student-name">{student.fullName}</span>
-                          <span className="dean-student-meta">
-                            {group?.name || 'Без групи'} · {student.email}
-                          </span>
-                        </span>
-                        {status !== 'ACTIVE' && (
-                          <span className="dean-student-status is-inactive">{statusLabel}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <h2 className="section-title">Академічні групи факультету</h2>
             </div>
 
             <div className="studevo-card" style={{ marginBottom: '20px' }}>
@@ -3267,7 +3429,7 @@ export default function App() {
                 Створити користувача
               </h3>
               <form onSubmit={handleCreateUser}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1fr 1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1fr 1.1fr 1fr 1fr', gap: '10px' }}>
                   <div className="form-group-field">
                     <label>ПІБ</label>
                     <input
@@ -3295,6 +3457,16 @@ export default function App() {
                       className="input-studevo-control"
                       value={newUserForm.username}
                       onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Мобільний</label>
+                    <input
+                      type="tel"
+                      className="input-studevo-control"
+                      placeholder="+380..."
+                      value={newUserForm.phone}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
                     />
                   </div>
                   <div className="form-group-field">
@@ -3703,6 +3875,17 @@ export default function App() {
                           className="input-studevo-control"
                           value={profileValues.department}
                           onChange={(e) => setProfileForm({ ...profileValues, department: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group-field">
+                        <label htmlFor="profile-phone">Мобільний номер</label>
+                        <input
+                          id="profile-phone"
+                          type="tel"
+                          className="input-studevo-control"
+                          placeholder="+380..."
+                          value={profileValues.phone}
+                          onChange={(e) => setProfileForm({ ...profileValues, phone: e.target.value })}
                         />
                       </div>
                     </div>
@@ -4272,6 +4455,16 @@ export default function App() {
                       className="input-studevo-control"
                       value={editUserForm.department}
                       onChange={(e) => setEditUserForm({ ...editUserForm, department: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Мобільний номер</label>
+                    <input
+                      type="tel"
+                      className="input-studevo-control"
+                      placeholder="+380..."
+                      value={editUserForm.phone}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
                     />
                   </div>
                   <div className="form-group-field">
