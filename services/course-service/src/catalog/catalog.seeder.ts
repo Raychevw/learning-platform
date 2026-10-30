@@ -11,7 +11,7 @@ import {
 
 type SeedLesson = { id: string; title: string; type: string; content: string; completedBy?: string[] };
 type SeedModule = { id: string; title: string; lessons: SeedLesson[] };
-type SeedCourse = Omit<CourseEntity, 'createdAt'> & { modules: SeedModule[] };
+type SeedCourse = Omit<CourseEntity, 'createdAt' | 'ownerId'> & { modules: SeedModule[] };
 
 const STUDENT = 'usr-student';
 
@@ -194,7 +194,11 @@ export class CatalogSeeder implements OnApplicationBootstrap {
     await this.dataSource.transaction(async (em) => {
       for (const [ci, c] of COURSES.entries()) {
         const { modules, ...course } = c;
-        await em.save(CourseEntity, { ...course, createdAt: new Date(Date.UTC(2026, 8, 1, 0, ci)) });
+        await em.save(CourseEntity, {
+          ...course,
+          ownerId: 'usr-teacher',
+          createdAt: new Date(Date.UTC(2026, 8, 1, 0, ci)),
+        });
         for (const [mi, m] of modules.entries()) {
           await em.save(CourseModuleEntity, { id: m.id, courseId: c.id, title: m.title, orderIndex: mi + 1 });
           for (const [li, l] of m.lessons.entries()) {

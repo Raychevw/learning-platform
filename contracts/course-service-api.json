@@ -181,6 +181,30 @@
         ]
       }
     },
+    "/catalog/{courseId}/owner": {
+      "patch": {
+        "operationId": "CatalogController_assignOwner",
+        "parameters": [
+          {
+            "name": "courseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Assign a teacher as the course owner (dean only)",
+        "tags": [
+          "Catalog (courses, modules, lessons)"
+        ]
+      }
+    },
     "/catalog/{courseId}/modules": {
       "post": {
         "operationId": "CatalogController_addModule",

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import crypto from 'node:crypto';
@@ -27,6 +33,30 @@ export interface CreateCatalogCourseDto {
   semester?: number;
   totalHours?: number;
   cover?: string;
+}
+
+interface RequestUser {
+  userId: string;
+  role: string;
+}
+
+/** Викладач може керувати лише своїми дисциплінами; адміністратор — усіма. */
+async function assertCourseOwner(
+  courses: Repository<CourseEntity>,
+  courseId: string,
+  user: RequestUser,
+): Promise<CourseEntity> {
+  const course = await courses.findOneBy({ id: courseId });
+  if (!course) throw new NotFoundException(`Course ${courseId} not found`);
+  if (user.role === 'ADMIN') return course;
+  if (course.ownerId && course.ownerId !== user.userId) {
+    throw new ForbiddenException('Ця дисципліна закріплена за іншим викладачем');
+  }
+  if (!course.ownerId) {
+    course.ownerId = user.userId;
+    await courses.save(course);
+  }
+  return course;
 }
 
 /**
@@ -78,6 +108,7 @@ export class CatalogService {
         id: c.id,
         title: c.title,
         instructor: c.instructor,
+        ownerId: c.ownerId || null,
         description: c.description,
         semester: c.semester,
         totalHours: c.totalHours,
@@ -90,13 +121,14 @@ export class CatalogService {
     });
   }
 
-  async createCourse(dto: CreateCatalogCourseDto) {
+  async createCourse(dto: CreateCatalogCourseDto, ownerId?: string) {
     if (!dto.title || !dto.title.trim()) throw new BadRequestException('Course title cannot be empty');
     const course = this.courses.create({
       id: newId('c'),
       title: dto.title.trim(),
       description: (dto.description || '').trim(),
       instructor: dto.instructor || '',
+      ownerId: ownerId || null,
       semester: Number(dto.semester) || 1,
       totalHours: Number(dto.totalHours) || 90,
       cover: dto.cover || '/course-coding.jpg',
@@ -125,10 +157,9 @@ export class CatalogService {
     return { id: course.id };
   }
 
-  async addModule(courseId: string, title: string) {
+  async addModule(courseId: string, title: string, user: RequestUser) {
     if (!title || !title.trim()) throw new BadRequestException('Module title cannot be empty');
-    const course = await this.courses.findOneBy({ id: courseId });
-    if (!course) throw new NotFoundException(`Course ${courseId} not found`);
+    await assertCourseOwner(this.courses, courseId, user);
     const count = await this.modules.countBy({ courseId });
     const mod = await this.modules.save(
       this.modules.create({ id: newId('m'), courseId, title: title.trim(), orderIndex: count + 1 }),
@@ -139,11 +170,13 @@ export class CatalogService {
   async addLesson(
     moduleId: string,
     dto: { title: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    user: RequestUser,
     file?: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null,
   ) {
     if (!dto.title || !dto.title.trim()) throw new BadRequestException('Lesson title cannot be empty');
     const mod = await this.modules.findOneBy({ id: moduleId });
     if (!mod) throw new NotFoundException(`Module ${moduleId} not found`);
+    await assertCourseOwner(this.courses, mod.courseId, user);
     const count = await this.lessons.countBy({ moduleId });
 
     let fileKey: string | null = null;
@@ -183,10 +216,14 @@ export class CatalogService {
   async updateLesson(
     lessonId: string,
     dto: { title?: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    user: RequestUser,
     file?: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null,
   ) {
     const lesson = await this.lessons.findOneBy({ id: lessonId });
     if (!lesson) throw new NotFoundException(`Lesson ${lessonId} not found`);
+    const lessonModule = await this.modules.findOneBy({ id: lesson.moduleId });
+    if (!lessonModule) throw new NotFoundException(`Module ${lesson.moduleId} not found`);
+    await assertCourseOwner(this.courses, lessonModule.courseId, user);
 
     if (dto.title !== undefined) {
       if (!dto.title.trim()) throw new BadRequestException('Lesson title cannot be empty');
@@ -274,10 +311,12 @@ export class CatalogService {
     return list.map((w) => this.toWebinarDto(w, titles.get(w.courseId) || ''));
   }
 
-  async createWebinar(dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string }) {
+  async createWebinar(
+    dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string },
+    user: RequestUser,
+  ) {
     if (!dto.title || !dto.title.trim()) throw new BadRequestException('Webinar title cannot be empty');
-    const course = await this.courses.findOneBy({ id: dto.courseId });
-    if (!course) throw new NotFoundException(`Course ${dto.courseId} not found`);
+    const course = await assertCourseOwner(this.courses, dto.courseId, user);
     const scheduledAt = new Date(dto.scheduledAt);
     if (isNaN(scheduledAt.getTime())) throw new BadRequestException('Invalid scheduledAt date');
 
@@ -305,11 +344,12 @@ export class CatalogService {
     return created;
   }
 
-  async changeWebinarStatus(id: string, status: string) {
+  async changeWebinarStatus(id: string, status: string, user: RequestUser) {
     const allowed = ['SCHEDULED', 'LIVE', 'FINISHED'];
     if (!allowed.includes(status)) throw new BadRequestException(`Status must be one of ${allowed.join(', ')}`);
     const webinar = await this.webinars.findOneBy({ id });
     if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
+    await assertCourseOwner(this.courses, webinar.courseId, user);
     webinar.status = status;
     await this.webinars.save(webinar);
     this.events.emit({ type: 'status', webinarId: id, status });
@@ -376,7 +416,7 @@ export class CatalogService {
     lessonType?: string;
     teacherName?: string;
     onlineUrl?: string;
-  }) {
+  }, user: RequestUser) {
     if (!dto.courseId || !dto.groupId) {
       throw new BadRequestException('courseId та groupId є обовʼязковими');
     }
@@ -387,8 +427,7 @@ export class CatalogService {
     if (!/^\d{2}:\d{2}$/.test(dto.startTime) || !/^\d{2}:\d{2}$/.test(dto.endTime)) {
       throw new BadRequestException('Час має бути у форматі HH:MM');
     }
-    const course = await this.courses.findOneBy({ id: dto.courseId });
-    if (!course) throw new NotFoundException(`Course ${dto.courseId} not found`);
+    const course = await assertCourseOwner(this.courses, dto.courseId, user);
 
     const entry = await this.schedule.save(
       this.schedule.create({
@@ -408,9 +447,24 @@ export class CatalogService {
     return { ...entry, courseTitle: course.title };
   }
 
-  async deleteSchedule(id: string) {
+  /** Публічна перевірка прав для інших контролерів (наприклад, publish). */
+  async assertCanManage(courseId: string, user: RequestUser) {
+    await assertCourseOwner(this.courses, courseId, user);
+  }
+
+  /** Призначення відповідального викладача (деканат). */
+  async assignOwner(courseId: string, ownerId: string | null) {
+    const course = await this.courses.findOneBy({ id: courseId });
+    if (!course) throw new NotFoundException(`Course ${courseId} not found`);
+    course.ownerId = ownerId || null;
+    await this.courses.save(course);
+    return { id: course.id, ownerId: course.ownerId };
+  }
+
+  async deleteSchedule(id: string, user: RequestUser) {
     const entry = await this.schedule.findOneBy({ id });
     if (!entry) throw new NotFoundException(`Schedule entry ${id} not found`);
+    await assertCourseOwner(this.courses, entry.courseId, user);
     await this.schedule.remove(entry);
     return { ok: true, id };
   }
@@ -441,9 +495,10 @@ export class CatalogService {
     return { ok: true };
   }
 
-  async deleteWebinar(id: string) {
+  async deleteWebinar(id: string, user: RequestUser) {
     const webinar = await this.webinars.findOneBy({ id });
     if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
+    await assertCourseOwner(this.courses, webinar.courseId, user);
     await this.webinars.remove(webinar);
     this.events.emit({ type: 'deleted', webinarId: id });
     return { ok: true, id };

@@ -18,6 +18,10 @@ export class CourseEntity {
   @Column({ length: 255, default: '' })
   instructor!: string;
 
+  /** Власник курсу (викладач), який може редагувати дисципліну. */
+  @Column({ name: 'owner_id', type: 'varchar', length: 64, nullable: true })
+  ownerId!: string | null;
+
   @Column({ type: 'int', default: 1 })
   semester!: number;
 

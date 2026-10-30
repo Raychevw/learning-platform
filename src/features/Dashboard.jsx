@@ -85,10 +85,13 @@ export default function Dashboard({
     return (sum / items.length).toFixed(1);
   };
 
-  const visibleCourses = useMemo(
-    () => (isStudent ? courses.filter((course) => course.isPublished !== false) : courses),
-    [courses, isStudent]
-  );
+  const visibleCourses = useMemo(() => {
+    if (isStudent) return courses.filter((course) => course.isPublished !== false);
+    if (isTeacher) {
+      return courses.filter((course) => !course.ownerId || course.ownerId === currentUser?.id);
+    }
+    return courses;
+  }, [courses, isStudent, isTeacher, currentUser?.id]);
 
   const upcoming = useMemo(() => {
     return assignments

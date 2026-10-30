@@ -69,6 +69,8 @@
 - **Кабінет деканату** — аналітика успішності (борги, пропущені роботи, не перевірені роботи,
   середній бал по групах), керування користувачами, створення акаунтів і переведення між групами,
   експорт звіту CSV.
+- **Власність курсів** — викладач бачить і редагує лише свої дисципліни; декан призначає
+  відповідального викладача (`PATCH /api/catalog/:courseId/owner`).
 - **Миграции** — схема управляется TypeORM migrations (`synchronize: false`, `migrationsRun: true`);
   свежие БД создаются автоматически, существующие переводятся через `npm run db:baseline`.
 
@@ -186,7 +188,8 @@ POST /api/auth/login
 | GET | `/api/auth/me` | профиль по токену |
 | GET/POST | `/api/auth/users` | список/создание пользователей (admin) |
 | GET | `/api/catalog?userId=` | каталог с модулями, уроками, прогрессом |
-| POST | `/api/catalog` | создать курс |
+| POST | `/api/catalog` | створити курс (власник — поточний викладач) |
+| PATCH | `/api/catalog/:courseId/owner` | призначити відповідального викладача (admin) |
 | POST | `/api/catalog/:courseId/modules` | добавить модуль |
 | POST | `/api/catalog/modules/:moduleId/lessons` | добавить материал (текст/ссылка/видео) |
 | POST | `/api/catalog/modules/:moduleId/lessons-file` | материал с файлом (`multipart`, до 60 МБ) |

@@ -1,10 +1,12 @@
-import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, Optional, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CreateCourseUseCase } from '../../application/course/CreateCourseUseCase.js';
 import { PublishCourseUseCase } from '../../application/course/PublishCourseUseCase.js';
 import { GetCourseUseCase, ListCoursesUseCase } from '../../application/course/GetCourseUseCase.js';
 import { CreateCourseDto, CourseResponseDto } from '../dtos/CreateCourseDto.js';
 import { Roles, UserRole } from '../../auth/auth.guard.js';
+import type { AuthUser } from '../../auth/auth.guard.js';
+import { CatalogService } from '../../catalog/catalog.service.js';
 
 @ApiTags('Courses')
 @Controller('courses')
@@ -14,6 +16,7 @@ export class CourseController {
     private readonly publishCourseUseCase: PublishCourseUseCase,
     private readonly getCourseUseCase: GetCourseUseCase,
     private readonly listCoursesUseCase: ListCoursesUseCase,
+    @Optional() private readonly catalog?: CatalogService,
   ) {}
 
   @Post()
@@ -54,7 +57,8 @@ export class CourseController {
   @ApiResponse({ status: 200, description: 'Course published and event emitted' })
   @ApiResponse({ status: 400, description: 'Course cannot be published without description' })
   @ApiResponse({ status: 404, description: 'Course not found' })
-  async publishCourse(@Param('id') id: string) {
+  async publishCourse(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+    if (this.catalog) await this.catalog.assertCanManage(id, req.user);
     return this.publishCourseUseCase.execute(id);
   }
 }

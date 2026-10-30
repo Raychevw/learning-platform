@@ -1677,6 +1677,18 @@ export default function App() {
     setNewStudentNameInGroup('');
   };
 
+  const handleAssignTeacher = async (courseId, ownerId) => {
+    const res = await syncBackend(`/catalog/${courseId}/owner`, 'PATCH', {
+      ownerId: ownerId || null,
+    });
+    if (!res) return;
+
+    setCourses((prev) =>
+      prev.map((course) => (course.id === courseId ? { ...course, ownerId: res.ownerId } : course))
+    );
+    showNotification('Відповідального викладача оновлено.');
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUserForm.fullName.trim() || !newUserForm.email.trim()) return;
@@ -3566,6 +3578,51 @@ export default function App() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="studevo-card" style={{ marginTop: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Дисципліни та викладачі
+              </h3>
+              <table className="studevo-table">
+                <thead>
+                  <tr>
+                    <th>Дисципліна</th>
+                    <th>Відповідальний викладач</th>
+                    <th>Призначити</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courses.map((course) => {
+                    const owner = systemUsers.find((user) => user.id === course.ownerId);
+                    return (
+                      <tr key={course.id}>
+                        <td>
+                          <strong>{course.title}</strong>
+                        </td>
+                        <td>{owner?.fullName || '—'}</td>
+                        <td>
+                          <select
+                            className="input-studevo-control"
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                            value={course.ownerId || ''}
+                            onChange={(e) => handleAssignTeacher(course.id, e.target.value)}
+                          >
+                            <option value="">— не призначено —</option>
+                            {systemUsers
+                              .filter((user) => user.role === 'TEACHER' || user.role === 'ADMIN')
+                              .map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.fullName}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -45,16 +45,27 @@ export class CatalogController {
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a course (draft) with an introductory module and lecture' })
-  create(@Body() dto: CreateCatalogCourseDto) {
-    return this.catalog.createCourse(dto);
+  create(@Body() dto: CreateCatalogCourseDto, @Req() req: { user: AuthUser }) {
+    return this.catalog.createCourse(dto, req.user.userId);
+  }
+
+  @Patch(':courseId/owner')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Assign a teacher as the course owner (dean only)' })
+  assignOwner(@Param('courseId') courseId: string, @Body() dto: { ownerId?: string | null }) {
+    return this.catalog.assignOwner(courseId, dto?.ownerId ?? null);
   }
 
   @Post(':courseId/modules')
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a module to a course' })
-  addModule(@Param('courseId') courseId: string, @Body() dto: { title: string }) {
-    return this.catalog.addModule(courseId, dto?.title);
+  addModule(
+    @Param('courseId') courseId: string,
+    @Body() dto: { title: string },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.catalog.addModule(courseId, dto?.title, req.user);
   }
 
   @Post('modules/:moduleId/lessons')
@@ -64,8 +75,9 @@ export class CatalogController {
   addLesson(
     @Param('moduleId') moduleId: string,
     @Body() dto: { title: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    @Req() req: { user: AuthUser },
   ) {
-    return this.catalog.addLesson(moduleId, dto || ({} as any));
+    return this.catalog.addLesson(moduleId, dto || ({} as any), req.user);
   }
 
   @Post('modules/:moduleId/lessons-file')
@@ -91,9 +103,10 @@ export class CatalogController {
     @Param('moduleId') moduleId: string,
     @Body() dto: { title?: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: { user: AuthUser },
   ) {
     if (!dto.title?.trim()) throw new BadRequestException('Вкажіть назву матеріалу');
-    return this.catalog.addLesson(moduleId, { ...dto, title: dto.title }, file || null);
+    return this.catalog.addLesson(moduleId, { ...dto, title: dto.title }, req.user, file || null);
   }
 
   @Patch('lessons/:lessonId')
@@ -102,8 +115,9 @@ export class CatalogController {
   updateLesson(
     @Param('lessonId') lessonId: string,
     @Body() dto: { title?: string; type?: string; content?: string; linkUrl?: string; videoUrl?: string },
+    @Req() req: { user: AuthUser },
   ) {
-    return this.catalog.updateLesson(lessonId, dto || {});
+    return this.catalog.updateLesson(lessonId, dto || {}, req.user);
   }
 
   @Get('lessons/:lessonId/file')
@@ -165,20 +179,27 @@ export class WebinarController {
   @ApiOperation({ summary: 'Schedule a webinar' })
   create(
     @Body() dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string },
-    @Req() req: { user?: AuthUser },
+    @Req() req: { user: AuthUser },
   ) {
-    return this.catalog.createWebinar({
-      ...dto,
-      instructor: req.user?.name || dto.instructor,
-      senderRole: req.user?.role ? req.user.role.toLowerCase() : dto.senderRole,
-    });
+    return this.catalog.createWebinar(
+      {
+        ...dto,
+        instructor: req.user?.name || dto.instructor,
+        senderRole: req.user?.role ? req.user.role.toLowerCase() : dto.senderRole,
+      },
+      req.user,
+    );
   }
 
   @Patch(':id/status')
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Change webinar status (SCHEDULED | LIVE | FINISHED)' })
-  status(@Param('id') id: string, @Body() dto: { status: string }) {
-    return this.catalog.changeWebinarStatus(id, dto?.status);
+  status(
+    @Param('id') id: string,
+    @Body() dto: { status: string },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.catalog.changeWebinarStatus(id, dto?.status, req.user);
   }
 
   @Post(':id/chat')
@@ -212,8 +233,8 @@ export class WebinarController {
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete or cancel a scheduled webinar' })
-  delete(@Param('id') id: string) {
-    return this.catalog.deleteWebinar(id);
+  delete(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+    return this.catalog.deleteWebinar(id, req.user);
   }
 }
 
@@ -245,15 +266,16 @@ export class ScheduleController {
       teacherName?: string;
       onlineUrl?: string;
     },
+    @Req() req: { user: AuthUser },
   ) {
-    return this.catalog.createSchedule(dto);
+    return this.catalog.createSchedule(dto, req.user);
   }
 
   @Delete(':id')
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a schedule entry' })
-  remove(@Param('id') id: string) {
-    return this.catalog.deleteSchedule(id);
+  remove(@Param('id') id: string, @Req() req: { user: AuthUser }) {
+    return this.catalog.deleteSchedule(id, req.user);
   }
 }
