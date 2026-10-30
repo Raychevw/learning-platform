@@ -118,6 +118,10 @@ export class WebinarEntity {
   @Column({ length: 32, default: 'SCHEDULED' })
   status!: string;
 
+  /** Зовнішня конференція: Google Meet, Zoom, Teams тощо. */
+  @Column({ name: 'meeting_url', type: 'varchar', length: 512, default: '' })
+  meetingUrl!: string;
+
   @Column({ type: 'jsonb', default: () => "'[]'" })
   chat!: WebinarChatMessage[];
 

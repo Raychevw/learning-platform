@@ -161,7 +161,13 @@ const COURSES: SeedCourse[] = [
 const WEBINARS: Array<
   Omit<
     WebinarEntity,
-    'course' | 'recordingKey' | 'recordingName' | 'recordingSize' | 'recordingMime' | 'recordingAt'
+    | 'course'
+    | 'meetingUrl'
+    | 'recordingKey'
+    | 'recordingName'
+    | 'recordingSize'
+    | 'recordingMime'
+    | 'recordingAt'
   >
 > = [
   {

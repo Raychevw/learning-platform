@@ -3,6 +3,7 @@ import './App.css';
 import './styles/clean.css';
 import { api, getToken, requestBlob } from './api/client.js';
 import Dashboard from './features/Dashboard.jsx';
+import WebinarsPage from './features/WebinarsPage.jsx';
 import { useAuth } from './auth/useAuth.js';
 import { newId } from './lib/id.js';
 import {
@@ -508,6 +509,7 @@ export default function App() {
     courseId: 'c-1',
     title: '',
     scheduledAt: getDefaultWebinarDate(),
+    meetingUrl: '',
   });
   const [streamSource, setStreamSource] = useState('slides'); // 'slides' | 'camera' | 'screen'
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
@@ -1780,6 +1782,7 @@ export default function App() {
       instructor: currentUser?.name || 'Викладач',
       scheduledAt: new Date(newWebinarForm.scheduledAt).toISOString(),
       status: 'SCHEDULED',
+      meetingUrl: newWebinarForm.meetingUrl?.trim() || '',
       chat: [
         {
           id: newId('msg'),
@@ -1797,6 +1800,7 @@ export default function App() {
       scheduledAt: createdWeb.scheduledAt,
       instructor: createdWeb.instructor,
       senderRole: userRole,
+      meetingUrl: createdWeb.meetingUrl,
     });
     if (res && res.id) {
       createdWeb.id = res.id;
@@ -1817,6 +1821,17 @@ export default function App() {
     setNewWebinarForm((prev) => ({ ...prev, title: '', scheduledAt: getDefaultWebinarDate() }));
     appendEvent('course', 'Заплановано онлайн-заняття', `«${createdWeb.title}» (${createdWeb.courseTitle})`);
     showNotification(`Онлайн-заняття «${createdWeb.title}» додано до розкладу.`);
+  };
+
+  const handleUpdateWebinarMeeting = async (webinarId, meetingUrl) => {
+    const res = await syncBackend(`/webinars/${webinarId}/meeting`, 'PATCH', { meetingUrl });
+    if (!res) return;
+    setWebinars((prev) =>
+      prev.map((webinar) =>
+        webinar.id === webinarId ? { ...webinar, meetingUrl: res.meetingUrl } : webinar
+      )
+    );
+    showNotification('Посилання на конференцію оновлено.');
   };
 
   const handleDeleteWebinar = async (webinarId) => {
@@ -2364,6 +2379,9 @@ export default function App() {
     if (submission) setSelectedSubmissionId(submission.id);
     setActiveMenu('grades');
   };
+
+  // Вбудована WebRTC-кімната вимкнена: заняття відкриваються за зовнішнім посиланням (Meet/Zoom).
+  const USE_BUILTIN_CONFERENCE = false;
 
   // Role-specific navigation menu
   const roleMenus =
@@ -3273,6 +3291,20 @@ export default function App() {
 
         {/* 5. WEBINARS & ONLINE CLASSES */}
         {activeMenu === 'webinars' && (
+          <WebinarsPage
+            webinars={webinars}
+            userRole={userRole}
+            courses={courses}
+            newWebinarForm={newWebinarForm}
+            setNewWebinarForm={setNewWebinarForm}
+            onCreate={handleScheduleWebinar}
+            onChangeStatus={handleChangeWebinarStatus}
+            onDelete={handleDeleteWebinar}
+            onUpdateMeeting={handleUpdateWebinarMeeting}
+          />
+        )}
+
+        {USE_BUILTIN_CONFERENCE && activeMenu === 'webinars' && (
           <div>
             <div className="section-header-row">
               <h2 className="section-title">Онлайн-заняття та консультації</h2>

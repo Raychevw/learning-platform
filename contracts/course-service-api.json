@@ -465,6 +465,30 @@
         ]
       }
     },
+    "/webinars/{id}/meeting": {
+      "patch": {
+        "operationId": "WebinarController_updateMeeting",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Set or update external meeting link (Meet/Zoom)",
+        "tags": [
+          "Webinars"
+        ]
+      }
+    },
     "/webinars/{id}/status": {
       "patch": {
         "operationId": "WebinarController_status",

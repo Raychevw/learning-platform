@@ -192,7 +192,15 @@ export class WebinarController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Schedule a webinar' })
   create(
-    @Body() dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string },
+    @Body()
+    dto: {
+      courseId: string;
+      title: string;
+      scheduledAt: string;
+      instructor?: string;
+      senderRole?: string;
+      meetingUrl?: string;
+    },
     @Req() req: { user: AuthUser },
   ) {
     return this.catalog.createWebinar(
@@ -203,6 +211,17 @@ export class WebinarController {
       },
       req.user,
     );
+  }
+
+  @Patch(':id/meeting')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Set or update external meeting link (Meet/Zoom)' })
+  updateMeeting(
+    @Param('id') id: string,
+    @Body() dto: { meetingUrl?: string },
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.catalog.updateWebinarMeeting(id, dto?.meetingUrl || '', req.user);
   }
 
   @Patch(':id/status')

@@ -32,6 +32,7 @@ import { Schedule1730000000001 } from './database/migrations/1730000000001-sched
 import { LessonMaterials1730000000002 } from './database/migrations/1730000000002-lesson-materials.js';
 import { CourseOwner1730000000003 } from './database/migrations/1730000000003-course-owner.js';
 import { Conferences1730000000004 } from './database/migrations/1730000000004-conferences.js';
+import { WebinarMeetingUrl1730000000005 } from './database/migrations/1730000000005-webinar-meeting-url.js';
 import { STORAGE_SERVICE_TOKEN, createStorageService } from './infrastructure/storage/storage.service.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
@@ -70,6 +71,7 @@ if (usePostgres) {
           LessonMaterials1730000000002,
           CourseOwner1730000000003,
           Conferences1730000000004,
+          WebinarMeetingUrl1730000000005,
         ],
         migrationsRun: true,
         synchronize: false,

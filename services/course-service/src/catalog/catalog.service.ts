@@ -303,6 +303,7 @@ export class CatalogService {
       instructor: w.instructor,
       scheduledAt: w.scheduledAt instanceof Date ? w.scheduledAt.toISOString() : w.scheduledAt,
       status: w.status,
+      meetingUrl: w.meetingUrl || '',
       chat: w.chat || [],
       recordingAvailable: Boolean(w.recordingKey),
       recordingName: w.recordingName || '',
@@ -318,7 +319,14 @@ export class CatalogService {
   }
 
   async createWebinar(
-    dto: { courseId: string; title: string; scheduledAt: string; instructor?: string; senderRole?: string },
+    dto: {
+      courseId: string;
+      title: string;
+      scheduledAt: string;
+      instructor?: string;
+      senderRole?: string;
+      meetingUrl?: string;
+    },
     user: RequestUser,
   ) {
     if (!dto.title || !dto.title.trim()) throw new BadRequestException('Webinar title cannot be empty');
@@ -334,6 +342,7 @@ export class CatalogService {
         instructor: dto.instructor || course.instructor,
         scheduledAt,
         status: 'SCHEDULED',
+        meetingUrl: (dto.meetingUrl || '').trim(),
         chat: [
           {
             id: newId('msg'),
@@ -348,6 +357,20 @@ export class CatalogService {
     const created = this.toWebinarDto(webinar, course.title);
     this.events.emit({ type: 'webinar', webinarId: webinar.id, webinar: created });
     return created;
+  }
+
+  async updateWebinarMeeting(id: string, meetingUrl: string, user: RequestUser) {
+    const webinar = await this.webinars.findOneBy({ id });
+    if (!webinar) throw new NotFoundException(`Webinar ${id} not found`);
+    await assertCourseOwner(this.courses, webinar.courseId, user);
+
+    const value = (meetingUrl || '').trim();
+    if (value && !/^https?:\/\//i.test(value)) {
+      throw new BadRequestException('Посилання має починатися з http:// або https://');
+    }
+    webinar.meetingUrl = value;
+    await this.webinars.save(webinar);
+    return { id, meetingUrl: value };
   }
 
   async changeWebinarStatus(id: string, status: string, user: RequestUser) {
