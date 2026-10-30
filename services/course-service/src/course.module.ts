@@ -10,6 +10,7 @@ import {
   WebinarEntity,
   ScheduleEntryEntity,
   WebinarAttendanceEntity,
+  SemesterEntity,
 } from './infrastructure/database/entities/CatalogEntities.js';
 import { CourseRepositoryImpl } from './infrastructure/database/repositories/CourseRepositoryImpl.js';
 import { InMemoryCourseRepository } from './infrastructure/database/repositories/InMemoryCourseRepository.js';
@@ -21,8 +22,13 @@ import { PublishCourseUseCase } from './application/course/PublishCourseUseCase.
 import { GetCourseUseCase, ListCoursesUseCase } from './application/course/GetCourseUseCase.js';
 import { CourseController } from './presentation/controllers/CourseController.js';
 import { CatalogService } from './catalog/catalog.service.js';
-import { CatalogController, WebinarController, ScheduleController } from './catalog/catalog.controller.js';
-import { CatalogSeeder, ScheduleSeeder } from './catalog/catalog.seeder.js';
+import {
+  CatalogController,
+  WebinarController,
+  ScheduleController,
+  SemesterController,
+} from './catalog/catalog.controller.js';
+import { CatalogSeeder, ScheduleSeeder, SemesterSeeder } from './catalog/catalog.seeder.js';
 import { WebinarEventsService } from './catalog/webinar-events.service.js';
 import { HealthController } from './presentation/controllers/HealthController.js';
 import { ConfigController } from './presentation/controllers/ConfigController.js';
@@ -33,6 +39,7 @@ import { LessonMaterials1730000000002 } from './database/migrations/173000000000
 import { CourseOwner1730000000003 } from './database/migrations/1730000000003-course-owner.js';
 import { Conferences1730000000004 } from './database/migrations/1730000000004-conferences.js';
 import { WebinarMeetingUrl1730000000005 } from './database/migrations/1730000000005-webinar-meeting-url.js';
+import { Semesters1730000000006 } from './database/migrations/1730000000006-semesters.js';
 import { STORAGE_SERVICE_TOKEN, createStorageService } from './infrastructure/storage/storage.service.js';
 
 const usePostgres = process.env.USE_POSTGRES !== 'false';
@@ -45,6 +52,7 @@ const ALL_ENTITIES = [
   WebinarEntity,
   ScheduleEntryEntity,
   WebinarAttendanceEntity,
+  SemesterEntity,
 ];
 
 const dynamicImports: any[] = [
@@ -72,6 +80,7 @@ if (usePostgres) {
           CourseOwner1730000000003,
           Conferences1730000000004,
           WebinarMeetingUrl1730000000005,
+          Semesters1730000000006,
         ],
         migrationsRun: true,
         synchronize: false,
@@ -85,8 +94,12 @@ if (usePostgres) {
 }
 
 // Catalog (modules, lessons, progress) and webinars require PostgreSQL
-const catalogControllers = usePostgres ? [CatalogController, WebinarController, ScheduleController] : [];
-const catalogProviders = usePostgres ? [CatalogService, CatalogSeeder, ScheduleSeeder, WebinarEventsService] : [];
+const catalogControllers = usePostgres
+  ? [CatalogController, WebinarController, ScheduleController, SemesterController]
+  : [];
+const catalogProviders = usePostgres
+  ? [CatalogService, CatalogSeeder, ScheduleSeeder, SemesterSeeder, WebinarEventsService]
+  : [];
 
 @Module({
   imports: dynamicImports,

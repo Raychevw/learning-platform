@@ -313,6 +313,36 @@ export class WebinarController {
   }
 }
 
+@ApiTags('Semesters')
+@Controller('semesters')
+export class SemesterController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List academic semesters' })
+  list() {
+    return this.catalog.listSemesters();
+  }
+
+  @Post()
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a semester (dean only)' })
+  create(
+    @Body()
+    dto: { name: string; number: number; startDate: string; endDate: string; isActive?: boolean },
+  ) {
+    return this.catalog.createSemester(dto);
+  }
+
+  @Patch(':id/activate')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Make a semester the active one (dean only)' })
+  activate(@Param('id') id: string) {
+    return this.catalog.activateSemester(id);
+  }
+}
+
 @ApiTags('Schedule')
 @Controller('schedule')
 export class ScheduleController {

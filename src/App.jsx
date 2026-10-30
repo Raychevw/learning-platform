@@ -80,6 +80,14 @@ export default function App() {
   const [schedule, setSchedule] = useState([]);
   const [allEnrollments, setAllEnrollments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [semesters, setSemesters] = useState([]);
+  const [newSemesterForm, setNewSemesterForm] = useState({
+    name: '',
+    number: 1,
+    startDate: '',
+    endDate: '',
+    isActive: false,
+  });
   const [directory, setDirectory] = useState([]);
   const [inboxMessages, setInboxMessages] = useState([]);
   const [sentMessages, setSentMessages] = useState([]);
@@ -126,6 +134,7 @@ export default function App() {
         inboxRes,
         sentRes,
         unreadRes,
+        semestersRes,
       ] = await Promise.allSettled([
           api.get(`/api/catalog?userId=${userId}`),
           api.get('/api/assignments-full'),
@@ -141,6 +150,7 @@ export default function App() {
           api.get('/api/messages/inbox'),
           api.get('/api/messages/sent'),
           api.get('/api/messages/unread'),
+          api.get('/api/semesters'),
         ]);
       if (isCancelled) return;
 
@@ -163,6 +173,7 @@ export default function App() {
       if (unreadRes.status === 'fulfilled' && unreadRes.value) {
         setUnreadMessages(Number(unreadRes.value.unread) || 0);
       }
+      apply(semestersRes, setSemesters);
     };
 
     load();
@@ -2052,6 +2063,37 @@ export default function App() {
     setUnreadMessages((prev) => Math.max(0, prev - 1));
   };
 
+  const handleCreateSemester = async (e) => {
+    e.preventDefault();
+    if (!newSemesterForm.name.trim() || !newSemesterForm.startDate || !newSemesterForm.endDate) return;
+
+    const res = await syncBackend('/semesters', 'POST', {
+      name: newSemesterForm.name.trim(),
+      number: Number(newSemesterForm.number),
+      startDate: new Date(newSemesterForm.startDate).toISOString(),
+      endDate: new Date(newSemesterForm.endDate).toISOString(),
+      isActive: newSemesterForm.isActive,
+    });
+    if (!res) return;
+
+    if (res.isActive) {
+      setSemesters((prev) => [res, ...prev.map((item) => ({ ...item, isActive: false }))]);
+    } else {
+      setSemesters((prev) => [res, ...prev]);
+    }
+    setNewSemesterForm({ name: '', number: 1, startDate: '', endDate: '', isActive: false });
+    showNotification('Семестр створено.');
+  };
+
+  const handleActivateSemester = async (semesterId) => {
+    const res = await syncBackend(`/semesters/${semesterId}/activate`, 'PATCH');
+    if (!res) return;
+    setSemesters((prev) =>
+      prev.map((semester) => ({ ...semester, isActive: semester.id === semesterId }))
+    );
+    showNotification('Активний семестр оновлено.');
+  };
+
   const handleAssignCurator = async (groupId, curatorId) => {
     const res = await syncBackend(`/groups/${groupId}/curator`, 'PATCH', {
       curatorId: curatorId || null,
@@ -2364,6 +2406,7 @@ export default function App() {
     (max, course) => Math.max(max, Number(course.semester) || 1),
     1
   );
+  const activeSemester = semesters.find((semester) => semester.isActive) || null;
 
   const handleOpenAssignment = (assignmentId) => {
     if (!assignmentId) {
@@ -2610,6 +2653,8 @@ export default function App() {
             allEnrollments={allEnrollments}
             analytics={analytics}
             announcements={announcements}
+            semesters={semesters}
+            activeSemester={activeSemester}
             myGroup={myGroup}
             semester={currentSemester}
             ungradedSubmissions={ungradedSubmissions}
@@ -4134,6 +4179,122 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="studevo-card" style={{ marginTop: '20px' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--studevo-red-dark)' }}>
+                Семестри
+              </h3>
+              <table className="studevo-table" style={{ marginBottom: '14px' }}>
+                <thead>
+                  <tr>
+                    <th>Семестр</th>
+                    <th>Номер</th>
+                    <th>Початок</th>
+                    <th>Завершення</th>
+                    <th>Статус</th>
+                    <th>Дія</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {semesters.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', color: '#868e96' }}>
+                        Семестрів ще немає
+                      </td>
+                    </tr>
+                  ) : (
+                    semesters.map((semester) => (
+                      <tr key={semester.id}>
+                        <td><strong>{semester.name}</strong></td>
+                        <td>{semester.number}</td>
+                        <td>{new Date(semester.startDate).toLocaleDateString('uk-UA')}</td>
+                        <td>{new Date(semester.endDate).toLocaleDateString('uk-UA')}</td>
+                        <td>
+                          <span className={`dash-status ${semester.isActive ? 'done' : 'pending'}`}>
+                            {semester.isActive ? 'Активний' : 'Закритий'}
+                          </span>
+                        </td>
+                        <td>
+                          {!semester.isActive && (
+                            <button
+                              type="button"
+                              className="btn-studevo-outline"
+                              style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                              onClick={() => handleActivateSemester(semester.id)}
+                            >
+                              Зробити активним
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+
+              <form onSubmit={handleCreateSemester}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.6fr 1fr 1fr 0.8fr', gap: '10px' }}>
+                  <div className="form-group-field">
+                    <label>Назва</label>
+                    <input
+                      type="text"
+                      className="input-studevo-control"
+                      value={newSemesterForm.name}
+                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, name: e.target.value })}
+                      placeholder="Осінній семестр 2027/2028"
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Номер</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      className="input-studevo-control"
+                      value={newSemesterForm.number}
+                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, number: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Початок</label>
+                    <input
+                      type="date"
+                      className="input-studevo-control"
+                      value={newSemesterForm.startDate}
+                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, startDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Завершення</label>
+                    <input
+                      type="date"
+                      className="input-studevo-control"
+                      value={newSemesterForm.endDate}
+                      onChange={(e) => setNewSemesterForm({ ...newSemesterForm, endDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-field">
+                    <label>Активний</label>
+                    <select
+                      className="input-studevo-control"
+                      value={newSemesterForm.isActive ? 'yes' : 'no'}
+                      onChange={(e) =>
+                        setNewSemesterForm({ ...newSemesterForm, isActive: e.target.value === 'yes' })
+                      }
+                    >
+                      <option value="no">Ні</option>
+                      <option value="yes">Так</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="btn-studevo-primary" style={{ marginTop: '12px' }}>
+                  Створити семестр
+                </button>
+              </form>
             </div>
 
             <div className="studevo-card" style={{ marginTop: '20px' }}>

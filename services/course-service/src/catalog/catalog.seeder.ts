@@ -7,6 +7,7 @@ import {
   LessonCompletionEntity,
   WebinarEntity,
   ScheduleEntryEntity,
+  SemesterEntity,
 } from '../infrastructure/database/entities/CatalogEntities.js';
 
 type SeedLesson = { id: string; title: string; type: string; content: string; completedBy?: string[] };
@@ -225,6 +226,41 @@ export class CatalogSeeder implements OnApplicationBootstrap {
       }
     });
     this.logger.log(`Seeded course_db with ${COURSES.length} courses and ${WEBINARS.length} webinars`);
+  }
+}
+
+/** Базові семестри 2026/2027, якщо таблиця порожня. */
+@Injectable()
+export class SemesterSeeder implements OnApplicationBootstrap {
+  private readonly logger = new Logger(SemesterSeeder.name);
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onApplicationBootstrap() {
+    if (process.env.SEED_DEMO_DATA === 'false') return;
+
+    const repo = this.dataSource.getRepository(SemesterEntity);
+    if ((await repo.count()) > 0) return;
+
+    await repo.save([
+      repo.create({
+        id: 'sem-2026-autumn',
+        name: 'Осінній семестр 2026/2027',
+        number: 1,
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2027-01-25T00:00:00.000Z'),
+        isActive: true,
+      }),
+      repo.create({
+        id: 'sem-2027-spring',
+        name: 'Весняний семестр 2026/2027',
+        number: 2,
+        startDate: new Date('2027-02-08T00:00:00.000Z'),
+        endDate: new Date('2027-06-28T00:00:00.000Z'),
+        isActive: false,
+      }),
+    ]);
+    this.logger.log('Seeded academic semesters 2026/2027');
   }
 }
 

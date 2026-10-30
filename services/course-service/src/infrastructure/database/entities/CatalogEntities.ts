@@ -142,6 +142,28 @@ export class WebinarEntity {
   recordingAt!: Date | null;
 }
 
+/** Навчальний семестр. */
+@Entity('semesters')
+export class SemesterEntity {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  id!: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  name!: string;
+
+  @Column({ type: 'int' })
+  number!: number;
+
+  @Column({ name: 'start_date', type: 'timestamptz' })
+  startDate!: Date;
+
+  @Column({ name: 'end_date', type: 'timestamptz' })
+  endDate!: Date;
+
+  @Column({ name: 'is_active', type: 'boolean', default: false })
+  isActive!: boolean;
+}
+
 /** Журнал входу/виходу учасників конференції. */
 @Entity('webinar_attendance')
 @Index(['webinarId', 'userId'])
