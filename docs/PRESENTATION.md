@@ -350,7 +350,42 @@ res = await syncBackend(`/assignments/${targetAsg.id}/submit-file`, 'POST', form
 
 ## 4. Жива демонстрація БД (найефектніше)
 
-Відкрити друге вікно PowerShell. Підключення:
+### Варіант 1 — готовий скрипт (найпростіше)
+
+У корені проєкту:
+
+```powershell
+.\scripts\show-db.ps1
+```
+
+Скрипт показує:
+
+1. користувачів, ролі та телефони;
+2. дисципліни, модулі, уроки, розклад;
+3. здачі лабораторних;
+4. журнал оцінок;
+5. групи та зарахування;
+6. журнал аудиту;
+7. кількість повідомлень.
+
+Для демонстрації з паузами:
+
+```powershell
+.\scripts\show-db.ps1 -Pause
+```
+
+Окремий розділ:
+
+```powershell
+.\scripts\show-db.ps1 -Only submissions
+.\scripts\show-db.ps1 -Only grades
+.\scripts\show-db.ps1 -Only users
+.\scripts\show-db.ps1 -Only groups
+```
+
+Скрипт лише читає дані — нічого не змінює.
+
+### Варіант 2 — вручну через psql
 
 ```powershell
 $psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
@@ -369,6 +404,45 @@ $env:PGPASSWORD = 'postgres'
 
 Показати в UI сторінку «Оцінювання», виставити оцінку, повторити запит —
 у рядка з'явиться `GRADED` і бал.
+
+### Сценарій A2: оцінювання sub-2 крок за кроком
+
+Підготовлені SQL-файли (нічого не треба вводити вручну):
+
+```powershell
+# 1. Стан ДО: sub-2 у черзі, оцінки ще немає
+& $psql -h localhost -p 5432 -U postgres -d assignment_db `
+  -f .\scripts\sql\demo-grading-before.sql
+```
+
+Далі в UI:
+
+1. Увійти як `teacher` / `123456`.
+2. Відкрити «Оцінювання».
+3. Вибрати **Марина Шевченко (ІПЗ-412) — Лабораторна робота 3**.
+4. Ввести бали за критеріями.
+5. Вибрати правило `EXCELLENCE_BONUS` (щоб було видно бонус +5).
+6. Натиснути «Виставити оцінки».
+
+Після цього:
+
+```powershell
+# 2. Стан ПІСЛЯ: GRADED + новий рядок у grades
+& $psql -h localhost -p 5432 -U postgres -d assignment_db `
+  -f .\scripts\sql\demo-grading-after.sql
+```
+
+Очікувано:
+
+- `sub-2`: `status = GRADED`, `score = 96.00`;
+- у `grades`: новий рядок із `rule = EXCELLENCE_BONUS` і критеріями.
+
+Повернути роботу в чергу після демонстрації:
+
+```powershell
+& $psql -h localhost -p 5432 -U postgres -d assignment_db `
+  -f .\scripts\sql\demo-grading-reset.sql
+```
 
 ### Сценарій B: оцінки
 
