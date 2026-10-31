@@ -206,6 +206,8 @@ docker compose up --build
 У production — `SEED_DEMO_DATA=false`.
 
 > Покроковий сценарій демонстрації на 5–7 хвилин — у [docs/DEMO.md](docs/DEMO.md).
+> Runbook для захисту (запуск, показ коду, зв'язок з БД) — у
+> [docs/PRESENTATION.md](docs/PRESENTATION.md).
 
 ---
 
