@@ -228,6 +228,124 @@ const saved = await this.dataSource.transaction(async (em) => {
 У Docker ці бази рознесені на різні контейнери та порти (див. `docker-compose.yml`).
 Локально вони живуть на одному PostgreSQL, але як **окремі бази**.
 
+### 3.9. Здача лабораторної: повний ланцюжок
+
+**Frontend** — `src/App.jsx`, рядок **994**, `handleStudentSubmit`:
+
+```js
+const formData = new FormData();
+formData.append('file', file);
+if (comment) formData.append('comment', comment);
+res = await syncBackend(`/assignments/${targetAsg.id}/submit-file`, 'POST', formData);
+```
+
+Далі запит іде через шлюз у `assignment-service`.
+
+**Controller** — `services/assignment-service/src/coursework/coursework.controller.ts`,
+рядок **68**, `POST /assignments/:id/submit-file`:
+
+- `FileInterceptor` приймає файл;
+- `@Roles(UserRole.STUDENT)` — здавати може лише студент;
+- особа студента береться з JWT (`req.user`), а не з тіла запиту.
+
+**Service** — `services/assignment-service/src/coursework/coursework.service.ts`,
+рядок **189**, `persistSubmission`:
+
+1. знаходить завдання в БД (`this.assignments.findOneBy`);
+2. рахує прострочення: `now > dueDate` → `isLate = true` (рядок **200**);
+3. перевіряє, чи завдання вже відкрите (`openAt`);
+4. перевіряє розширення файлу за `allowedFormats` (рядки **211–217**);
+5. якщо пізня здача заборонена — повертає `400`;
+6. визначає групу студента із зарахування (`resolveGroupName`, рядок **226**);
+7. зберігає файл через адаптер сховища (`this.storage.put`, рядок **237**) —
+   локальний диск або S3/MinIO;
+8. створює або оновлює рядок у таблиці `submissions`:
+   `status = 'READY_FOR_GRADING'`, `score = null`, `isLate`, `fileKey` (рядки **244–265**);
+9. якщо файл замінено — видаляє старий артефакт (рядки **273–275**).
+
+**Таблиця `submissions`:**
+
+- один рядок на пару `(assignmentId, studentId)` — це гарантує unique-індекс;
+- зберігає `studentName`, `group_name`, `submittedAt`, `fileName`, `fileKey`,
+  `isLate`, `status`, `score`.
+
+**Скачування файлу** — `coursework.service.ts`, рядок **280**:
+студент може скачати лише свій файл, викладач/деканат — будь-який у межах доступу.
+
+Що показати:
+
+1. Студент обирає PDF/DOCX і натискає «Здати роботу».
+2. У консолі БД:
+   ```powershell
+   & $psql -h localhost -p 5432 -U postgres -d assignment_db `
+     -c 'SELECT id, status, score FROM submissions ORDER BY id DESC LIMIT 3;'
+   ```
+3. У новому рядку — `READY_FOR_GRADING`, `score` порожній.
+
+### 3.10. Оцінювання: рубрика, Strategy і транзакція
+
+**Frontend** — `src/App.jsx`, рядок **1113**, `handleGradeWithStrategy`:
+
+- бали за критеріями вводяться у формі;
+- `liveRawScore` — сума критеріїв (рядок **1092**);
+- `liveFinalScore` — попередній розрахунок із урахуванням правила (рядок **1102**);
+- після сабміту — `POST /api/grading/grade`.
+
+**Controller** — `coursework.controller.ts`, рядок **110**:
+
+```ts
+@Post('grading/grade')
+@Roles(UserRole.TEACHER)
+```
+
+Деканат цей endpoint викликати не може — отримує `403`. Це перевіряється в
+`verify:lab3`.
+
+**Service** — `coursework.service.ts`, рядок **298**, `gradeSubmission`:
+
+1. завантажує здачу та завдання з БД;
+2. бере критерії рубрики;
+3. викликає `validateCriteriaScores(...)` — `grading-policy.ts`, рядок **10**:
+   - невідомий критерій → `400`;
+   - від'ємний бал → `400`;
+   - бал більший за максимум критерію → `400`;
+   - сума більша за максимум роботи → `400`;
+4. визначає правило через `resolveRule(...)` — рядок **41**:
+   - `AUTO` + прострочення → `LATE_PENALTY`;
+   - інакше `STANDARD`; викладач може явно вибрати `EXCELLENCE_BONUS`;
+5. передає дані в доменний use case, який застосовує **Strategy**:
+   - `LatePenaltyGradingStrategy` — мінус 20% за пізню здачу;
+   - `ExcellenceBonusGradingStrategy` — +5 балів, якщо ≥ 90% і вчасно;
+   - `StandardGradingStrategy` — без змін;
+6. у транзакції (рядок **333**):
+   - оновлює `submissions`: `status = 'GRADED'`, `score = finalScore`;
+   - створює або оновлює рядок у `grades`;
+7. повертає фінальний бал, правило та ECTS.
+
+Що показати:
+
+1. Викладач відкриває «Оцінювання», вибирає роботу.
+2. Вводить бали за критеріями — підсумок і ECTS оновлюються одразу.
+3. Натискає «Виставити оцінки».
+4. У консолі БД:
+   ```powershell
+   & $psql -h localhost -p 5432 -U postgres -d assignment_db `
+     -c 'SELECT id, status, score FROM submissions WHERE id = ''sub-2'';'
+   & $psql -h localhost -p 5432 -U postgres -d assignment_db `
+     -c 'SELECT * FROM grades LIMIT 2;'
+   ```
+5. У `submissions` статус став `GRADED`, з'явився бал; у `grades` — новий рядок.
+
+### 3.11. Що сказати про бізнес-правила
+
+- Одна робота на студента й завдання — unique-індекс у БД.
+- Прострочення фіксує сервер, а не браузер.
+- Штраф 20% застосовується автоматично, якщо викладач не вибрав інше правило.
+- Бали за рубрикою перевіряються на сервері: «намалювати» 999 балів у DevTools
+  не вийде.
+- Оцінка й здача зберігаються транзакційно — або обидва записи, або жоден.
+- Деканат не має права оцінювати — це закрито на рівні RBAC.
+
 ---
 
 ## 4. Жива демонстрація БД (найефектніше)
