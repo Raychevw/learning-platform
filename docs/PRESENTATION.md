@@ -385,13 +385,36 @@ res = await syncBackend(`/assignments/${targetAsg.id}/submit-file`, 'POST', form
 
 Скрипт лише читає дані — нічого не змінює.
 
-### Варіант 2 — вручну через psql
+### Варіант 2 — psql із правильним UTF-8
+
+Якщо у звичайному PowerShell українські літери виглядають як «кракозябри»,
+використовуйте готовий запуск:
 
 ```powershell
-$psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
-$env:PGPASSWORD = 'postgres'
+# інтерактивна сесія psql
+.\scripts\db-console.ps1 -Database assignment_db
 
-# список таблиць
+# або один запит
+.\scripts\db-console.ps1 -Database auth_db `
+  -Query "SELECT full_name, phone, role FROM users ORDER BY role, full_name;"
+```
+
+Скрипт сам перемикає консоль на UTF-8, бере пароль із `.env` і запускає psql.
+
+Для ручного запуску спочатку виконайте:
+
+```powershell
+chcp 65001
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PGCLIENTENCODING = 'UTF8'
+$env:PGPASSWORD = 'postgres'
+$psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
+```
+
+І вже потім:
+
+```powershell
 & $psql -h localhost -p 5432 -U postgres -d assignment_db -c '\dt'
 ```
 
